@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Vault — trade Roblox items with escrow-protected settlement via card or crypto checkout.">
+<title>Vault — Roblox Trading Exchange</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Crect width='26' height='26' rx='6' fill='%23F2B705'/%3E%3Ctext x='13' y='19' font-size='15' font-family='sans-serif' font-weight='800' text-anchor='middle' fill='%230A0D12'%3EV%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header>
+  <a class="brand" href="#home"><div class="mark">V</div> Vault</a>
+  <nav id="main-nav">
+    <a href="#auctions" data-scroll>Live auctions</a>
+    <a href="#listings" data-scroll>Marketplace</a>
+    <a href="#" id="nav-sell">Sell an item</a>
+  </nav>
+  <div class="header-right">
+    <div id="auth-area" class="auth-area"></div>
+    <button class="nav-toggle" id="nav-toggle" aria-label="Menu">☰</button>
+    <div class="dropdown" id="notif-dropdown">
+      <div class="dropdown-head"><span>Notifications</span><button class="btn btn-small" id="notif-mark-read">Mark all read</button></div>
+      <div class="dropdown-list" id="notif-list"></div>
+    </div>
+    <div class="dropdown" id="user-dropdown" style="width:220px">
+      <div class="menu-item" data-go="dashboard">📦 Dashboard</div>
+      <div class="menu-item" id="menu-profile">👤 My profile</div>
+      <div class="menu-item" id="menu-admin" style="display:none" data-go="admin">🛡 Admin</div>
+      <div class="menu-item danger" id="menu-logout">Sign out</div>
+    </div>
+  </div>
+</header>
+<div class="mobile-nav" id="mobile-nav">
+  <a href="#auctions" data-scroll>Live auctions</a>
+  <a href="#listings" data-scroll>Marketplace</a>
+  <a href="#" id="nav-sell-mobile">Sell an item</a>
+  <a href="#dashboard">Dashboard</a>
+</div>
+
+<!-- ================= HOME VIEW ================= -->
+<div class="view active" id="view-home">
+
+<div class="ticker-wrap"><div class="ticker-track" id="ticker"></div></div>
+
+<section class="hero">
+  <h1>Trade Roblox items with <span class="accent">escrow protection</span>, not promises.</h1>
+  <p>Every payment is held in escrow until the buyer confirms delivery. Card, crypto, or site credit — a flat <span id="fee-pct">6%</span> fee, seller ratings, and disputes handled by real moderators.</p>
+  <div class="hero-cta">
+    <button class="btn btn-gold" id="cta-browse">Browse live auctions</button>
+    <button class="btn" id="cta-sell">List an item</button>
+  </div>
+  <div class="hero-stats" id="hero-stats"></div>
+</section>
+
+<section class="section" id="auctions">
+  <div class="section-head">
+    <div>
+      <span class="eyebrow">Ending soon</span>
+      <h2>Live auctions</h2>
+    </div>
+  </div>
+  <div class="search-bar" id="auctions-search-bar">
+    <div class="search-input-wrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="search" id="auctions-q" placeholder="Search live auctions…" autocomplete="off">
+    </div>
+    <div class="price-range">
+      <input type="number" id="auctions-min-price" placeholder="Min $" min="0" step="0.01">
+      <span>–</span>
+      <input type="number" id="auctions-max-price" placeholder="Max $" min="0" step="0.01">
+    </div>
+    <select id="auctions-sort">
+      <option value="ending_soon">Ending soon</option>
+      <option value="newest">Newest</option>
+      <option value="price_asc">Price: low to high</option>
+      <option value="price_desc">Price: high to low</option>
+    </select>
+    <button class="clear-btn" id="auctions-clear">Clear</button>
+  </div>
+  <div class="search-meta" id="auctions-meta"></div>
+  <div class="grid" id="auctions-grid"><div class="empty">Loading auctions…</div></div>
+  <div class="load-more-wrap" id="auctions-load-more-wrap" style="display:none;">
+    <button class="btn" id="auctions-load-more">Load more</button>
+  </div>
+</section>
+
+<section class="section" id="listings">
+  <div class="section-head">
+    <div>
+      <span class="eyebrow">Fixed price</span>
+      <h2>Marketplace</h2>
+    </div>
+  </div>
+  <div class="search-bar" id="listings-search-bar">
+    <div class="search-input-wrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="search" id="listings-q" placeholder="Search the marketplace…" autocomplete="off">
+    </div>
+    <div class="price-range">
+      <input type="number" id="listings-min-price" placeholder="Min $" min="0" step="0.01">
+      <span>–</span>
+      <input type="number" id="listings-max-price" placeholder="Max $" min="0" step="0.01">
+    </div>
+    <select id="listings-sort">
+      <option value="newest">Newest</option>
+      <option value="price_asc">Price: low to high</option>
+      <option value="price_desc">Price: high to low</option>
+    </select>
+    <button class="clear-btn" id="listings-clear">Clear</button>
+  </div>
+  <div class="search-meta" id="listings-meta"></div>
+  <div class="grid" id="listings-grid"><div class="empty">Loading listings…</div></div>
+  <div class="load-more-wrap" id="listings-load-more-wrap" style="display:none;">
+    <button class="btn" id="listings-load-more">Load more</button>
+  </div>
+</section>
+
+<section class="section" id="how-it-works">
+  <div class="section-head"><div><span class="eyebrow">Trust &amp; safety</span><h2>How escrow works</h2></div></div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">
+    <div class="card" style="padding:20px"><h3 style="margin:0 0 8px">1 · Buyer pays</h3><p style="color:var(--muted);font-size:0.88rem;margin:0">Card, crypto, or site credit. The money lands in Vault escrow — the seller can see it's secured, but can't touch it yet.</p></div>
+    <div class="card" style="padding:20px"><h3 style="margin:0 0 8px">2 · Trade in Roblox</h3><p style="color:var(--muted);font-size:0.88rem;margin:0">Buyer and seller coordinate through order chat and complete the item hand-off in game. The seller marks it delivered.</p></div>
+    <div class="card" style="padding:20px"><h3 style="margin:0 0 8px">3 · Buyer confirms</h3><p style="color:var(--muted);font-size:0.88rem;margin:0">Once the buyer confirms receipt (or 72h pass after delivery with no dispute), escrow releases to the seller's balance.</p></div>
+    <div class="card" style="padding:20px"><h3 style="margin:0 0 8px">4 · Something wrong?</h3><p style="color:var(--muted);font-size:0.88rem;margin:0">Open a dispute — payment freezes instantly and a moderator reviews the order chat to refund or release.</p></div>
+  </div>
+</section>
+
+</div><!-- /view-home -->
+
+<!-- ================= DASHBOARD VIEW ================= -->
+<div class="view" id="view-dashboard">
+  <div class="page">
+    <div class="page-head">
+      <div><h2>Dashboard</h2><div class="sub" id="dash-hello"></div></div>
+      <button class="btn btn-gold" id="dash-sell">+ List an item</button>
+    </div>
+    <div class="stat-cards" id="dash-stats"></div>
+    <div class="tabs" id="dash-tabs">
+      <button class="tab active" data-tab="purchases">Purchases <span class="count" id="tc-purchases"></span></button>
+      <button class="tab" data-tab="sales">Sales <span class="count" id="tc-sales"></span></button>
+      <button class="tab" data-tab="selling">My listings <span class="count" id="tc-selling"></span></button>
+      <button class="tab" data-tab="bids">My bids</button>
+      <button class="tab" data-tab="wallet">Wallet</button>
+      <button class="tab" data-tab="favorites">Favorites</button>
+    </div>
+    <div id="dash-content"></div>
+  </div>
+</div>
+
+<!-- ================= PROFILE VIEW ================= -->
+<div class="view" id="view-profile">
+  <div class="page" id="profile-page"></div>
+</div>
+
+<!-- ================= ADMIN VIEW ================= -->
+<div class="view" id="view-admin">
+  <div class="page">
+    <div class="page-head"><div><h2>Admin</h2><div class="sub">Moderation, disputes &amp; payouts</div></div></div>
+    <div class="stat-cards" id="admin-stats"></div>
+    <div class="tabs" id="admin-tabs">
+      <button class="tab active" data-tab="disputes">Disputes</button>
+      <button class="tab" data-tab="withdrawals">Withdrawals</button>
+      <button class="tab" data-tab="users">Users</button>
+    </div>
+    <div id="admin-content"></div>
+  </div>
+</div>
+
+<footer>
+  <span>Vault — escrow-protected trading. Not affiliated with Roblox Corporation.</span>
+  <span><span id="fee-pct-2">6%</span> buyer fee at checkout — sellers keep 100% of their price.</span>
+</footer>
+
+<div class="toast-stack" id="toast-stack"></div>
+
+<!-- Sell / list modal -->
+<div class="overlay" id="sell-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="sell-overlay">✕</button>
+    <h3>List an item</h3>
+    <div class="sub">Choose fixed price for instant buys, or auction for competitive bidding.</div>
+    <div class="pill-group" id="sell-type">
+      <button type="button" class="pill active" data-type="fixed">Fixed price</button>
+      <button type="button" class="pill" data-type="auction">Auction</button>
+    </div>
+    <div class="field"><label>Title</label><input id="sell-title" placeholder="Dominus Empyreus" maxlength="140"></div>
+    <div class="field"><label>Description</label><textarea id="sell-desc" placeholder="Condition, trade history, proof screenshots…" maxlength="2000"></textarea></div>
+    <div class="field"><label>Image URL</label><input id="sell-image" placeholder="https://…"><small>Tip: right-click the item on the Roblox catalog → copy image address.</small></div>
+    <div class="field" id="sell-price-field"><label>Price (USD)</label><input id="sell-price" type="number" min="1" step="0.01" placeholder="25.00"></div>
+    <div id="sell-auction-fields" style="display:none">
+      <div class="field-row">
+        <div class="field"><label>Starting bid (USD)</label><input id="sell-start-bid" type="number" min="1" step="0.01" placeholder="10.00"></div>
+        <div class="field"><label>Min increment (USD)</label><input id="sell-increment" type="number" min="0.5" step="0.5" placeholder="1.00" value="1.00"></div>
+      </div>
+      <div class="field">
+        <label>Duration</label>
+        <select id="sell-duration">
+          <option value="60">1 hour</option>
+          <option value="360">6 hours</option>
+          <option value="1440" selected>24 hours</option>
+          <option value="4320">3 days</option>
+          <option value="10080">7 days</option>
+        </select>
+      </div>
+    </div>
+    <div class="error-text" id="sell-error"></div>
+    <div class="modal-actions">
+      <button class="btn btn-gold" id="sell-submit" style="flex:1">Post listing</button>
+    </div>
+  </div>
+</div>
+
+<!-- Auction detail / bid modal -->
+<div class="overlay" id="bid-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="bid-overlay">✕</button>
+    <div class="card-head-row">
+      <div class="modal-thumb" id="bid-thumb"></div>
+      <button class="fav-star" id="bid-fav" title="Watch this auction">★</button>
+    </div>
+    <h3 id="bid-title">Auction</h3>
+    <div class="sub" id="bid-sub"></div>
+    <div class="sub" id="bid-desc" style="margin-top:6px"></div>
+    <div class="field" id="bid-field"><label>Your bid (USD)</label><input id="bid-amount" type="number" min="0" step="0.01"></div>
+    <div class="error-text" id="bid-error"></div>
+    <div class="modal-actions" id="bid-actions">
+      <button class="btn btn-gold" id="bid-submit" style="flex:1">Place bid</button>
+    </div>
+    <div id="checkout-area" style="display:none">
+      <div class="sub" style="margin-bottom:10px;">You won this auction. Choose how to pay:</div>
+      <div class="pay-options">
+        <button class="btn" id="pay-stripe">💳 Card</button>
+        <button class="btn" id="pay-crypto">◈ Crypto</button>
+      </div>
+    </div>
+    <div class="bid-history" id="bid-history"></div>
+  </div>
+</div>
+
+<!-- Buy (fixed price) modal -->
+<div class="overlay" id="buy-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="buy-overlay">✕</button>
+    <div class="card-head-row">
+      <div class="modal-thumb" id="buy-thumb"></div>
+      <button class="fav-star" id="buy-fav" title="Save this listing">★</button>
+    </div>
+    <h3 id="buy-title">Item</h3>
+    <div class="sub" id="buy-sub"></div>
+    <div class="sub" id="buy-desc" style="margin-top:6px"></div>
+    <div class="inline-note">🛡 <b>Escrow protected</b> — the seller only gets paid after you confirm you received the item in Roblox.</div>
+    <div class="error-text" id="buy-error"></div>
+    <div class="pay-options">
+      <button class="btn btn-gold" id="buy-credit">Use site credit</button>
+      <button class="btn" id="buy-stripe">💳 Card</button>
+      <button class="btn" id="buy-crypto">◈ Crypto</button>
+    </div>
+  </div>
+</div>
+
+<!-- Crypto payment instructions modal -->
+<div class="overlay" id="crypto-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="crypto-overlay">✕</button>
+    <h3>Send payment</h3>
+    <div class="sub">Send the exact amount below. This updates automatically once the network confirms it.</div>
+    <div class="crypto-box">
+      <div class="crypto-row"><span>Amount</span><b id="crypto-amount" class="mono"></b></div>
+      <div class="crypto-row address-row">
+        <span>Address</span>
+        <div class="address-copy">
+          <code id="crypto-address" class="mono"></code>
+          <button class="btn btn-small" id="crypto-copy">Copy</button>
+        </div>
+      </div>
+    </div>
+    <div class="crypto-status" id="crypto-status">Waiting for payment…</div>
+  </div>
+</div>
+
+<!-- Currency picker for crypto -->
+<div class="overlay" id="currency-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="currency-overlay">✕</button>
+    <h3>Pay with crypto</h3>
+    <div class="sub">Choose a currency to generate a deposit address.</div>
+    <div class="pill-group wrap" id="currency-choices">
+      <button type="button" class="pill" data-cur="btc">BTC</button>
+      <button type="button" class="pill" data-cur="eth">ETH</button>
+      <button type="button" class="pill" data-cur="usdttrc20">USDT (TRC20)</button>
+      <button type="button" class="pill" data-cur="usdterc20">USDT (ERC20)</button>
+      <button type="button" class="pill" data-cur="ltc">LTC</button>
+      <button type="button" class="pill" data-cur="sol">SOL</button>
+    </div>
+  </div>
+</div>
+
+<!-- Auth-required modal -->
+<div class="overlay" id="auth-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="auth-overlay">✕</button>
+    <h3>Sign in with Roblox</h3>
+    <div class="sub">We verify your real Roblox account through Roblox's official login — Vault never sees your password.</div>
+    <button class="btn btn-gold btn-full" id="do-login">Continue with Roblox</button>
+  </div>
+</div>
+
+<!-- Order chat modal -->
+<div class="overlay" id="chat-overlay">
+  <div class="modal modal-wrap" style="max-width:520px">
+    <button class="modal-close" data-close="chat-overlay">✕</button>
+    <h3 id="chat-title">Order chat</h3>
+    <div class="sub" id="chat-sub"></div>
+    <div class="chat-box" id="chat-box"><div class="chat-empty">Loading…</div></div>
+    <div class="chat-input-row">
+      <input id="chat-input" placeholder="Message… (e.g. server link, trade time)" maxlength="1000">
+      <button class="btn btn-gold" id="chat-send">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dispute modal -->
+<div class="overlay" id="dispute-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="dispute-overlay">✕</button>
+    <h3>Open a dispute</h3>
+    <div class="sub">This freezes the payment and alerts a moderator, who will read the order chat and resolve it.</div>
+    <div class="field textarea-sm"><label>What went wrong?</label><textarea id="dispute-reason" maxlength="1000" placeholder="e.g. Seller never delivered the item / item wasn't as described…"></textarea></div>
+    <div class="error-text" id="dispute-error"></div>
+    <div class="modal-actions"><button class="btn btn-gold" id="dispute-submit" style="flex:1">Submit dispute</button></div>
+  </div>
+</div>
+
+<!-- Review modal -->
+<div class="overlay" id="review-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="review-overlay">✕</button>
+    <h3>Rate this seller</h3>
+    <div class="sub" id="review-sub"></div>
+    <div class="star-input" id="review-stars">
+      <button data-star="1">★</button><button data-star="2">★</button><button data-star="3">★</button><button data-star="4">★</button><button data-star="5">★</button>
+    </div>
+    <div class="field textarea-sm"><label>Comment (optional)</label><textarea id="review-comment" maxlength="500" placeholder="How was the trade?"></textarea></div>
+    <div class="error-text" id="review-error"></div>
+    <div class="modal-actions"><button class="btn btn-gold" id="review-submit" style="flex:1">Post review</button></div>
+  </div>
+</div>
+
+<!-- Withdraw modal -->
+<div class="overlay" id="withdraw-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="withdraw-overlay">✕</button>
+    <h3>Withdraw balance</h3>
+    <div class="sub" id="withdraw-balance"></div>
+    <div class="field"><label>Amount (USD)</label><input id="withdraw-amount" type="number" min="5" step="0.01" placeholder="20.00"></div>
+    <div class="pill-group" id="withdraw-method">
+      <button type="button" class="pill active" data-method="paypal">PayPal</button>
+      <button type="button" class="pill" data-method="crypto">Crypto</button>
+    </div>
+    <div class="field" id="withdraw-currency-field" style="display:none">
+      <label>Payout coin</label>
+      <select id="withdraw-currency">
+        <option value="usdttrc20">USDT (TRC20 — low fees)</option>
+        <option value="usdterc20">USDT (ERC20)</option>
+        <option value="btc">BTC</option>
+        <option value="eth">ETH</option>
+        <option value="ltc">LTC</option>
+        <option value="sol">SOL</option>
+      </select>
+    </div>
+    <div class="field"><label id="withdraw-dest-label">PayPal email</label><input id="withdraw-dest" placeholder="you@example.com"><small id="withdraw-dest-hint">Double-check the address — crypto transfers can't be reversed.</small></div>
+    <div class="error-text" id="withdraw-error"></div>
+    <div class="modal-actions"><button class="btn btn-gold" id="withdraw-submit" style="flex:1">Request withdrawal</button></div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>
