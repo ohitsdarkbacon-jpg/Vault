@@ -1,0 +1,139 @@
+# Vault — Roblox trading marketplace with escrow
+
+Express + SQLite marketplace for Roblox items with **escrow-protected settlement**:
+buyers pay by card (Stripe), crypto (NOWPayments), or site credit; the money is
+held by the platform until the buyer confirms delivery in Roblox. Includes
+auctions with anti-sniping, per-order chat, seller ratings, a full user dashboard,
+withdrawals, notifications, public profiles, and an admin panel.
+
+## Features
+
+**Trading**
+- Fixed-price listings + timed auctions (bid history, min increments, anti-snipe: bids in the last 2 min extend the auction 2 min)
+- Full-text search (SQLite FTS5 with LIKE fallback), price filters, sorting, pagination
+- Favorites / watchlist
+
+**Money (the important part)**
+- Checkout via Stripe (card), NOWPayments (BTC/ETH/USDT/LTC/SOL), or site credit
+- **Escrow**: payment is held until the buyer confirms receipt → then the seller's balance is credited (minus the fee, default 6%, `PLATFORM_FEE_BPS`)
+- Auto-release 72h after the seller marks delivered (`AUTO_COMPLETE_HOURS`) unless the buyer disputes
+- Disputes freeze funds; admins refund the buyer or release to the seller
+- Withdrawals: sellers request PayPal/crypto payouts into an admin queue
+- **One-click automated crypto payouts** via the NOWPayments Mass Payouts API — admin hits ⚡, the server authenticates (JWT + auto-generated 2FA/TOTP code), NOWPayments sends crypto from your balance to the seller's wallet, and the IPN webhook flips the withdrawal to Paid when the transfer confirms. PayPal stays manual.
+- **Fee modes** (`FEE_MODE`): `added` (default — buyer pays price + 6% at checkout, seller keeps 100% of the price) or `deducted` (classic: fee comes out of seller proceeds)
+
+**Community & trust**
+- Per-order buyer↔seller chat (coordinate the in-game trade; admins can read it during disputes)
+- 1–5★ seller reviews on completed orders; ratings on profiles
+- Public profiles: rating, completed sales, member since, bio, live inventory
+- In-app notifications: outbid, auction won/sold, item sold, delivered, completed, disputed, refunded, new message, withdrawal, moderation
+
+**Admin panel** (`#admin`, for users in `ADMIN_DISCORD_IDS`)
+- Live stats incl. money held in escrow + fees earned
+- Dispute resolution, withdrawal queue, user search + ban/unban, listing/auction removal
+
+## Stack
+- Node.js 18+ / Express, SQLite (better-sqlite3, with automatic fallback to Node's built-in `node:sqlite` if the native module can't build)
+- Cookie sessions, Discord OAuth 2.0 (PKCE), Stripe Checkout, NOWPayments IPN
+- Vanilla JS single-page frontend (no build step)
+
+## 1. Local setup
+
+```bash
+npm install
+cp .env.example .env   # then fill it in (see the comments in that file)
+npm start              # or: npm run dev
+```
+
+Visit `http://localhost:3000`. The DB schema (including all v2 tables) is created/migrated automatically on boot.
+
+**Testing locally without Discord OAuth:** set `DEV_LOGIN=1` in `.env`, then
+`curl -XPOST localhost:3000/auth/dev-login -H 'Content-Type: application/json' -d '{"username":"me"}'`
+(or from the browser console: `fetch('/auth/dev-login',{method:'POST',headers:{'Content-Type':'application/json'},body:'{"username":"me"}'}).then(()=>location.reload())`).
+**Never enable DEV_LOGIN in production.**
+
+## 2. Deploy on Railway
+
+1. Push this folder to a GitHub repo.
+2. Railway → **New Project → Deploy from GitHub repo** → pick the repo. Nixpacks auto-detects Node; `railway.json` runs `npm start`.
+3. **Add a Volume**: service → *Volumes* → *New Volume*, mount path `/data`. Required — without it the SQLite DB is wiped on every redeploy.
+4. Set *Variables* (same keys as `.env.example`):
+   - `DB_PATH=/data/vault.db`
+   - `BASE_URL=https://<your-app>.up.railway.app`
+   - `SESSION_SECRET` → generate: `openssl rand -hex 32`
+   - `NODE_ENV=production`
+   - `ADMIN_DISCORD_IDS=<your Discord user ID>` (comma-separate for multiple admins; admin flag is applied at boot after each admin has signed in once)
+   - `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI=<BASE_URL>/auth/discord/callback`
+   - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
+   - `NOWPAYMENTS_API_KEY`, `NOWPAYMENTS_IPN_SECRET`, `NOWPAYMENTS_API_BASE=https://api.nowpayments.io/v1`
+   - Do **not** set `PORT` (Railway injects it) and do **not** set `DEV_LOGIN`.
+5. Point the external services at your Railway URL:
+   - Discord OAuth app ([discord.com/developers/applications](https://discord.com/developers/applications) → OAuth2) → add redirect → `<BASE_URL>/auth/discord/callback`
+   - Stripe → webhooks → add endpoint `<BASE_URL>/webhooks/stripe`, event `checkout.session.completed` → copy the signing secret into `STRIPE_WEBHOOK_SECRET`
+   - NOWPayments: IPN callback URL is sent automatically per-payment, nothing to configure
+6. Redeploy after setting variables.
+7. Sign in with your own Discord account once, then redeploy (or restart) so the `ADMIN_DISCORD_IDS` seeding marks you admin — the 🛡 Admin item appears in your avatar menu.
+
+## Automated payouts setup (NOWPayments)
+
+1. On nowpayments.io: activate your Custody balance, **enable 2FA** and save the base32 secret (the text version of the QR code), and whitelist your server IP if their dashboard asks for it.
+2. Set `NOWPAYMENTS_EMAIL`, `NOWPAYMENTS_PASSWORD`, `NOWPAYMENTS_2FA_SECRET` on Railway.
+3. Keep your NOWPayments balance funded — payouts draw from it. Incoming crypto sales already land there, so normally it self-funds; top it up if card sales outpace crypto ones.
+4. **Payouts are automatic by default.** When a seller requests a crypto withdrawal that's within both risk caps, the payout fires immediately — created and 2FA-verified server-side, then marked **Paid** by the IPN callback when the transfer confirms on-chain. No admin action.
+
+### Risk caps (the throttle that replaces manual approval)
+- `AUTO_PAYOUT_MAX_CENTS` — max auto-paid per single withdrawal (default $200)
+- `AUTO_PAYOUT_DAILY_CAP_CENTS` — max auto-paid per user per rolling 24h (default $500)
+- A withdrawal over **either** cap, or **any** payout API failure, drops to the manual admin queue instead — it's never stuck, and a human decides. Set `AUTO_PAYOUT=0` to require an admin click for every payout (the old behavior).
+- In Admin → Withdrawals you'll only see PayPal payouts, over-cap crypto, and anything that failed. Crypto rows there still have a ⚡ "Send via NOWPayments" button to retry manually.
+
+These caps mean a buyer paying with a stolen card can only pull small amounts through irreversible crypto before hitting the manual queue, where you can catch it.
+
+If the three env vars are unset, the button disappears and everything falls back to the manual mark-sent flow. Sellers pick their payout coin (USDT TRC20/ERC20, BTC, ETH, LTC, SOL) and address when requesting a withdrawal.
+
+## How money moves
+
+```
+buyer pays price + 6% buyer fee (card/crypto/credit)
+        │ webhook / instant
+        ▼
+order: paid  ──────────────► money sits in ESCROW (seller can see it, can't touch it)
+        │ seller delivers in Roblox, clicks "Mark delivered"
+        ▼
+order: delivered
+        │ buyer clicks "Confirm receipt"        │ 72h pass, no dispute
+        ▼                                       ▼
+order: completed  ◄─────────────────────────────┘
+        seller balance += full price (fee was added on top at checkout)
+        │ seller requests withdrawal → admin queue
+        │    crypto: ⚡ one click → NOWPayments sends it → auto-marked Paid
+        │    paypal: you send it manually → mark sent
+```
+
+A dispute at any point before release freezes the order; an admin reads the
+order chat and either refunds the buyer (as site credit; listing re-opens) or
+releases to the seller.
+
+## API surface (summary)
+
+```
+Auth:      GET /auth/discord/login|callback · POST /auth/logout · GET /api/me · GET /api/stats
+Listings:  GET/POST /api/listings · GET /api/listings/:id · POST /api/listings/:id/buy-with-credit|checkout/stripe|checkout/crypto|cancel
+Auctions:  GET/POST /api/auctions · GET /api/auctions/:id · GET /api/auctions/:id/bids · POST /api/auctions/:id/bid|cancel|checkout/*
+Orders:    GET /api/orders/:id · POST /api/orders/:id/delivered|confirm|dispute|review · GET/POST /api/orders/:id/messages
+Me:        GET /api/my/overview|purchases|sales|listings|bids|favorites|withdrawals|notifications
+           POST /api/my/withdrawals · POST /api/my/notifications/read · POST /api/my/bio · POST /api/favorites/toggle
+Profiles:  GET /api/users/:username
+Admin:     GET /api/admin/overview|disputes|withdrawals|users
+           POST /api/admin/disputes/:id/resolve · /api/admin/withdrawals/:id · /api/admin/users/:id/ban|unban · /api/admin/{listings,auctions}/:id/remove
+Webhooks:  POST /webhooks/stripe · POST /webhooks/nowpayments
+```
+
+## Things to know before going live
+
+- **Roblox ToS**: real-money trading of Roblox items is against Roblox's Terms of Service (Roblox requires trades to settle in Robux through their systems). Accounts involved can be banned by Roblox. This is a policy/business decision you should make with eyes open before launching publicly.
+- Refunds on disputes are issued as **site credit**, not back to the card/chain. If you want true Stripe refunds, wire `stripe.refunds.create` into `refundOrder()`.
+- Crypto payouts are automated (see above) but still admin-triggered on purpose — a human approves every payout, so a bug or hijacked account can't drain your balance silently. PayPal payouts remain manual.
+- Single-instance assumptions: the auction closer + auto-complete jobs and SQLite itself assume one server process. That's exactly what one Railway service gives you — don't scale to multiple replicas without moving to Postgres + a worker.
+- There's no profanity/content filtering on listings or chat, and image URLs are validated but not proxied/re-hosted.
+- Rate limits exist (global writes, bids, chat) but you may want stricter per-user limits at scale.
