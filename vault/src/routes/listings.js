@@ -30,6 +30,8 @@ const LISTING_SORTS = {
 
 function isValidImageUrl(url) {
   if (!url) return true; // optional field
+  // Images uploaded via POST /api/uploads come back as a relative path.
+  if (url.startsWith('/uploads/')) return true;
   try {
     const u = new URL(url);
     return u.protocol === 'http:' || u.protocol === 'https:';
