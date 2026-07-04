@@ -3,6 +3,7 @@ const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { notify, notifyAdmins } = require('../lib/notify');
 const { maybeAutoPayout } = require('../lib/payouts');
+const { moderateField } = require('../lib/moderation');
 
 const router = express.Router();
 
@@ -128,7 +129,9 @@ router.get('/my/bids', requireAuth, (req, res) => {
 
 router.post('/my/bio', requireAuth, (req, res) => {
   const bio = String(req.body?.bio || '').trim().slice(0, MAX_BIO_LEN);
-  db.prepare('UPDATE users SET bio = ? WHERE id = ?').run(bio || null, req.user.id);
+  const mod = moderateField(bio, 'bio');
+  if (!mod.ok) return res.status(400).json({ error: mod.error });
+  db.prepare('UPDATE users SET bio = ? WHERE id = ?').run(mod.clean || null, req.user.id);
   res.json({ ok: true });
 });
 

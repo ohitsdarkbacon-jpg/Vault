@@ -3,6 +3,7 @@ const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { computeOrderAmounts } = require('../lib/fees');
 const { notify } = require('../lib/notify');
+const { moderateField } = require('../lib/moderation');
 const {
   parsePagination,
   parsePriceCents,
@@ -118,14 +119,21 @@ router.post('/', requireAuth, (req, res) => {
   if (!isValidImageUrl(image_url)) {
     return res.status(400).json({ error: 'Image URL must be a valid http(s) link.' });
   }
+
+  // Content moderation: reject hard-blocked terms, mask mild profanity.
+  const modTitle = moderateField(title, 'title');
+  if (!modTitle.ok) return res.status(400).json({ error: modTitle.error });
+  const modDesc = moderateField(description ? String(description).trim() : null, 'description');
+  if (!modDesc.ok) return res.status(400).json({ error: modDesc.error });
+
   const info = db
     .prepare(
       'INSERT INTO listings (seller_id, title, description, image_url, price_cents) VALUES (?, ?, ?, ?, ?)'
     )
     .run(
       req.user.id,
-      title,
-      description ? String(description).trim() : null,
+      modTitle.clean,
+      modDesc.clean || null,
       image_url || null,
       price_cents || null
     );

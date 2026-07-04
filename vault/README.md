@@ -31,6 +31,11 @@ withdrawals, notifications, public profiles, and an admin panel.
 **Admin panel** (`#admin`, for users in `ADMIN_DISCORD_IDS`)
 - Live stats incl. money held in escrow + fees earned
 - Dispute resolution, withdrawal queue, user search + ban/unban, listing/auction removal
+- Grant or deduct **site credit** on any account (including your own) from the Users tab
+
+**Content moderation**
+- User-authored text (listing/auction titles + descriptions, order chat, profile bios) runs through a filter: hate slurs and other hard-blocked terms are rejected on submit; ordinary profanity is starred out (`f***`). Matching is done on a normalized copy so leetspeak/spacing (`n1gger`, `f a g`) doesn't slip through, while it stays clear of false positives (`peacock`, `classic`, `assassin` are left alone).
+- On by default. `MODERATION=0` disables it; `MOD_BLOCKLIST` / `MOD_MASKLIST` (comma-separated) extend the built-in lists. See `src/lib/moderation.js`.
 
 ## Stack
 - Node.js 18+ / Express, SQLite (better-sqlite3, with automatic fallback to Node's built-in `node:sqlite` if the native module can't build)
@@ -125,7 +130,7 @@ Me:        GET /api/my/overview|purchases|sales|listings|bids|favorites|withdraw
            POST /api/my/withdrawals · POST /api/my/notifications/read · POST /api/my/bio · POST /api/favorites/toggle
 Profiles:  GET /api/users/:username
 Admin:     GET /api/admin/overview|disputes|withdrawals|users
-           POST /api/admin/disputes/:id/resolve · /api/admin/withdrawals/:id · /api/admin/users/:id/ban|unban · /api/admin/{listings,auctions}/:id/remove
+           POST /api/admin/disputes/:id/resolve · /api/admin/withdrawals/:id · /api/admin/users/:id/ban|unban|credit · /api/admin/{listings,auctions}/:id/remove
 Webhooks:  POST /webhooks/stripe · POST /webhooks/nowpayments
 ```
 
@@ -135,5 +140,5 @@ Webhooks:  POST /webhooks/stripe · POST /webhooks/nowpayments
 - Refunds on disputes are issued as **site credit**, not back to the card/chain. If you want true Stripe refunds, wire `stripe.refunds.create` into `refundOrder()`.
 - Crypto payouts are automated (see above) but still admin-triggered on purpose — a human approves every payout, so a bug or hijacked account can't drain your balance silently. PayPal payouts remain manual.
 - Single-instance assumptions: the auction closer + auto-complete jobs and SQLite itself assume one server process. That's exactly what one Railway service gives you — don't scale to multiple replicas without moving to Postgres + a worker.
-- There's no profanity/content filtering on listings or chat, and image URLs are validated but not proxied/re-hosted.
+- Basic profanity/slur filtering now runs on listings, auctions, chat, and bios (see **Content moderation** above) — it's a word-list filter, not a full context-aware moderation service. Image URLs are validated but not proxied/re-hosted.
 - Rate limits exist (global writes, bids, chat) but you may want stricter per-user limits at scale.
