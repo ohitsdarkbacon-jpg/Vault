@@ -12,6 +12,9 @@
 </head>
 <body>
 
+<!-- Ambient animated background -->
+<div class="bg-fx" aria-hidden="true"><i></i><i></i><i></i><span class="bg-grid"></span></div>
+
 <header>
   <a class="brand" href="#home"><div class="mark">V</div> Vault</a>
   <nav id="main-nav">
@@ -284,7 +287,12 @@
         </div>
       </div>
     </div>
-    <div class="crypto-status" id="crypto-status">Waiting for payment…</div>
+    <div class="escrow-steps" id="crypto-steps" style="margin:4px 0 10px">
+      <div class="estep now" data-step="0">Awaiting deposit</div>
+      <div class="estep" data-step="1">Confirming on-chain</div>
+      <div class="estep" data-step="2">In escrow</div>
+    </div>
+    <div class="crypto-status" id="crypto-status">Waiting for your transaction…</div>
   </div>
 </div>
 

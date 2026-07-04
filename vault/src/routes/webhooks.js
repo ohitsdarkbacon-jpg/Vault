@@ -61,9 +61,24 @@ router.post('/nowpayments', (req, res) => {
       : db.prepare('SELECT * FROM orders WHERE nowpayments_payment_id = ?').get(String(payment_id));
     if (order) fulfillOrder(order.id);
   } else if (['failed', 'expired', 'refunded'].includes(payment_status)) {
+    // Only a still-pending order may be failed. Without the status guard a
+    // late/out-of-order IPN (chain reorg, refund event) could flip an order
+    // that already fulfilled into escrow back to 'failed'.
     db.prepare(
-      "UPDATE orders SET status = 'failed', updated_at = datetime('now') WHERE nowpayments_payment_id = ?"
+      "UPDATE orders SET status = 'failed', updated_at = datetime('now') WHERE nowpayments_payment_id = ? AND status = 'pending'"
     ).run(String(payment_id));
+  } else if (payment_status === 'partially_paid') {
+    // Buyer sent less than the invoice amount. The order stays pending (the
+    // live-status endpoint shows the shortfall to the buyer); flag admins so
+    // it can be resolved manually — NOWPayments won't auto-complete it.
+    const order = db.prepare('SELECT * FROM orders WHERE nowpayments_payment_id = ?').get(String(payment_id));
+    if (order && order.status === 'pending') {
+      notifyAdmins(
+        'admin',
+        `Order #${order.id} was PARTIALLY paid (crypto). Buyer sent ${req.body.actually_paid ?? '?'} of ${req.body.pay_amount ?? '?'} ${String(req.body.pay_currency || '').toUpperCase()} — resolve manually in NOWPayments.`,
+        '#admin'
+      );
+    }
   }
 
   res.json({ received: true });

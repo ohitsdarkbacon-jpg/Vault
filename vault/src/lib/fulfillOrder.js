@@ -22,6 +22,37 @@ function fulfillOrder(orderId) {
   }
   if (order.status !== 'pending') return; // already handled
 
+  // Double-sell guard: the item stays purchasable while card/crypto checkouts
+  // are in flight, so two buyers can both pay for the same listing/auction.
+  // First payment to arrive wins; any later one is refunded as site credit.
+  const rival = db
+    .prepare(
+      `SELECT id FROM orders
+       WHERE id != ? AND status IN ('paid', 'delivered', 'completed')
+         AND ((? IS NOT NULL AND listing_id = ?) OR (? IS NOT NULL AND auction_id = ?))`
+    )
+    .get(order.id, order.listing_id, order.listing_id, order.auction_id, order.auction_id);
+  if (rival) {
+    const item = getOrderItemTitle(order);
+    db.transaction(() => {
+      db.prepare(
+        `UPDATE orders SET status = 'refunded', escrow_released = 1, updated_at = datetime('now') WHERE id = ?`
+      ).run(order.id);
+      db.prepare('UPDATE users SET site_credit_cents = site_credit_cents + ? WHERE id = ?').run(
+        order.amount_cents,
+        order.buyer_id
+      );
+    })();
+    notify(
+      order.buyer_id,
+      'order_refunded',
+      `"${item}" was bought by someone else moments before your payment confirmed. Your $${(order.amount_cents / 100).toFixed(2)} was refunded as site credit.`,
+      `#dashboard`
+    );
+    console.warn(`[fulfillOrder] order ${order.id} lost the race to order ${rival.id} — auto-refunded as credit`);
+    return;
+  }
+
   const tx = db.transaction(() => {
     db.prepare(
       "UPDATE orders SET status = 'paid', updated_at = datetime('now') WHERE id = ?"
