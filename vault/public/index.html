@@ -164,6 +164,7 @@
     <div class="tabs" id="admin-tabs">
       <button class="tab active" data-tab="disputes">Disputes</button>
       <button class="tab" data-tab="withdrawals">Withdrawals</button>
+      <button class="tab" data-tab="content">Content</button>
       <button class="tab" data-tab="users">Users</button>
     </div>
     <div id="admin-content"></div>
@@ -189,7 +190,12 @@
     </div>
     <div class="field"><label>Title</label><input id="sell-title" placeholder="Dominus Empyreus" maxlength="140"></div>
     <div class="field"><label>Description</label><textarea id="sell-desc" placeholder="Condition, trade history, proof screenshots…" maxlength="2000"></textarea></div>
-    <div class="field"><label>Image URL</label><input id="sell-image" placeholder="https://…"><small>Tip: right-click the item on the Roblox catalog → copy image address.</small></div>
+    <div class="field">
+      <label>Image</label>
+      <input id="sell-image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
+      <small>Upload from your computer (PNG/JPG/GIF/WEBP, max 5&nbsp;MB) — or paste a URL below.</small>
+      <input id="sell-image" placeholder="https://… (optional if you uploaded a file)" style="margin-top:8px">
+    </div>
     <div class="field" id="sell-price-field"><label>Price (USD)</label><input id="sell-price" type="number" min="1" step="0.01" placeholder="25.00"></div>
     <div id="sell-auction-fields" style="display:none">
       <div class="field-row">

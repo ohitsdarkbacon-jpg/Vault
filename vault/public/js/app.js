@@ -577,6 +577,7 @@ function openSellModal() {
     ? 'Price (USD) — you receive this full amount'
     : 'Price (USD)';
   ['sell-title','sell-desc','sell-image','sell-price','sell-start-bid'].forEach(id => $('#' + id).value = '');
+  $('#sell-image-file').value = '';
   $('#sell-error').textContent = '';
   openModal('sell-overlay');
 }
@@ -584,12 +585,27 @@ $('#cta-sell').onclick = $('#nav-sell').onclick = $('#nav-sell-mobile').onclick 
 $('#dash-sell').onclick = openSellModal;
 $('#cta-browse').onclick = () => document.getElementById('auctions').scrollIntoView({ behavior: 'smooth' });
 
+// Uploads the chosen image file (if any) and returns its URL, else falls back
+// to the pasted URL. Returns null on failure (message already shown).
+async function resolveSellImage() {
+  const file = $('#sell-image-file').files[0];
+  if (!file) return $('#sell-image').value.trim();
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch('/api/uploads', { method: 'POST', body: fd }); // no JSON header — let the browser set multipart boundary
+  let data = {};
+  try { data = await res.json(); } catch (_) {}
+  if (!res.ok) { $('#sell-error').textContent = data.error || 'Image upload failed.'; return null; }
+  return data.url;
+}
+
 $('#sell-submit').onclick = async () => {
   const title = $('#sell-title').value.trim();
   const description = $('#sell-desc').value.trim();
-  const image_url = $('#sell-image').value.trim();
   if (!title) { $('#sell-error').textContent = 'Title is required.'; return; }
   $('#sell-submit').disabled = true;
+  const image_url = await resolveSellImage();
+  if (image_url === null) { $('#sell-submit').disabled = false; return; }
   let r;
   if (sellType === 'fixed') {
     const price = parseFloat($('#sell-price').value);
@@ -1148,6 +1164,46 @@ async function renderAdminTab() {
       toast('Withdrawal updated.', 'success');
       loadAdmin();
     });
+    return;
+  }
+
+  if (adminTab === 'content') {
+    c.innerHTML = `
+      <div class="search-bar" style="margin-bottom:14px"><div class="search-input-wrap" style="flex:1">
+        <input type="search" id="admin-content-q" placeholder="Search live listings & auctions…" autocomplete="off" style="width:100%">
+      </div></div>
+      <div id="admin-content-list"></div>`;
+    const renderContent = async () => {
+      const q = $('#admin-content-q').value.trim();
+      const r = await api(`/api/admin/listings?q=${encodeURIComponent(q)}`);
+      const rows = [
+        ...(r.listings || []).map(l => ({ ...l, kind: 'listing', price: l.price_cents })),
+        ...(r.auctions || []).map(a => ({ ...a, kind: 'auction', price: a.current_bid_cents || a.starting_bid_cents })),
+      ];
+      if (!rows.length) { $('#admin-content-list').innerHTML = '<div class="empty-block">No live content.</div>'; return; }
+      $('#admin-content-list').innerHTML = `<div class="order-list">` + rows.map(it => `
+        <div class="order-card">
+          <div class="order-thumb" style="${it.image_url ? `background-image:url('${escapeHtml(it.image_url)}')` : ''}">${it.image_url ? '' : (it.kind === 'auction' ? '🔨' : '🏷')}</div>
+          <div class="order-main">
+            <div class="order-title">${escapeHtml(it.title)} <span class="status-badge status-active">${it.kind}</span></div>
+            <div class="order-sub">by <a href="#u/${encodeURIComponent(it.seller_name)}">${escapeHtml(it.seller_name)}</a> · ${money(it.price)}</div>
+          </div>
+          <div class="order-actions">
+            <button class="btn btn-small" data-takedown="${it.kind}" data-id="${it.id}" style="color:var(--danger)">Take down</button>
+          </div>
+        </div>`).join('') + `</div>`;
+      $('#admin-content-list').querySelectorAll('[data-takedown]').forEach(b => b.onclick = async () => {
+        if (!confirm('Take down this item? The seller (and any bidders) will be notified.')) return;
+        b.disabled = true;
+        const path = b.dataset.takedown === 'auction' ? 'auctions' : 'listings';
+        const r2 = await api(`/api/admin/${path}/${b.dataset.id}/remove`, { method: 'POST' });
+        if (r2.error) { toast(r2.error, 'error'); b.disabled = false; return; }
+        toast('Item taken down.', 'success');
+        renderContent(); loadListings(); loadAuctions();
+      });
+    };
+    $('#admin-content-q').addEventListener('input', debounce(renderContent, 300));
+    renderContent();
     return;
   }
 

@@ -15,6 +15,7 @@ const { router: webhooksRouter, stripeWebhookHandler } = require('./routes/webho
 const ordersRoutes = require('./routes/orders');
 const usersRoutes = require('./routes/users');
 const adminRoutes = require('./routes/admin');
+const uploadsRoutes = require('./routes/uploads');
 const { startAuctionCloser } = require('./jobs/auctionCloser');
 const { startAutoComplete } = require('./jobs/autoCompleteOrders');
 
@@ -73,9 +74,13 @@ app.use('/api/listings', listingsRoutes);
 app.use('/api/auctions', auctionsRoutes);
 app.use('/api/orders', ordersRoutes);   // lifecycle, chat, reviews (must be before paymentsRoutes' /orders/:id)
 app.use('/api', usersRoutes);           // /api/users/:username, /api/my/*, /api/favorites/*
+app.use('/api/uploads', uploadsRoutes); // image uploads for listings/auctions
 app.use('/api/admin', adminRoutes);
 app.use('/api', paymentsRoutes); // /api/auctions/:id/checkout/*, /api/listings/:id/checkout/*
 app.use('/webhooks', webhooksRouter); // /webhooks/nowpayments (stripe handled above)
+
+// ---- Uploaded item images (may live outside public/ on a mounted volume) ----
+app.use('/uploads', express.static(config.uploadDir));
 
 // ---- Static frontend ----
 app.use(express.static(path.join(__dirname, '..', 'public')));

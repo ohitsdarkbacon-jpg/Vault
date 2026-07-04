@@ -199,6 +199,28 @@ router.post('/users/:id/credit', (req, res) => {
 
 // ---------- Content moderation ----------
 
+// Browse live content so an admin can take it down. Optional ?q= filters by
+// title. Returns active listings and live auctions with their seller.
+router.get('/listings', (req, res) => {
+  const q = String(req.query.q || '').trim();
+  const like = `%${q.replace(/[%_]/g, '')}%`;
+  const listings = q
+    ? db.prepare(`SELECT l.id, l.title, l.price_cents, l.image_url, l.created_at, u.username AS seller_name
+                  FROM listings l JOIN users u ON u.id = l.seller_id
+                  WHERE l.status = 'active' AND l.title LIKE ? ORDER BY l.created_at DESC LIMIT 50`).all(like)
+    : db.prepare(`SELECT l.id, l.title, l.price_cents, l.image_url, l.created_at, u.username AS seller_name
+                  FROM listings l JOIN users u ON u.id = l.seller_id
+                  WHERE l.status = 'active' ORDER BY l.created_at DESC LIMIT 50`).all();
+  const auctions = q
+    ? db.prepare(`SELECT a.id, a.title, a.current_bid_cents, a.starting_bid_cents, a.image_url, a.ends_at, u.username AS seller_name
+                  FROM auctions a JOIN users u ON u.id = a.seller_id
+                  WHERE a.status = 'live' AND a.title LIKE ? ORDER BY a.created_at DESC LIMIT 50`).all(like)
+    : db.prepare(`SELECT a.id, a.title, a.current_bid_cents, a.starting_bid_cents, a.image_url, a.ends_at, u.username AS seller_name
+                  FROM auctions a JOIN users u ON u.id = a.seller_id
+                  WHERE a.status = 'live' ORDER BY a.created_at DESC LIMIT 50`).all();
+  res.json({ listings, auctions });
+});
+
 router.post('/listings/:id/remove', (req, res) => {
   const l = db.prepare('SELECT * FROM listings WHERE id = ?').get(req.params.id);
   if (!l) return res.status(404).json({ error: 'Listing not found.' });

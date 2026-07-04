@@ -10,6 +10,7 @@ withdrawals, notifications, public profiles, and an admin panel.
 
 **Trading**
 - Fixed-price listings + timed auctions (bid history, min increments, anti-snipe: bids in the last 2 min extend the auction 2 min)
+- Item images: **upload a file from your computer** (PNG/JPG/GIF/WEBP, max 5 MB) or paste an external URL
 - Full-text search (SQLite FTS5 with LIKE fallback), price filters, sorting, pagination
 - Favorites / watchlist
 
@@ -30,7 +31,8 @@ withdrawals, notifications, public profiles, and an admin panel.
 
 **Admin panel** (`#admin`, for users in `ADMIN_DISCORD_IDS`)
 - Live stats incl. money held in escrow + fees earned
-- Dispute resolution, withdrawal queue, user search + ban/unban, listing/auction removal
+- Dispute resolution, withdrawal queue, user search + ban/unban
+- **Content tab**: browse/search live listings & auctions and take any of them down (seller + bidders are notified)
 - Grant or deduct **site credit** on any account (including your own) from the Users tab
 
 **Content moderation**
@@ -64,6 +66,7 @@ Visit `http://localhost:3000`. The DB schema (including all v2 tables) is create
 3. **Add a Volume**: service → *Volumes* → *New Volume*, mount path `/data`. Required — without it the SQLite DB is wiped on every redeploy.
 4. Set *Variables* (same keys as `.env.example`):
    - `DB_PATH=/data/vault.db`
+   - `UPLOAD_DIR=/data/uploads` (so uploaded item images survive redeploys — same volume as the DB; omit and uploads default to `public/uploads`, which is wiped on redeploy)
    - `BASE_URL=https://<your-app>.up.railway.app`
    - `SESSION_SECRET` → generate: `openssl rand -hex 32`
    - `NODE_ENV=production`
@@ -128,8 +131,9 @@ Auctions:  GET/POST /api/auctions · GET /api/auctions/:id · GET /api/auctions/
 Orders:    GET /api/orders/:id · POST /api/orders/:id/delivered|confirm|dispute|review · GET/POST /api/orders/:id/messages
 Me:        GET /api/my/overview|purchases|sales|listings|bids|favorites|withdrawals|notifications
            POST /api/my/withdrawals · POST /api/my/notifications/read · POST /api/my/bio · POST /api/favorites/toggle
+Uploads:   POST /api/uploads (multipart image → { url }); files served at /uploads/*
 Profiles:  GET /api/users/:username
-Admin:     GET /api/admin/overview|disputes|withdrawals|users
+Admin:     GET /api/admin/overview|disputes|withdrawals|users|listings
            POST /api/admin/disputes/:id/resolve · /api/admin/withdrawals/:id · /api/admin/users/:id/ban|unban|credit · /api/admin/{listings,auctions}/:id/remove
 Webhooks:  POST /webhooks/stripe · POST /webhooks/nowpayments
 ```
@@ -140,5 +144,5 @@ Webhooks:  POST /webhooks/stripe · POST /webhooks/nowpayments
 - Refunds on disputes are issued as **site credit**, not back to the card/chain. If you want true Stripe refunds, wire `stripe.refunds.create` into `refundOrder()`.
 - Crypto payouts are automated (see above) but still admin-triggered on purpose — a human approves every payout, so a bug or hijacked account can't drain your balance silently. PayPal payouts remain manual.
 - Single-instance assumptions: the auction closer + auto-complete jobs and SQLite itself assume one server process. That's exactly what one Railway service gives you — don't scale to multiple replicas without moving to Postgres + a worker.
-- Basic profanity/slur filtering now runs on listings, auctions, chat, and bios (see **Content moderation** above) — it's a word-list filter, not a full context-aware moderation service. Image URLs are validated but not proxied/re-hosted.
+- Basic profanity/slur filtering now runs on listings, auctions, chat, and bios (see **Content moderation** above) — it's a word-list filter, not a full context-aware moderation service. Uploaded images are stored on disk (`UPLOAD_DIR`) and served from `/uploads`; external image URLs are still allowed and validated but not proxied/re-hosted. Uploads are size- and MIME-checked but not virus/content-scanned.
 - Rate limits exist (global writes, bids, chat) but you may want stricter per-user limits at scale.
