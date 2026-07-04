@@ -16,6 +16,8 @@ withdrawals, notifications, public profiles, and an admin panel.
 
 **Money (the important part)**
 - Checkout via Stripe (card), NOWPayments (BTC/ETH/USDT/LTC/SOL), or site credit
+- Crypto checkout shows a **live transaction tracker** (awaiting deposit → confirming on-chain → in escrow), fed by the NOWPayments status API with partial-payment detection
+- **Double-sell protection**: if two buyers pay for the same item in a race, the first payment wins and the second is automatically refunded as site credit
 - **Escrow**: payment is held until the buyer confirms receipt → then the seller's balance is credited (minus the fee, default 6%, `PLATFORM_FEE_BPS`)
 - Auto-release 72h after the seller marks delivered (`AUTO_COMPLETE_HOURS`) unless the buyer disputes
 - Disputes freeze funds; admins refund the buyer or release to the seller

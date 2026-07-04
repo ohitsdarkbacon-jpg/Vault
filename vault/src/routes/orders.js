@@ -4,6 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { releaseEscrow, getOrderItemTitle } = require('../lib/fulfillOrder');
 const { notify, notifyAdmins } = require('../lib/notify');
 const { moderateField } = require('../lib/moderation');
+const { getPaymentStatus } = require('../lib/nowpayments');
 
 const router = express.Router();
 
@@ -35,11 +36,39 @@ function loadOrderForParty(req, res) {
   return order;
 }
 
-// GET /api/orders/:id — buyer, seller, or admin can view
-router.get('/:id', requireAuth, (req, res) => {
+// Live NOWPayments status for pending crypto orders, cached briefly so the
+// frontend's poll (every few seconds) doesn't hammer the NOWPayments API.
+const PAYMENT_STATUS_TTL_MS = 15 * 1000;
+const paymentStatusCache = new Map(); // payment_id -> { at, data }
+
+async function liveCryptoStatus(order) {
+  if (order.method !== 'crypto' || order.status !== 'pending' || !order.nowpayments_payment_id) return null;
+  const key = String(order.nowpayments_payment_id);
+  const hit = paymentStatusCache.get(key);
+  if (hit && Date.now() - hit.at < PAYMENT_STATUS_TTL_MS) return hit.data;
+  try {
+    const s = await getPaymentStatus(key);
+    const data = {
+      status: s.payment_status,               // waiting | confirming | confirmed | sending | partially_paid | finished | failed | expired
+      pay_amount: s.pay_amount,
+      actually_paid: s.actually_paid,
+      pay_currency: s.pay_currency,
+    };
+    paymentStatusCache.set(key, { at: Date.now(), data });
+    return data;
+  } catch (err) {
+    // API hiccup / not configured — the order status alone still renders fine.
+    return hit ? hit.data : null;
+  }
+}
+
+// GET /api/orders/:id — buyer, seller, or admin can view.
+// For a pending crypto order this includes `payment`, the live on-chain state.
+router.get('/:id', requireAuth, async (req, res) => {
   const order = loadOrderForParty(req, res);
   if (!order) return;
-  res.json({ order });
+  const payment = await liveCryptoStatus(order);
+  res.json({ order, payment });
 });
 
 // POST /api/orders/:id/delivered — seller marks the item as handed over in Roblox

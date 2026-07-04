@@ -530,24 +530,52 @@ $('#currency-choices').addEventListener('click', async (e) => {
   showCryptoPayment(r);
 });
 
+// Advance the 3-step tracker in the crypto modal: 0 waiting, 1 seen on chain, 2 escrowed.
+function setCryptoStep(n) {
+  $$('#crypto-steps .estep').forEach(el => {
+    const i = parseInt(el.dataset.step, 10);
+    el.classList.toggle('done', i < n || (n === 2 && i === 2));
+    el.classList.toggle('now', i === n && n < 2);
+  });
+}
+
 function showCryptoPayment(payment) {
   $('#crypto-amount').textContent = `${payment.pay_amount} ${String(payment.pay_currency).toUpperCase()}`;
   $('#crypto-address').textContent = payment.pay_address;
-  $('#crypto-status').textContent = 'Waiting for payment…';
+  $('#crypto-status').textContent = 'Waiting for your transaction…';
   $('#crypto-status').classList.remove('paid');
+  setCryptoStep(0);
   openModal('crypto-overlay');
 
   clearInterval(cryptoPollTimer);
   cryptoPollTimer = setInterval(async () => {
     const r = await api(`/api/orders/${payment.order_id}`);
-    if (r.order && ['paid', 'delivered', 'completed'].includes(r.order.status)) {
+    if (!r.order) return;
+    if (['paid', 'delivered', 'completed'].includes(r.order.status)) {
+      setCryptoStep(2);
       $('#crypto-status').textContent = '✓ Payment received — held in escrow. Open your dashboard to coordinate the trade.';
       $('#crypto-status').classList.add('paid');
       clearInterval(cryptoPollTimer);
       loadMe(); loadListings(); loadAuctions();
-    } else if (r.order && r.order.status === 'failed') {
-      $('#crypto-status').textContent = 'Payment failed or expired.';
+      return;
+    }
+    if (r.order.status === 'failed') {
+      $('#crypto-status').textContent = '✕ Payment failed or expired. No funds were taken — you can retry from the item page.';
       clearInterval(cryptoPollTimer);
+      return;
+    }
+    // Still pending — show the live on-chain state when the backend has it.
+    const p = r.payment;
+    if (!p) return;
+    if (p.status === 'confirming' || p.status === 'confirmed' || p.status === 'sending') {
+      setCryptoStep(1);
+      $('#crypto-status').textContent = '⛓ Transaction detected — waiting for network confirmations…';
+    } else if (p.status === 'partially_paid') {
+      setCryptoStep(1);
+      $('#crypto-status').textContent = `⚠ Partial payment received (${p.actually_paid} of ${p.pay_amount} ${String(p.pay_currency).toUpperCase()}). Send the remainder to the same address.`;
+    } else if (p.status === 'waiting') {
+      setCryptoStep(0);
+      $('#crypto-status').textContent = 'Waiting for your transaction…';
     }
   }, 6000);
 }

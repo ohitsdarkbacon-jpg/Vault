@@ -172,21 +172,19 @@ router.post('/my/withdrawals', requireAuth, async (req, res) => {
     .get(req.user.id).c;
   if (pending >= 3) return res.status(400).json({ error: 'You already have 3 pending withdrawals.' });
 
+  let withdrawalId;
   const tx = db.transaction(() => {
     db.prepare('UPDATE users SET site_credit_cents = site_credit_cents - ? WHERE id = ?').run(amountCents, req.user.id);
-    db.prepare(
+    const info = db.prepare(
       'INSERT INTO withdrawals (user_id, amount_cents, method, destination, currency) VALUES (?, ?, ?, ?, ?)'
     ).run(req.user.id, amountCents, method, destination, method === 'crypto' ? currency : null);
+    withdrawalId = info.lastInsertRowid;
   });
   tx();
 
   // Crypto withdrawals may auto-pay immediately if within the risk caps.
-  // We look up the freshly-created row to hand it to the payout evaluator.
   if (method === 'crypto') {
-    const w = db.prepare(
-      "SELECT * FROM withdrawals WHERE user_id = ? ORDER BY id DESC LIMIT 1"
-    ).get(req.user.id);
-    const outcome = await maybeAutoPayout(w.id);
+    const outcome = await maybeAutoPayout(withdrawalId);
     if (outcome.auto) {
       return res.status(201).json({ ok: true, auto: true });
     }
