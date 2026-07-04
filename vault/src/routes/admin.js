@@ -163,6 +163,40 @@ router.post('/users/:id/unban', (req, res) => {
   res.json({ ok: true });
 });
 
+// Grant or deduct site credit. amount_cents is a signed delta (positive
+// to add, negative to remove). Admins can credit anyone, including
+// themselves. A balance can't be pushed below zero.
+const MAX_CREDIT_DELTA_CENTS = 100000000; // $1,000,000 guard rail per action
+router.post('/users/:id/credit', (req, res) => {
+  const target = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+  if (!target) return res.status(404).json({ error: 'User not found.' });
+
+  const amount = parseInt(req.body?.amount_cents, 10);
+  if (!Number.isInteger(amount) || amount === 0) {
+    return res.status(400).json({ error: 'Enter a non-zero amount in cents.' });
+  }
+  if (Math.abs(amount) > MAX_CREDIT_DELTA_CENTS) {
+    return res.status(400).json({ error: 'That amount is too large.' });
+  }
+  const note = req.body?.note ? String(req.body.note).trim().slice(0, 200) : null;
+
+  const newBalance = target.site_credit_cents + amount;
+  if (newBalance < 0) {
+    return res.status(400).json({ error: `Can't deduct more than the user's balance ($${(target.site_credit_cents / 100).toFixed(2)}).` });
+  }
+
+  db.prepare('UPDATE users SET site_credit_cents = ? WHERE id = ?').run(newBalance, target.id);
+
+  const verb = amount > 0 ? 'added to' : 'removed from';
+  notify(
+    target.id,
+    'admin',
+    `$${(Math.abs(amount) / 100).toFixed(2)} was ${verb} your balance by an admin.${note ? ' Note: ' + note : ''}`
+  );
+  console.log(`[admin] ${req.user.username} adjusted user ${target.id} credit by ${amount}c -> ${newBalance}c`);
+  res.json({ ok: true, balance_cents: newBalance });
+});
+
 // ---------- Content moderation ----------
 
 router.post('/listings/:id/remove', (req, res) => {

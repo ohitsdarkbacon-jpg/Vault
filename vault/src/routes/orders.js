@@ -3,6 +3,7 @@ const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { releaseEscrow, getOrderItemTitle } = require('../lib/fulfillOrder');
 const { notify, notifyAdmins } = require('../lib/notify');
+const { moderateField } = require('../lib/moderation');
 
 const router = express.Router();
 
@@ -119,9 +120,12 @@ router.post('/:id/messages', requireAuth, (req, res) => {
   const body = String(req.body?.body || '').trim().slice(0, MAX_MESSAGE_LEN);
   if (!body) return res.status(400).json({ error: 'Message is empty.' });
 
+  const mod = moderateField(body, 'message');
+  if (!mod.ok) return res.status(400).json({ error: mod.error });
+
   const info = db
     .prepare('INSERT INTO messages (order_id, sender_id, body) VALUES (?, ?, ?)')
-    .run(order.id, req.user.id, body);
+    .run(order.id, req.user.id, mod.clean);
 
   const recipient = req.user.id === order.buyer_id ? order.seller_id : order.buyer_id;
   // Only notify if the recipient doesn't already have an unread new_message notif for this order

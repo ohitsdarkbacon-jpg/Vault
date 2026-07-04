@@ -1168,11 +1168,29 @@ async function renderAdminTab() {
           <td class="mono">${money(u.site_credit_cents)}</td>
           <td>${timeAgo(u.created_at)}</td>
           <td>${u.is_banned ? '<span class="status-badge status-disputed">Banned</span>' : '<span class="status-badge status-active">Active</span>'}</td>
-          <td>${u.is_admin ? '' : (u.is_banned
-            ? `<button class="btn btn-small" data-unban="${u.id}">Unban</button>`
-            : `<button class="btn btn-small" data-ban="${u.id}" style="color:var(--danger)">Ban</button>`)}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-small btn-gold" data-credit="${u.id}" data-name="${escapeHtml(u.username)}">＋ Credit</button>
+            ${u.is_admin ? '' : (u.is_banned
+              ? `<button class="btn btn-small" data-unban="${u.id}">Unban</button>`
+              : `<button class="btn btn-small" data-ban="${u.id}" style="color:var(--danger)">Ban</button>`)}
+          </td>
         </tr>`).join('')}
       </table></div>`;
+      $('#admin-users-table').querySelectorAll('[data-credit]').forEach(b => b.onclick = async () => {
+        const raw = prompt(`Adjust ${b.dataset.name}'s balance — dollars to add (negative to remove), e.g. 25 or -10:`);
+        if (raw == null) return;
+        const dollars = parseFloat(raw);
+        if (!isFinite(dollars) || dollars === 0) return toast('Enter a non-zero dollar amount.', 'error');
+        const note = prompt('Optional note shown to the user:') || '';
+        const r2 = await api(`/api/admin/users/${b.dataset.credit}/credit`, {
+          method: 'POST',
+          body: JSON.stringify({ amount_cents: Math.round(dollars * 100), note }),
+        });
+        if (r2.error) return toast(r2.error, 'error');
+        toast(`Balance updated to ${money(r2.balance_cents)}.`, 'success');
+        await loadMe(); // refresh nav balance in case an admin credited themselves
+        renderUsers();
+      });
       $('#admin-users-table').querySelectorAll('[data-ban]').forEach(b => b.onclick = async () => {
         if (!confirm('Ban this user? Their active listings will be pulled off the market.')) return;
         const r2 = await api(`/api/admin/users/${b.dataset.ban}/ban`, { method: 'POST' });

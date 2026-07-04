@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { notify } = require('../lib/notify');
+const { moderateField } = require('../lib/moderation');
 const {
   parsePagination,
   parsePriceCents,
@@ -121,6 +122,13 @@ router.post('/', requireAuth, (req, res) => {
   if (!isValidImageUrl(image_url)) {
     return res.status(400).json({ error: 'Image URL must be a valid http(s) link.' });
   }
+
+  // Content moderation: reject hard-blocked terms, mask mild profanity.
+  const modTitle = moderateField(title, 'title');
+  if (!modTitle.ok) return res.status(400).json({ error: modTitle.error });
+  const modDesc = moderateField(description ? String(description).trim() : null, 'description');
+  if (!modDesc.ok) return res.status(400).json({ error: modDesc.error });
+
   let minutes = Number.isInteger(duration_minutes) && duration_minutes > 0 ? duration_minutes : 1440;
   minutes = Math.min(minutes, MAX_DURATION_MINUTES);
   const endsAt = new Date(Date.now() + minutes * 60000).toISOString();
@@ -132,8 +140,8 @@ router.post('/', requireAuth, (req, res) => {
     )
     .run(
       req.user.id,
-      title,
-      description ? String(description).trim() : null,
+      modTitle.clean,
+      modDesc.clean || null,
       image_url || null,
       starting_bid_cents,
       Number.isInteger(min_increment_cents) && min_increment_cents > 0 ? min_increment_cents : 100,

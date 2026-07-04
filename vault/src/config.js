@@ -21,6 +21,11 @@ module.exports = {
   autoPayoutMaxCents: parseInt(process.env.AUTO_PAYOUT_MAX_CENTS || '20000', 10),        // per withdrawal ($200)
   autoPayoutDailyCapCents: parseInt(process.env.AUTO_PAYOUT_DAILY_CAP_CENTS || '50000', 10), // per user / 24h ($500)
 
+  // Content moderation on user-authored text (listings, auctions, chat, bios).
+  // On by default; set MODERATION=0 to disable. Extend the word lists with
+  // MOD_BLOCKLIST / MOD_MASKLIST (comma-separated). See lib/moderation.js.
+  moderationEnabled: process.env.MODERATION !== '0',
+
   discord: {
     clientId: process.env.DISCORD_CLIENT_ID,
     clientSecret: process.env.DISCORD_CLIENT_SECRET,
