@@ -739,7 +739,7 @@ function syncFileDrop() {
   const file = $('#sell-image-file').files[0];
   const drop = $('#sell-file-drop');
   drop.classList.toggle('has-file', !!file);
-  $('#sell-file-name').textContent = file ? file.name : 'Choose an image';
+  $('#sell-file-name').textContent = file ? file.name : 'Upload';
   $('#sell-file-clear').hidden = !file;
 }
 
