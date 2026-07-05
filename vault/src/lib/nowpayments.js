@@ -7,18 +7,45 @@ const client = axios.create({
   headers: { 'x-api-key': config.nowpayments.apiKey || '' },
 });
 
+// NOWPayments rejects the whole request ("ipn_callback_url must be a valid
+// uri") if the callback isn't a public http(s) URL — which is exactly what it
+// gets when BASE_URL is unset (localhost) or a LAN address. In that case we
+// omit the field entirely: the payment still works, and order fulfillment
+// falls back to status polling (see routes/orders.js).
+const PRIVATE_HOST = /^(localhost|127\.|0\.0\.0\.0|\[?::1\]?$|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i;
+let warnedNoIpn = false;
+
+function validIpnUrl(url) {
+  try {
+    const u = new URL(url);
+    const ok = /^https?:$/.test(u.protocol) && !PRIVATE_HOST.test(u.hostname) && u.hostname.includes('.');
+    if (ok) return url;
+  } catch (_) { /* fall through */ }
+  if (!warnedNoIpn) {
+    warnedNoIpn = true;
+    console.warn(
+      `[nowpayments] BASE_URL (${config.baseUrl}) is not publicly reachable — ` +
+      'sending payments without an IPN callback. Orders will confirm via status ' +
+      'polling instead. Set BASE_URL to your public https:// URL to enable webhooks.'
+    );
+  }
+  return null;
+}
+
 /**
  * Creates a crypto payment for an order.
  * Docs: https://documenter.getpostman.com/view/7907941/2s93JusNJt (NOWPayments API)
  */
 async function createPayment({ orderId, amountUsd, payCurrency, ipnCallbackUrl }) {
-  const { data } = await client.post('/payment', {
+  const body = {
     price_amount: amountUsd,
     price_currency: 'usd',
     pay_currency: payCurrency, // e.g. 'btc', 'eth', 'usdttrc20'
     order_id: String(orderId),
-    ipn_callback_url: ipnCallbackUrl,
-  });
+  };
+  const ipn = validIpnUrl(ipnCallbackUrl);
+  if (ipn) body.ipn_callback_url = ipn;
+  const { data } = await client.post('/payment', body);
   return data; // { payment_id, pay_address, pay_amount, pay_currency, payment_status, ... }
 }
 
@@ -80,20 +107,18 @@ async function createPayout({ address, currency, amountUsd, ipnCallbackUrl }) {
   const token = await getAuthToken();
   const authHeaders = { Authorization: `Bearer ${token}` };
 
+  const ipn = validIpnUrl(ipnCallbackUrl);
+  const withdrawal = {
+    address,
+    currency,                    // payout coin, e.g. 'usdttrc20'
+    fiat_amount: amountUsd,      // we owe USD; NOWPayments converts
+    fiat_currency: 'usd',
+  };
+  if (ipn) withdrawal.ipn_callback_url = ipn;
+
   const { data: batch } = await client.post(
     '/payout',
-    {
-      ipn_callback_url: ipnCallbackUrl,
-      withdrawals: [
-        {
-          address,
-          currency,                    // payout coin, e.g. 'usdttrc20'
-          fiat_amount: amountUsd,      // we owe USD; NOWPayments converts
-          fiat_currency: 'usd',
-          ipn_callback_url: ipnCallbackUrl,
-        },
-      ],
-    },
+    { ...(ipn ? { ipn_callback_url: ipn } : {}), withdrawals: [withdrawal] },
     { headers: authHeaders }
   );
 
@@ -123,6 +148,7 @@ module.exports = {
   createPayment,
   getPaymentStatus,
   verifyIpnSignature,
+  validIpnUrl,
   FINISHED_STATUSES,
   payoutsEnabled,
   createPayout,

@@ -74,7 +74,7 @@ Visit `http://localhost:3000`. The DB schema (including all v2 tables) is create
 4. Set *Variables* (same keys as `.env.example`):
    - `DB_PATH=/data/vault.db`
    - `UPLOAD_DIR=/data/uploads` (so uploaded item images survive redeploys — same volume as the DB; omit and uploads default to `public/uploads`, which is wiped on redeploy)
-   - `BASE_URL=https://<your-app>.up.railway.app`
+   - `BASE_URL=https://<your-app>.up.railway.app` — must be your **public** URL. It's normalized automatically (bare domains get `https://`, trailing slashes stripped). If it isn't publicly reachable (e.g. localhost in dev), crypto payments are created **without** an IPN callback and orders confirm via status polling instead — slower but fully functional.
    - `SESSION_SECRET` → generate: `openssl rand -hex 32`
    - `NODE_ENV=production`
    - `ADMIN_DISCORD_IDS=<your Discord user ID>` (comma-separate for multiple admins; admin flag is applied at boot after each admin has signed in once)

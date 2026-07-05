@@ -5,9 +5,20 @@ function required(name, fallback) {
   return v;
 }
 
+// Users often set BASE_URL to a bare domain ("myapp.up.railway.app"), with a
+// trailing slash, or with stray whitespace — all of which produce invalid
+// callback/redirect URLs downstream (NOWPayments rejects them with
+// "ipn_callback_url must be a valid uri"). Normalize once here.
+function normalizeBaseUrl(raw) {
+  let u = String(raw || '').trim().replace(/\/+$/, '');
+  if (!u) return 'http://localhost:3000';
+  if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+  return u;
+}
+
 module.exports = {
   port: parseInt(process.env.PORT || '3000', 10),
-  baseUrl: required('BASE_URL', 'http://localhost:3000'),
+  baseUrl: normalizeBaseUrl(process.env.BASE_URL),
   sessionSecret: required('SESSION_SECRET', 'dev-secret-change-me'),
   isProd: process.env.NODE_ENV === 'production',
   platformFeeBps: parseInt(process.env.PLATFORM_FEE_BPS || '600', 10), // 600 = 6.00%

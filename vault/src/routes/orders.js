@@ -1,10 +1,10 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const { releaseEscrow, getOrderItemTitle } = require('../lib/fulfillOrder');
+const { fulfillOrder, releaseEscrow, getOrderItemTitle } = require('../lib/fulfillOrder');
 const { notify, notifyAdmins } = require('../lib/notify');
 const { moderateField } = require('../lib/moderation');
-const { getPaymentStatus } = require('../lib/nowpayments');
+const { getPaymentStatus, FINISHED_STATUSES } = require('../lib/nowpayments');
 
 const router = express.Router();
 
@@ -64,10 +64,24 @@ async function liveCryptoStatus(order) {
 
 // GET /api/orders/:id — buyer, seller, or admin can view.
 // For a pending crypto order this includes `payment`, the live on-chain state.
+// The polled status also drives fulfillment as a fallback for missed/disabled
+// IPN webhooks (e.g. BASE_URL is localhost, so payments are created without a
+// callback): when NOWPayments says the money arrived, escrow the order here.
 router.get('/:id', requireAuth, async (req, res) => {
-  const order = loadOrderForParty(req, res);
+  let order = loadOrderForParty(req, res);
   if (!order) return;
   const payment = await liveCryptoStatus(order);
+  if (payment && order.status === 'pending') {
+    if (FINISHED_STATUSES.has(payment.status)) {
+      fulfillOrder(order.id); // idempotent — no-ops if a webhook won the race
+      order = db.prepare(`${orderQuery} WHERE o.id = ?`).get(order.id);
+    } else if (['failed', 'expired', 'refunded'].includes(payment.status)) {
+      db.prepare(
+        "UPDATE orders SET status = 'failed', updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
+      ).run(order.id);
+      order = db.prepare(`${orderQuery} WHERE o.id = ?`).get(order.id);
+    }
+  }
   res.json({ order, payment });
 });
 
