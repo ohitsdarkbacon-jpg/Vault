@@ -10,7 +10,7 @@ withdrawals, notifications, public profiles, and an admin panel.
 
 **Trading**
 - Fixed-price listings + timed auctions (bid history, min increments, anti-snipe: bids in the last 2 min extend the auction 2 min)
-- Item images: **upload a file from your computer** (PNG/JPG/GIF/WEBP, max 5 MB) or paste an external URL
+- Item images: **upload a file from your computer** (PNG/JPG/GIF/WEBP, max 20 MB) or paste an external URL
 - Full-text search (SQLite FTS5 with LIKE fallback), price filters, sorting, pagination
 - Favorites / watchlist
 

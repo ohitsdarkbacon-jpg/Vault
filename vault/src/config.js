@@ -30,7 +30,7 @@ module.exports = {
   // statically). On Railway set UPLOAD_DIR=/data/uploads so images survive
   // redeploys (same volume as the DB). Max upload size in MB via UPLOAD_MAX_MB.
   uploadDir: process.env.UPLOAD_DIR || require('path').join(__dirname, '..', 'public', 'uploads'),
-  uploadMaxBytes: parseInt(process.env.UPLOAD_MAX_MB || '5', 10) * 1024 * 1024,
+  uploadMaxBytes: parseInt(process.env.UPLOAD_MAX_MB || '20', 10) * 1024 * 1024,
 
   discord: {
     clientId: process.env.DISCORD_CLIENT_ID,

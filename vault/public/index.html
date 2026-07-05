@@ -189,67 +189,70 @@
 
 <!-- Sell / list modal -->
 <div class="overlay" id="sell-overlay">
-  <div class="modal modal-wrap">
+  <div class="modal modal-wrap modal-sell">
     <button class="modal-close" data-close="sell-overlay">✕</button>
     <h3>List an item</h3>
-    <div class="sub">Choose fixed price for instant buys, or auction for competitive bidding.</div>
-    <div class="pill-group" id="sell-type">
-      <button type="button" class="pill active" data-type="fixed">Fixed price</button>
-      <button type="button" class="pill" data-type="auction">Auction</button>
-    </div>
-    <div class="field"><label>Title</label><input id="sell-title" placeholder="Dominus Empyreus" maxlength="140"></div>
-    <div class="field"><label>Description</label><textarea id="sell-desc" placeholder="Condition, trade history, proof screenshots…" maxlength="2000"></textarea></div>
-    <div class="field">
-      <label>Image</label>
-      <input id="sell-image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
-      <label class="file-drop" id="sell-file-drop" for="sell-image-file">
-        <svg class="file-drop-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
-        <div class="file-drop-text">
-          <span class="file-drop-title" id="sell-file-name">Choose an image</span>
-          <span class="file-drop-hint">PNG, JPG, GIF or WEBP — max 5&nbsp;MB</span>
+    <div class="sub">Fixed price for instant buys, or auction for competitive bidding.</div>
+    <div class="sell-layout">
+      <div class="sell-form-col">
+        <div class="pill-group" id="sell-type">
+          <button type="button" class="pill active" data-type="fixed">Fixed price</button>
+          <button type="button" class="pill" data-type="auction">Auction</button>
         </div>
-        <button type="button" class="file-drop-clear" id="sell-file-clear" title="Remove image" hidden>✕</button>
-      </label>
-      <small>…or paste an image URL instead.</small>
-      <input id="sell-image" placeholder="https://…" style="margin-top:8px">
-    </div>
-    <div class="field" id="sell-price-field"><label>Price (USD)</label><input id="sell-price" type="number" min="1" step="0.01" placeholder="25.00"></div>
-    <div id="sell-auction-fields" style="display:none">
-      <div class="field-row">
-        <div class="field"><label>Starting bid (USD)</label><input id="sell-start-bid" type="number" min="1" step="0.01" placeholder="10.00"></div>
-        <div class="field"><label>Min increment (USD)</label><input id="sell-increment" type="number" min="0.5" step="0.5" placeholder="1.00" value="1.00"></div>
-      </div>
-      <div class="field">
-        <label>Duration</label>
-        <div class="custom-select" id="sell-duration" data-value="1440">
-          <div class="cs-trigger"><span class="cs-label">24 hours</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <div class="cs-dropdown">
-            <div class="cs-option" data-value="60">1 hour</div>
-            <div class="cs-option" data-value="360">6 hours</div>
-            <div class="cs-option active" data-value="1440">24 hours</div>
-            <div class="cs-option" data-value="4320">3 days</div>
-            <div class="cs-option" data-value="10080">7 days</div>
+        <div class="field"><label>Title</label><input id="sell-title" placeholder="Dominus Empyreus" maxlength="140"></div>
+        <div class="field"><label>Description</label><textarea id="sell-desc" placeholder="Condition, trade history, proof screenshots…" maxlength="2000"></textarea></div>
+        <div class="field">
+          <label>Image</label>
+          <input id="sell-image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
+          <div class="image-input-row">
+            <label class="file-drop" id="sell-file-drop" for="sell-image-file" title="Upload an image from your computer">
+              <svg class="file-drop-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+              <span class="file-drop-title" id="sell-file-name">Upload</span>
+              <button type="button" class="file-drop-clear" id="sell-file-clear" title="Remove image" hidden>✕</button>
+            </label>
+            <input id="sell-image" placeholder="or paste an image URL…">
           </div>
+          <small>PNG, JPG, GIF or WEBP — up to 20&nbsp;MB.</small>
         </div>
-      </div>
-    </div>
-    <div class="sell-preview-section">
-      <div class="sell-preview-label">Preview</div>
-      <div class="sell-preview-card">
-        <div class="card" style="pointer-events:none;animation:none">
-          <div class="thumb" id="sell-preview-thumb">No image</div>
-          <div class="card-body">
-            <div class="badge" id="sell-preview-badge" style="display:none"><span class="dot"></span> Live</div>
-            <div class="card-title" id="sell-preview-title">Your title here</div>
-            <div class="card-meta" id="sell-preview-meta"></div>
-            <div class="card-foot">
-              <span class="price" id="sell-preview-price">$0.00</span>
-              <span class="timer" id="sell-preview-timer"></span>
+        <div class="field" id="sell-price-field"><label>Price (USD)</label><input id="sell-price" type="number" min="1" step="0.01" placeholder="25.00"></div>
+        <div id="sell-auction-fields" style="display:none">
+          <div class="field-row">
+            <div class="field"><label>Starting bid (USD)</label><input id="sell-start-bid" type="number" min="1" step="0.01" placeholder="10.00"></div>
+            <div class="field"><label>Min increment (USD)</label><input id="sell-increment" type="number" min="0.5" step="0.5" placeholder="1.00" value="1.00"></div>
+          </div>
+          <div class="field">
+            <label>Duration</label>
+            <div class="custom-select" id="sell-duration" data-value="1440">
+              <div class="cs-trigger"><span class="cs-label">24 hours</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div class="cs-dropdown">
+                <div class="cs-option" data-value="60">1 hour</div>
+                <div class="cs-option" data-value="360">6 hours</div>
+                <div class="cs-option active" data-value="1440">24 hours</div>
+                <div class="cs-option" data-value="4320">3 days</div>
+                <div class="cs-option" data-value="10080">7 days</div>
+              </div>
             </div>
-            <button class="btn btn-gold btn-full" disabled id="sell-preview-btn">Buy now</button>
           </div>
         </div>
       </div>
+      <aside class="sell-preview-col">
+        <div class="sell-preview-label">Live preview</div>
+        <div class="sell-preview-card">
+          <div class="card" style="pointer-events:none;animation:none">
+            <div class="thumb" id="sell-preview-thumb">No image</div>
+            <div class="card-body">
+              <div class="badge" id="sell-preview-badge" style="display:none"><span class="dot"></span> Live</div>
+              <div class="card-title" id="sell-preview-title">Your title here</div>
+              <div class="card-meta" id="sell-preview-meta"></div>
+              <div class="card-foot">
+                <span class="price" id="sell-preview-price">$0.00</span>
+                <span class="timer" id="sell-preview-timer"></span>
+              </div>
+              <button class="btn btn-gold btn-full" disabled id="sell-preview-btn">Buy now</button>
+            </div>
+          </div>
+        </div>
+      </aside>
     </div>
     <div class="error-text" id="sell-error"></div>
     <div class="modal-actions">
