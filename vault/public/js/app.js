@@ -111,6 +111,48 @@ function vaultPrompt(message, opts = {}) {
   return vaultDialog({ title: opts.title || 'One more thing', message, input: true, okText: opts.okText || 'Save', ...opts, danger: false });
 }
 
+// ---------- Custom select dropdowns (replace native <select>) ----------
+function initCustomSelects() {
+  document.querySelectorAll('.custom-select').forEach(sel => {
+    if (sel._csInit) return;
+    sel._csInit = true;
+    Object.defineProperty(sel, 'value', {
+      get() { return sel.dataset.value; },
+      set(v) {
+        sel.dataset.value = v;
+        const opt = sel.querySelector(`.cs-option[data-value="${v}"]`);
+        if (opt) {
+          sel.querySelector('.cs-label').textContent = opt.textContent;
+          sel.querySelectorAll('.cs-option').forEach(o => o.classList.toggle('active', o === opt));
+        }
+      }
+    });
+    const trigger = sel.querySelector('.cs-trigger');
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wasOpen = sel.classList.contains('open');
+      closeAllSelects();
+      if (!wasOpen) sel.classList.add('open');
+    });
+    sel.querySelectorAll('.cs-option').forEach(opt => {
+      opt.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sel.dataset.value = opt.dataset.value;
+        sel.querySelector('.cs-label').textContent = opt.textContent;
+        sel.querySelectorAll('.cs-option').forEach(o => o.classList.toggle('active', o === opt));
+        sel.classList.remove('open');
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    });
+  });
+}
+function closeAllSelects() {
+  document.querySelectorAll('.custom-select.open').forEach(s => s.classList.remove('open'));
+}
+document.addEventListener('click', closeAllSelects);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAllSelects(); });
+initCustomSelects();
+
 $$('[data-close]').forEach(btn => btn.addEventListener('click', () => closeModal(btn.dataset.close)));
 $$('.overlay').forEach(ov => ov.addEventListener('click', e => {
   if (e.target === ov) { ov.classList.remove('open'); if (ov.id === 'chat-overlay') { clearInterval(chatPollTimer); activeChatOrderId = null; } if (ov.id === 'bid-overlay') clearInterval(bidPollTimer); }

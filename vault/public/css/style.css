@@ -288,11 +288,7 @@ nav a:hover::after { transform: scaleX(1); }
   background: rgba(10, 13, 20, 0.6); color: var(--text); font-size: 0.88rem;
   transition: border-color .2s, box-shadow .2s;
 }
-.search-bar select {
-  padding: 10px; border-radius: 9px; border: 1px solid var(--border);
-  background-color: rgba(10, 13, 20, 0.8); color: var(--text); font-size: 0.85rem;
-}
-.search-bar input:focus, .search-bar select:focus {
+.search-bar input:focus {
   outline: none; border-color: var(--gold-dim); box-shadow: 0 0 0 3px rgba(245,190,11,0.1);
 }
 .search-bar .price-range { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.8rem; }
@@ -329,12 +325,12 @@ nav a:hover::after { transform: scaleX(1); }
 .modal-thumb.show { display: block; }
 .field { margin-bottom: 14px; }
 .field label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; }
-.field input, .field textarea, .field select {
+.field input, .field textarea {
   width: 100%; background-color: rgba(9, 12, 18, 0.65); border: 1px solid var(--border); color: var(--text);
   padding: 11px 13px; border-radius: 9px; font-size: 0.9rem; font-family: inherit;
   transition: border-color .2s, box-shadow .2s;
 }
-.field input:focus, .field textarea:focus, .field select:focus {
+.field input:focus, .field textarea:focus {
   outline: none; border-color: var(--gold-dim); box-shadow: 0 0 0 3px rgba(245,190,11,0.1);
 }
 .field textarea { resize: vertical; min-height: 70px; }
@@ -678,20 +674,63 @@ table.data td.mono { font-family: 'JetBrains Mono', monospace; }
 .textarea-sm textarea { min-height: 80px; }
 
 /* ---------- Custom select dropdowns ---------- */
-select {
-  appearance: none; -webkit-appearance: none; -moz-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23F5BE0B' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 13px center;
-  padding-right: 34px !important;
-  cursor: pointer;
-  transition: border-color .2s, box-shadow .2s, transform .15s var(--ease-out);
+.custom-select {
+  position: relative; user-select: none; min-width: 140px;
 }
-select:hover { border-color: var(--gold-dim) !important; box-shadow: 0 0 14px rgba(245,190,11,0.1); }
-select:focus { outline: none; border-color: var(--gold-dim) !important; box-shadow: 0 0 0 3px rgba(245,190,11,0.12), 0 0 18px rgba(245,190,11,0.12); }
-select option, select optgroup {
-  background: #12161F; color: var(--text); padding: 8px;
+.cs-trigger {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 13px; border-radius: 9px;
+  border: 1px solid var(--border);
+  background-color: rgba(10, 13, 20, 0.8);
+  color: var(--text); font-size: 0.85rem; cursor: pointer;
+  transition: border-color .2s, box-shadow .2s, background-color .15s;
 }
+.cs-trigger:hover {
+  border-color: var(--gold-dim); box-shadow: 0 0 14px rgba(245,190,11,0.1);
+}
+.custom-select.open .cs-trigger {
+  border-color: var(--gold-dim);
+  box-shadow: 0 0 0 3px rgba(245,190,11,0.12), 0 0 18px rgba(245,190,11,0.12);
+}
+.cs-chevron {
+  flex-shrink: 0; color: var(--gold);
+  transition: transform .25s var(--ease-out);
+}
+.custom-select.open .cs-chevron { transform: rotate(180deg); }
+.cs-dropdown {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+  background: linear-gradient(180deg, rgba(24,29,41,0.98), rgba(15,18,27,0.99));
+  border: 1px solid rgba(245,190,11,0.22);
+  border-radius: 11px; overflow: hidden; z-index: 120;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.55), 0 0 30px rgba(245,190,11,0.08);
+  backdrop-filter: blur(16px);
+  display: none; max-height: 260px; overflow-y: auto;
+}
+.custom-select.open .cs-dropdown {
+  display: block; animation: cs-drop .2s var(--ease-spring);
+}
+@keyframes cs-drop {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+.cs-option {
+  padding: 10px 14px; font-size: 0.85rem; color: var(--muted);
+  cursor: pointer; transition: background .12s, color .12s, padding-left .15s var(--ease-out);
+  border-bottom: 1px solid rgba(148,163,184,0.06);
+}
+.cs-option:last-child { border-bottom: none; }
+.cs-option:hover {
+  background: rgba(245,190,11,0.08); color: var(--text); padding-left: 18px;
+}
+.cs-option.active {
+  color: var(--gold); font-weight: 600;
+  background: rgba(245,190,11,0.06);
+}
+.cs-option.active::before {
+  content: '✓'; margin-right: 8px; font-size: 0.75rem;
+}
+.field .custom-select { width: 100%; }
+.search-bar .custom-select { min-width: 160px; }
 
 /* ---------- Custom dialog (replaces native confirm/prompt) ---------- */
 .dialog-modal {
