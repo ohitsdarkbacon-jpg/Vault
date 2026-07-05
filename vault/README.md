@@ -27,9 +27,14 @@ withdrawals, notifications, public profiles, and an admin panel.
 
 **Community & trust**
 - Per-order buyer↔seller chat (coordinate the in-game trade; admins can read it during disputes)
+- **Direct messages**: message any trader on the site — conversation inbox with unread badges, live polling, online status
+- **Trader directory** (`#traders`): browse/search every trader with ratings, sales, and online indicators
+- **Profile privacy**: hide your profile — you vanish from the directory and your profile page goes private (existing DM threads stay open; your listings stay on the marketplace)
+- **Block users** (they can't DM you, you can't DM them) and **report users** to moderators
+- Online presence: last-seen tracking with an "online" dot (active in the last 5 min)
 - 1–5★ seller reviews on completed orders; ratings on profiles
 - Public profiles: rating, completed sales, member since, bio, live inventory
-- In-app notifications: outbid, auction won/sold, item sold, delivered, completed, disputed, refunded, new message, withdrawal, moderation
+- In-app notifications: outbid, auction won/sold, item sold, delivered, completed, disputed, refunded, new message, DMs, withdrawal, moderation
 
 **Admin panel** (`#admin`, for users in `ADMIN_DISCORD_IDS`)
 - Live stats incl. money held in escrow + fees earned

@@ -842,6 +842,111 @@ table.data td.mono { font-family: 'JetBrains Mono', monospace; }
 .overlay.open .dialog-modal { animation: dialog-pop .38s var(--ease-spring); }
 @keyframes dialog-pop { from { opacity: 0; transform: translateY(26px) scale(0.92); } to { opacity: 1; transform: none; } }
 
+/* ---------- Trader directory ---------- */
+.trader-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+.trader-card {
+  display: flex; flex-direction: column; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px; backdrop-filter: blur(8px); cursor: pointer;
+  transition: border-color .2s, transform .25s var(--ease-out), box-shadow .25s;
+  animation: card-in .45s var(--ease-out) both;
+}
+.trader-card:hover {
+  border-color: rgba(245,190,11,0.35); transform: translateY(-3px);
+  box-shadow: 0 14px 32px rgba(0,0,0,0.4), 0 0 24px rgba(245,190,11,0.06);
+}
+.trader-top { display: flex; align-items: center; gap: 12px; }
+.trader-top img, .trader-avatar-fallback {
+  width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--border-strong); object-fit: cover;
+}
+.trader-avatar-fallback {
+  background: var(--surface-2); display: flex; align-items: center; justify-content: center;
+  font-weight: 700; color: var(--gold); font-family: 'Space Grotesk', sans-serif;
+}
+.trader-name { font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; gap: 7px; }
+.trader-sub { color: var(--muted); font-size: 0.76rem; margin-top: 2px; }
+.online-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--live);
+  box-shadow: 0 0 8px var(--live); flex-shrink: 0;
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+.online-dot.off { background: rgba(148,163,184,0.35); box-shadow: none; animation: none; }
+.trader-bio { color: var(--muted); font-size: 0.8rem; line-height: 1.45; min-height: 1em;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.trader-actions { display: flex; gap: 8px; margin-top: auto; }
+.trader-actions .btn { flex: 1; }
+
+/* ---------- Direct messages ---------- */
+.dm-layout {
+  display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px;
+  min-height: 480px; align-items: stretch;
+}
+.dm-sidebar {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  overflow-y: auto; max-height: 620px; backdrop-filter: blur(8px);
+}
+.dm-conv {
+  display: flex; gap: 11px; align-items: center; padding: 13px 14px;
+  border-bottom: 1px solid var(--border); cursor: pointer;
+  transition: background .15s;
+}
+.dm-conv:hover { background: rgba(148,163,184,0.05); }
+.dm-conv.active { background: rgba(245,190,11,0.07); box-shadow: inset 2px 0 0 var(--gold); }
+.dm-conv img, .dm-conv .trader-avatar-fallback { width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0; object-fit: cover; border: 1px solid var(--border-strong); }
+.dm-conv-main { flex: 1; min-width: 0; }
+.dm-conv-name { font-weight: 600; font-size: 0.87rem; display: flex; align-items: center; gap: 6px; }
+.dm-conv-last { color: var(--muted); font-size: 0.76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.dm-conv-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+.dm-conv-time { color: var(--muted); font-size: 0.68rem; }
+.dm-unread {
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: linear-gradient(160deg, var(--gold-2), var(--gold)); color: #17130a;
+  font-size: 0.68rem; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 10px var(--gold-glow);
+}
+.dm-thread {
+  display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  overflow: hidden; backdrop-filter: blur(8px);
+}
+.dm-thread-empty { margin: auto; color: var(--muted); font-size: 0.9rem; padding: 30px; text-align: center; }
+.dm-thread-head {
+  display: flex; align-items: center; gap: 11px; padding: 13px 16px;
+  border-bottom: 1px solid var(--border); background: rgba(9,12,18,0.35);
+}
+.dm-thread-head img, .dm-thread-head .trader-avatar-fallback { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-strong); }
+.dm-thread-head .name { font-weight: 600; font-size: 0.92rem; display: flex; align-items: center; gap: 7px; }
+.dm-thread-head .sub { color: var(--muted); font-size: 0.72rem; margin: 1px 0 0; }
+.dm-thread-head .head-actions { margin-left: auto; display: flex; gap: 8px; }
+.dm-box {
+  flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px;
+  background: rgba(7,9,14,0.5); min-height: 300px; max-height: 460px;
+}
+.dm-input-row { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); }
+.dm-input-row input {
+  flex: 1; background: rgba(9,12,18,0.65); border: 1px solid var(--border); color: var(--text);
+  padding: 11px 13px; border-radius: 9px; font-size: 0.9rem;
+  transition: border-color .2s, box-shadow .2s;
+}
+.dm-input-row input:focus { outline: none; border-color: var(--gold-dim); box-shadow: 0 0 0 3px rgba(245,190,11,0.1); }
+@media (max-width: 760px) {
+  .dm-layout { grid-template-columns: 1fr; }
+  .dm-sidebar { max-height: 240px; }
+}
+
+/* ---------- Private profile ---------- */
+.private-profile {
+  text-align: center; padding: 60px 20px; border: 1px dashed var(--border-strong);
+  border-radius: var(--radius); color: var(--muted);
+}
+.private-profile .lock {
+  width: 58px; height: 58px; margin: 0 auto 16px; border-radius: 16px; font-size: 1.5rem;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(160deg, rgba(148,163,184,0.14), rgba(148,163,184,0.04));
+  border: 1px solid var(--border-strong);
+}
+.private-profile h3 { color: var(--text); margin: 0 0 6px; }
+
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }

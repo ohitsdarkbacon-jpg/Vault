@@ -16,6 +16,7 @@ const ordersRoutes = require('./routes/orders');
 const usersRoutes = require('./routes/users');
 const adminRoutes = require('./routes/admin');
 const uploadsRoutes = require('./routes/uploads');
+const dmRoutes = require('./routes/dm');
 const { startAuctionCloser } = require('./jobs/auctionCloser');
 const { startAutoComplete } = require('./jobs/autoCompleteOrders');
 
@@ -48,12 +49,13 @@ const bidLimiter = rateLimit({ windowMs: 10 * 1000, max: 6, standardHeaders: tru
 app.use('/api/auctions/:id/bid', bidLimiter);
 const messageLimiter = rateLimit({ windowMs: 10 * 1000, max: 8, standardHeaders: true, legacyHeaders: false });
 app.use('/api/orders/:id/messages', messageLimiter);
+// DM sends are limited inside routes/dm.js (POST only — GET polling must stay free)
 
 // ---- API routes ----
 app.get('/api/me', (req, res) => {
   if (!req.user) return res.json({ user: null });
-  const { id, provider_id, username, avatar_url, site_credit_cents, is_admin, bio, created_at } = req.user;
-  res.json({ user: { id, provider_id, username, avatar_url, site_credit_cents, is_admin, bio, created_at } });
+  const { id, provider_id, username, avatar_url, site_credit_cents, is_admin, bio, created_at, profile_hidden } = req.user;
+  res.json({ user: { id, provider_id, username, avatar_url, site_credit_cents, is_admin, bio, created_at, profile_hidden } });
 });
 
 app.get('/api/config', (req, res) => {
@@ -74,6 +76,7 @@ app.use('/api/listings', listingsRoutes);
 app.use('/api/auctions', auctionsRoutes);
 app.use('/api/orders', ordersRoutes);   // lifecycle, chat, reviews (must be before paymentsRoutes' /orders/:id)
 app.use('/api', usersRoutes);           // /api/users/:username, /api/my/*, /api/favorites/*
+app.use('/api', dmRoutes);              // /api/traders, /api/dm/*, block/report, /api/my/privacy
 app.use('/api/uploads', uploadsRoutes); // image uploads for listings/auctions
 app.use('/api/admin', adminRoutes);
 app.use('/api', paymentsRoutes); // /api/auctions/:id/checkout/*, /api/listings/:id/checkout/*

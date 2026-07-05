@@ -29,9 +29,20 @@ const orderCardQuery = `
 
 router.get('/users/:username', (req, res) => {
   const user = db
-    .prepare('SELECT id, username, avatar_url, bio, created_at, is_banned FROM users WHERE username = ? COLLATE NOCASE')
+    .prepare('SELECT id, username, avatar_url, bio, created_at, is_banned, profile_hidden, last_seen_at FROM users WHERE username = ? COLLATE NOCASE')
     .get(req.params.username);
   if (!user) return res.status(404).json({ error: 'User not found.' });
+
+  // Hidden profiles are only visible to their owner and admins.
+  const isSelf = req.user && req.user.id === user.id;
+  if (user.profile_hidden && !isSelf && !(req.user && req.user.is_admin)) {
+    return res.status(403).json({ private: true, username: user.username });
+  }
+
+  const online = user.last_seen_at && Date.now() - Date.parse(user.last_seen_at + 'Z') < 5 * 60000 ? 1 : 0;
+  const blocked_by_me = req.user && !isSelf
+    ? !!db.prepare('SELECT 1 FROM blocks WHERE blocker_id = ? AND blocked_id = ?').get(req.user.id, user.id)
+    : false;
 
   const stats = db
     .prepare(
@@ -62,7 +73,8 @@ router.get('/users/:username', (req, res) => {
     )
     .all(user.id);
 
-  res.json({ user: { ...user, ...stats }, listings, auctions, reviews });
+  const { last_seen_at, ...pub } = user;
+  res.json({ user: { ...pub, ...stats, online, blocked_by_me }, listings, auctions, reviews });
 });
 
 // ---------- My dashboard ----------

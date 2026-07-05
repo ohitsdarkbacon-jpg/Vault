@@ -216,6 +216,44 @@ ensureColumn('withdrawals', 'currency', 'currency TEXT');                 // cry
 ensureColumn('withdrawals', 'np_batch_id', 'np_batch_id TEXT');           // NOWPayments payout batch id
 ensureColumn('withdrawals', 'np_withdrawal_id', 'np_withdrawal_id TEXT'); // NOWPayments withdrawal id (for IPN matching)
 
+// ============================================================
+// v3 schema — direct messages, trader directory privacy,
+// presence, blocks, reports
+// ============================================================
+
+ensureColumn('users', 'profile_hidden', 'profile_hidden INTEGER NOT NULL DEFAULT 0'); // hide from the trader directory + private profile page
+ensureColumn('users', 'last_seen_at', 'last_seen_at TEXT');                           // presence — touched at most once a minute
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS direct_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  sender_id INTEGER NOT NULL REFERENCES users(id),
+  recipient_id INTEGER NOT NULL REFERENCES users(id),
+  body TEXT NOT NULL,
+  is_read INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_dm_recipient ON direct_messages(recipient_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_dm_sender ON direct_messages(sender_id, recipient_id, id);
+
+CREATE TABLE IF NOT EXISTS blocks (
+  blocker_id INTEGER NOT NULL REFERENCES users(id),
+  blocked_id INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (blocker_id, blocked_id)
+);
+
+CREATE TABLE IF NOT EXISTS reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  reporter_id INTEGER NOT NULL REFERENCES users(id),
+  reported_id INTEGER NOT NULL REFERENCES users(id),
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open', -- open | resolved
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+`);
+
 // Seed admins from env: comma-separated Roblox user IDs
 const adminIds = (process.env.ADMIN_DISCORD_IDS || process.env.ADMIN_ROBLOX_IDS || '')
   .split(',')
