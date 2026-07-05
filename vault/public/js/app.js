@@ -14,6 +14,9 @@ let bidPollTimer = null;
 let cryptoPollTimer = null;
 let chatPollTimer = null;
 let notifPollTimer = null;
+let dmPollTimer = null;
+let activeDmPartner = null;
+let lastDmId = 0;
 let lastChatMessageId = 0;
 let pendingCryptoContext = null; // { kind: 'auction'|'listing', id }
 let dashTab = 'purchases';
@@ -178,6 +181,7 @@ function showView(name) {
   $$('.view').forEach(v => v.classList.remove('active'));
   const el = $('#view-' + name);
   (el || $('#view-home')).classList.add('active');
+  if (name !== 'messages') { clearInterval(dmPollTimer); activeDmPartner = null; }
   window.scrollTo({ top: 0 });
 }
 
@@ -191,6 +195,14 @@ async function route() {
   if (h === 'admin') {
     if (!ME || !ME.is_admin) { showView('home'); return; }
     showView('admin'); loadAdmin(); return;
+  }
+  if (h === 'traders') { showView('traders'); loadTraders(); return; }
+  if (h === 'messages' || h.startsWith('messages/')) {
+    if (!ME) { showView('home'); return openModal('auth-overlay'); }
+    showView('messages');
+    const partner = h.startsWith('messages/') ? decodeURIComponent(h.slice(9)) : null;
+    if (partner) openDmThread(partner); else loadConversations();
+    return;
   }
   if (h.startsWith('order-')) {
     if (!ME) { showView('home'); return openModal('auth-overlay'); }
@@ -237,9 +249,11 @@ function renderAuth() {
       : `<span class="avatar-fallback">${escapeHtml(ME.username[0].toUpperCase())}</span>`;
     area.innerHTML = `
       <a class="balance-chip" href="#dashboard" title="Your balance">◈ ${money(ME.site_credit_cents)}</a>
+      <button class="icon-btn" id="dm-btn" title="Messages">💬<span class="badge-dot" id="dm-badge" style="display:none"></span></button>
       <button class="icon-btn" id="bell-btn" title="Notifications">🔔<span class="badge-dot" id="bell-badge" style="display:none"></span></button>
       <button class="avatar-btn" id="avatar-btn" title="${escapeHtml(ME.username)}">${avatar}</button>
     `;
+    $('#dm-btn').onclick = () => { location.hash = 'messages'; };
     $('#bell-btn').onclick = (e) => { e.stopPropagation(); toggleDropdown('notif-dropdown'); };
     $('#avatar-btn').onclick = (e) => { e.stopPropagation(); toggleDropdown('user-dropdown'); };
     $('#menu-admin').style.display = ME.is_admin ? 'flex' : 'none';
@@ -271,11 +285,18 @@ const NOTIF_ICONS = {
   outbid: '📈', auction_won: '🏆', auction_sold: '🔨', item_sold: '💰',
   order_paid: '🛡', order_delivered: '📦', order_completed: '✅',
   order_disputed: '⚠️', order_refunded: '↩️', new_message: '💬',
-  review: '⭐', withdrawal: '🏦', admin: '🛡',
+  review: '⭐', withdrawal: '🏦', admin: '🛡', dm: '✉️',
 };
 
 async function loadNotifications() {
   if (!ME) return;
+  api('/api/dm/unread').then(d => {
+    const dmBadge = $('#dm-badge');
+    if (dmBadge && !d.error) {
+      dmBadge.style.display = d.unread > 0 ? 'flex' : 'none';
+      dmBadge.textContent = d.unread > 9 ? '9+' : d.unread;
+    }
+  });
   const r = await api('/api/my/notifications');
   if (r.error) return;
   const badge = $('#bell-badge');
@@ -1193,12 +1214,170 @@ $('#chat-send').onclick = sendChat;
 $('#chat-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
 
 // ============================================================
+// Traders directory
+// ============================================================
+function traderAvatar(name, url, cls = '') {
+  return url
+    ? `<img src="${escapeHtml(url)}" alt="" class="${cls}">`
+    : `<div class="trader-avatar-fallback ${cls}">${escapeHtml(name[0].toUpperCase())}</div>`;
+}
+
+async function loadTraders() {
+  const q = $('#traders-q').value.trim();
+  const r = await api(`/api/traders?q=${encodeURIComponent(q)}`);
+  const grid = $('#traders-grid');
+  const ts = r.traders || [];
+  if (!ts.length) { grid.innerHTML = `<div class="empty">${q ? 'No traders match your search.' : 'No traders yet.'}</div>`; return; }
+  grid.innerHTML = ts.map(t => `
+    <div class="trader-card" data-u="${escapeHtml(t.username)}">
+      <div class="trader-top">
+        ${traderAvatar(t.username, t.avatar_url)}
+        <div>
+          <div class="trader-name">${escapeHtml(t.username)} <span class="online-dot ${t.online ? '' : 'off'}" title="${t.online ? 'Online' : 'Offline'}"></span></div>
+          <div class="trader-sub">${t.avg_rating ? `★ ${t.avg_rating} (${t.review_count})` : 'No reviews yet'} · ${t.completed_sales} sale${t.completed_sales === 1 ? '' : 's'}${t.items_live ? ` · ${t.items_live} on market` : ''}</div>
+        </div>
+      </div>
+      <div class="trader-bio">${escapeHtml(t.bio || '')}</div>
+      <div class="trader-actions">
+        <button class="btn btn-small" data-view="${escapeHtml(t.username)}">Profile</button>
+        ${!ME || t.id !== ME.id ? `<button class="btn btn-small btn-gold" data-msg="${escapeHtml(t.username)}">💬 Message</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+  grid.querySelectorAll('.trader-card').forEach(c => c.addEventListener('click', () => { location.hash = 'u/' + encodeURIComponent(c.dataset.u); }));
+  grid.querySelectorAll('[data-view]').forEach(b => b.onclick = (e) => { e.stopPropagation(); location.hash = 'u/' + encodeURIComponent(b.dataset.view); });
+  grid.querySelectorAll('[data-msg]').forEach(b => b.onclick = (e) => {
+    e.stopPropagation();
+    if (!ME) return openModal('auth-overlay');
+    location.hash = 'messages/' + encodeURIComponent(b.dataset.msg);
+  });
+}
+$('#traders-q').addEventListener('input', debounce(loadTraders, 300));
+
+// ============================================================
+// Direct messages
+// ============================================================
+async function loadConversations() {
+  const r = await api('/api/dm/conversations');
+  const side = $('#dm-sidebar');
+  const convs = r.conversations || [];
+  if (!convs.length) {
+    side.innerHTML = `<div class="empty-block" style="padding:26px 12px;border:none">No conversations yet — find someone in the <a href="#traders" style="color:var(--gold)">trader directory</a>.</div>`;
+    return;
+  }
+  side.innerHTML = convs.map(c => `
+    <div class="dm-conv ${activeDmPartner && activeDmPartner.toLowerCase() === c.partner_name.toLowerCase() ? 'active' : ''}" data-u="${escapeHtml(c.partner_name)}">
+      ${traderAvatar(c.partner_name, c.partner_avatar)}
+      <div class="dm-conv-main">
+        <div class="dm-conv-name">${escapeHtml(c.partner_name)} <span class="online-dot ${c.online ? '' : 'off'}"></span></div>
+        <div class="dm-conv-last">${c.mine ? 'You: ' : ''}${escapeHtml(c.body)}</div>
+      </div>
+      <div class="dm-conv-meta">
+        <span class="dm-conv-time">${timeAgo(c.created_at)}</span>
+        ${c.unread ? `<span class="dm-unread">${c.unread > 9 ? '9+' : c.unread}</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+  side.querySelectorAll('.dm-conv').forEach(el => el.onclick = () => { location.hash = 'messages/' + encodeURIComponent(el.dataset.u); });
+}
+
+async function openDmThread(username) {
+  activeDmPartner = username;
+  lastDmId = 0;
+  clearInterval(dmPollTimer);
+  loadConversations();
+  const thread = $('#dm-thread');
+  thread.innerHTML = '<div class="dm-thread-empty">Loading…</div>';
+  const r = await api(`/api/dm/with/${encodeURIComponent(username)}`);
+  if (r.error) { thread.innerHTML = `<div class="dm-thread-empty">${escapeHtml(r.error)}</div>`; return; }
+  const p = r.partner;
+  thread.innerHTML = `
+    <div class="dm-thread-head">
+      ${traderAvatar(p.username, p.avatar_url)}
+      <div>
+        <div class="name">${escapeHtml(p.username)} <span class="online-dot ${p.online ? '' : 'off'}"></span></div>
+        <div class="sub">${p.online ? 'Online now' : 'Offline'}</div>
+      </div>
+      <div class="head-actions">
+        <button class="btn btn-small" id="dm-view-profile">Profile</button>
+        <button class="btn btn-small" id="dm-block" style="color:var(--danger)">${p.blocked_by_me ? 'Unblock' : 'Block'}</button>
+      </div>
+    </div>
+    <div class="dm-box" id="dm-box"></div>
+    <div class="dm-input-row">
+      <input id="dm-input" placeholder="Message ${escapeHtml(p.username)}…" maxlength="1000" autocomplete="off">
+      <button class="btn btn-gold" id="dm-send">Send</button>
+    </div>
+  `;
+  $('#dm-view-profile').onclick = () => { location.hash = 'u/' + encodeURIComponent(p.username); };
+  $('#dm-block').onclick = () => toggleBlock(p.username, $('#dm-block'));
+  $('#dm-send').onclick = sendDm;
+  $('#dm-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendDm(); });
+  renderDmMessages(r.messages || [], true);
+  dmPollTimer = setInterval(pollDm, 4000);
+}
+
+function renderDmMessages(msgs, initial) {
+  const box = $('#dm-box');
+  if (!box) return;
+  if (initial && !msgs.length) {
+    box.innerHTML = '<div class="chat-empty">No messages yet — say hi! Keep actual trades in order chat so moderators can step in if needed.</div>';
+    return;
+  }
+  if (msgs.length && box.querySelector('.chat-empty')) box.innerHTML = '';
+  msgs.forEach(m => {
+    lastDmId = Math.max(lastDmId, m.id);
+    const el = document.createElement('div');
+    el.className = 'chat-msg ' + (m.sender_id === ME.id ? 'mine' : 'theirs');
+    el.innerHTML = `${escapeHtml(m.body)}<div class="m-meta">${timeAgo(m.created_at)}</div>`;
+    box.appendChild(el);
+  });
+  if (msgs.length) box.scrollTop = box.scrollHeight;
+}
+
+async function pollDm() {
+  if (!activeDmPartner) return;
+  const r = await api(`/api/dm/with/${encodeURIComponent(activeDmPartner)}?after=${lastDmId}`);
+  if (r.error) return;
+  if ((r.messages || []).length) { renderDmMessages(r.messages, false); loadConversations(); }
+}
+
+async function sendDm() {
+  const input = $('#dm-input');
+  const body = input.value.trim();
+  if (!body || !activeDmPartner) return;
+  input.value = '';
+  const r = await api(`/api/dm/with/${encodeURIComponent(activeDmPartner)}`, { method: 'POST', body: JSON.stringify({ body }) });
+  if (r.error) { toast(r.error, 'error'); input.value = body; return; }
+  await pollDm();
+  loadConversations();
+}
+
+async function toggleBlock(username, btnEl) {
+  const blocking = btnEl.textContent.trim() === 'Block';
+  if (blocking && !await vaultConfirm(`${username} won't be able to message you, and you can't message them, until you unblock.`, { title: 'Block this user?', okText: 'Block user', danger: true, icon: '🚫' })) return;
+  const r = await api(`/api/users/${encodeURIComponent(username)}/block`, { method: 'POST' });
+  if (r.error) return toast(r.error, 'error');
+  btnEl.textContent = r.blocked ? 'Unblock' : 'Block';
+  toast(r.blocked ? `${username} blocked.` : `${username} unblocked.`, 'success');
+}
+
+// ============================================================
 // Public profile
 // ============================================================
 async function loadProfile(username) {
   const page = $('#profile-page');
   page.innerHTML = '<div class="empty-block">Loading profile…</div>';
   const r = await api(`/api/users/${encodeURIComponent(username)}`);
+  if (r.private) {
+    page.innerHTML = `
+      <div class="private-profile">
+        <div class="lock">🔒</div>
+        <h3>${escapeHtml(r.username)} keeps their profile private</h3>
+        <div>This trader has hidden their profile from the directory. Their listings still appear on the marketplace.</div>
+      </div>`;
+    return;
+  }
   if (r.error) { page.innerHTML = `<div class="empty-block">${escapeHtml(r.error)}</div>`; return; }
   const u = r.user;
   const stars = u.avg_rating
@@ -1209,14 +1388,23 @@ async function loadProfile(username) {
     <div class="profile-head">
       ${u.avatar_url ? `<img src="${escapeHtml(u.avatar_url)}" alt="">` : `<div class="profile-avatar-fallback">${escapeHtml(u.username[0].toUpperCase())}</div>`}
       <div>
-        <h2>${escapeHtml(u.username)} ${u.is_banned ? '<span class="status-badge status-disputed">Banned</span>' : ''}</h2>
+        <h2>${escapeHtml(u.username)} <span class="online-dot ${u.online ? '' : 'off'}" title="${u.online ? 'Online' : 'Offline'}"></span> ${u.is_banned ? '<span class="status-badge status-disputed">Banned</span>' : ''} ${isMe && ME.profile_hidden ? '<span class="status-badge">🔒 Hidden</span>' : ''}</h2>
         <div class="profile-meta">
           <span>${stars}</span>
           <span>·</span><span>${u.completed_sales} completed sale${u.completed_sales === 1 ? '' : 's'}</span>
           <span>·</span><span>Member since ${new Date(u.created_at + 'Z').toLocaleDateString()}</span>
         </div>
         ${u.bio ? `<p class="profile-bio" id="profile-bio-text">${escapeHtml(u.bio)}</p>` : (isMe ? '<p class="profile-bio" style="font-style:italic">No bio yet.</p>' : '')}
-        ${isMe ? `<button class="btn btn-small" id="edit-bio" style="margin-top:8px">Edit bio</button>` : ''}
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          ${isMe ? `
+            <button class="btn btn-small" id="edit-bio">Edit bio</button>
+            <button class="btn btn-small" id="toggle-privacy">${ME.profile_hidden ? '👁 Unhide my profile' : '🕶 Hide my profile'}</button>
+          ` : (ME ? `
+            <button class="btn btn-small btn-gold" id="pf-message">💬 Message</button>
+            <button class="btn btn-small" id="pf-block" style="color:var(--danger)">${u.blocked_by_me ? 'Unblock' : 'Block'}</button>
+            <button class="btn btn-small" id="pf-report">⚑ Report</button>
+          ` : '')}
+        </div>
       </div>
     </div>
     ${r.auctions.length ? `<h3 class="section-sub">Live auctions</h3><div class="grid" id="pf-auctions">${r.auctions.map(auctionCardHtml).join('')}</div>` : ''}
@@ -1250,6 +1438,29 @@ async function loadProfile(username) {
     if (r2.error) return toast(r2.error, 'error');
     toast('Bio updated.', 'success');
     loadProfile(username);
+  };
+  const tp = $('#toggle-privacy');
+  if (tp) tp.onclick = async () => {
+    const hiding = !ME.profile_hidden;
+    if (hiding && !await vaultConfirm('You disappear from the trader directory and your profile page goes private. Your listings stay on the marketplace, and traders you\'ve already messaged can still reach you.', { title: 'Hide your profile?', okText: '🕶 Hide profile', icon: '🔒' })) return;
+    const r2 = await api('/api/my/privacy', { method: 'POST', body: JSON.stringify({ hidden: hiding }) });
+    if (r2.error) return toast(r2.error, 'error');
+    ME.profile_hidden = hiding ? 1 : 0;
+    toast(hiding ? 'Profile hidden — you\'re off the trader directory.' : 'Profile visible again.', 'success');
+    loadProfile(username);
+  };
+  const pm = $('#pf-message');
+  if (pm) pm.onclick = () => { location.hash = 'messages/' + encodeURIComponent(u.username); };
+  const pb = $('#pf-block');
+  if (pb) pb.onclick = () => toggleBlock(u.username, pb);
+  const pr = $('#pf-report');
+  if (pr) pr.onclick = async () => {
+    const reason = await vaultPrompt('What did this user do? A moderator will review your report.', { title: `Report ${u.username}`, placeholder: 'e.g. Scam attempt, harassment in DMs…', okText: 'Submit report', icon: '⚑' });
+    if (reason === null) return;
+    if (!reason) return toast('Describe what happened.', 'error');
+    const r2 = await api(`/api/users/${encodeURIComponent(u.username)}/report`, { method: 'POST', body: JSON.stringify({ reason }) });
+    if (r2.error) return toast(r2.error, 'error');
+    toast('Report submitted — a moderator will take a look.', 'success');
   };
 }
 

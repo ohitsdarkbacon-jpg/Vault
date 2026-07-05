@@ -20,6 +20,7 @@
   <nav id="main-nav">
     <a href="#auctions" data-scroll>Live auctions</a>
     <a href="#listings" data-scroll>Marketplace</a>
+    <a href="#traders">Traders</a>
     <a href="#" id="nav-sell">Sell an item</a>
   </nav>
   <div class="header-right">
@@ -40,6 +41,8 @@
 <div class="mobile-nav" id="mobile-nav">
   <a href="#auctions" data-scroll>Live auctions</a>
   <a href="#listings" data-scroll>Marketplace</a>
+  <a href="#traders">Traders</a>
+  <a href="#messages">Messages</a>
   <a href="#" id="nav-sell-mobile">Sell an item</a>
   <a href="#dashboard">Dashboard</a>
 </div>
@@ -163,6 +166,37 @@
 <!-- ================= PROFILE VIEW ================= -->
 <div class="view" id="view-profile">
   <div class="page" id="profile-page"></div>
+</div>
+
+<!-- ================= TRADERS DIRECTORY ================= -->
+<div class="view" id="view-traders">
+  <div class="page">
+    <div class="page-head">
+      <div><h2>Traders</h2><div class="sub">Everyone trading on Vault. Message anyone directly — or hide your own profile from this list in your profile settings.</div></div>
+    </div>
+    <div class="search-bar" style="margin-bottom:18px">
+      <div class="search-input-wrap" style="flex:1">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="search" id="traders-q" placeholder="Search traders…" autocomplete="off">
+      </div>
+    </div>
+    <div class="trader-grid" id="traders-grid"><div class="empty">Loading traders…</div></div>
+  </div>
+</div>
+
+<!-- ================= MESSAGES VIEW ================= -->
+<div class="view" id="view-messages">
+  <div class="page">
+    <div class="page-head">
+      <div><h2>Messages</h2><div class="sub">Direct messages with other traders. Trade coordination for orders stays in order chat.</div></div>
+    </div>
+    <div class="dm-layout">
+      <div class="dm-sidebar" id="dm-sidebar"><div class="empty-block" style="padding:26px 12px">No conversations yet.</div></div>
+      <div class="dm-thread" id="dm-thread">
+        <div class="dm-thread-empty">Select a conversation — or find someone in the <a href="#traders" style="color:var(--gold)">trader directory</a>.</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ================= ADMIN VIEW ================= -->
