@@ -732,6 +732,42 @@ table.data td.mono { font-family: 'JetBrains Mono', monospace; }
 .field .custom-select { width: 100%; }
 .search-bar .custom-select { min-width: 160px; }
 
+/* ---------- File upload (custom) ---------- */
+.file-drop {
+  display: flex; align-items: center; gap: 13px;
+  padding: 13px 15px; border-radius: 10px; cursor: pointer;
+  border: 1.5px dashed var(--border-strong);
+  background: rgba(9, 12, 18, 0.5);
+  transition: border-color .2s, background .2s, box-shadow .2s;
+}
+.file-drop:hover {
+  border-color: var(--gold-dim);
+  background: rgba(245,190,11,0.04);
+  box-shadow: 0 0 18px rgba(245,190,11,0.08);
+}
+.file-drop.has-file {
+  border-style: solid; border-color: rgba(245,190,11,0.4);
+  background: rgba(245,190,11,0.05);
+}
+.file-drop-icon {
+  flex-shrink: 0; color: var(--gold);
+  transition: transform .25s var(--ease-spring);
+}
+.file-drop:hover .file-drop-icon { transform: translateY(-2px); }
+.file-drop-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.file-drop-title {
+  font-size: 0.86rem; font-weight: 600; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.file-drop-hint { font-size: 0.72rem; color: var(--muted); }
+.file-drop-clear {
+  flex-shrink: 0; background: rgba(148,163,184,0.12); border: none; color: var(--muted);
+  width: 26px; height: 26px; border-radius: 50%; font-size: 0.82rem;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .18s, color .18s, transform .2s var(--ease-spring);
+}
+.file-drop-clear:hover { background: rgba(255,92,99,0.18); color: var(--danger); transform: rotate(90deg); }
+
 /* ---------- Sell preview ---------- */
 .sell-preview-section {
   margin: 18px 0 6px; padding-top: 16px;

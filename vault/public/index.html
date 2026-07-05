@@ -201,9 +201,17 @@
     <div class="field"><label>Description</label><textarea id="sell-desc" placeholder="Condition, trade history, proof screenshots…" maxlength="2000"></textarea></div>
     <div class="field">
       <label>Image</label>
-      <input id="sell-image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
-      <small>Upload from your computer (PNG/JPG/GIF/WEBP, max 5&nbsp;MB) — or paste a URL below.</small>
-      <input id="sell-image" placeholder="https://… (optional if you uploaded a file)" style="margin-top:8px">
+      <input id="sell-image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
+      <label class="file-drop" id="sell-file-drop" for="sell-image-file">
+        <svg class="file-drop-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+        <div class="file-drop-text">
+          <span class="file-drop-title" id="sell-file-name">Choose an image</span>
+          <span class="file-drop-hint">PNG, JPG, GIF or WEBP — max 5&nbsp;MB</span>
+        </div>
+        <button type="button" class="file-drop-clear" id="sell-file-clear" title="Remove image" hidden>✕</button>
+      </label>
+      <small>…or paste an image URL instead.</small>
+      <input id="sell-image" placeholder="https://…" style="margin-top:8px">
     </div>
     <div class="field" id="sell-price-field"><label>Price (USD)</label><input id="sell-price" type="number" min="1" step="0.01" placeholder="25.00"></div>
     <div id="sell-auction-fields" style="display:none">

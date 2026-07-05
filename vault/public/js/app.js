@@ -734,12 +734,26 @@ function updateSellPreview() {
   }
 }
 
+// Reflects the chosen file in the custom drop zone (filename + clear button).
+function syncFileDrop() {
+  const file = $('#sell-image-file').files[0];
+  const drop = $('#sell-file-drop');
+  drop.classList.toggle('has-file', !!file);
+  $('#sell-file-name').textContent = file ? file.name : 'Choose an image';
+  $('#sell-file-clear').hidden = !file;
+}
+
 ['sell-title', 'sell-price', 'sell-start-bid'].forEach(id =>
   $('#' + id).addEventListener('input', updateSellPreview)
 );
 $('#sell-image').addEventListener('input', debounce(updateSellPreview, 400));
-$('#sell-image-file').addEventListener('change', updateSellPreview);
+$('#sell-image-file').addEventListener('change', () => { syncFileDrop(); updateSellPreview(); });
 $('#sell-duration').addEventListener('change', updateSellPreview);
+$('#sell-file-clear').addEventListener('click', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  $('#sell-image-file').value = '';
+  syncFileDrop(); updateSellPreview();
+});
 
 function openSellModal() {
   if (!ME) return openModal('auth-overlay');
@@ -750,6 +764,7 @@ function openSellModal() {
   ['sell-title','sell-desc','sell-image','sell-price','sell-start-bid'].forEach(id => $('#' + id).value = '');
   $('#sell-image-file').value = '';
   $('#sell-error').textContent = '';
+  syncFileDrop();
   updateSellPreview();
   openModal('sell-overlay');
 }
