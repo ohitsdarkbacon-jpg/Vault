@@ -290,7 +290,7 @@ nav a:hover::after { transform: scaleX(1); }
 }
 .search-bar select {
   padding: 10px; border-radius: 9px; border: 1px solid var(--border);
-  background: rgba(10, 13, 20, 0.8); color: var(--text); font-size: 0.85rem;
+  background-color: rgba(10, 13, 20, 0.8); color: var(--text); font-size: 0.85rem;
 }
 .search-bar input:focus, .search-bar select:focus {
   outline: none; border-color: var(--gold-dim); box-shadow: 0 0 0 3px rgba(245,190,11,0.1);
@@ -330,7 +330,7 @@ nav a:hover::after { transform: scaleX(1); }
 .field { margin-bottom: 14px; }
 .field label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; }
 .field input, .field textarea, .field select {
-  width: 100%; background: rgba(9, 12, 18, 0.65); border: 1px solid var(--border); color: var(--text);
+  width: 100%; background-color: rgba(9, 12, 18, 0.65); border: 1px solid var(--border); color: var(--text);
   padding: 11px 13px; border-radius: 9px; font-size: 0.9rem; font-family: inherit;
   transition: border-color .2s, box-shadow .2s;
 }
@@ -460,8 +460,9 @@ footer { border-top: 1px solid var(--border); padding: 28px; color: var(--muted)
 .dropdown {
   position: absolute; top: calc(100% + 10px); right: 0; width: 330px; max-width: calc(100vw - 24px);
   background: linear-gradient(180deg, rgba(24,29,41,0.98), rgba(15,18,27,0.99));
-  border: 1px solid var(--border-strong); border-radius: 14px;
-  box-shadow: var(--shadow-lg); z-index: 80; overflow: hidden; display: none;
+  border: 1px solid rgba(245,190,11,0.18); border-radius: 14px;
+  box-shadow: var(--shadow-lg), 0 0 34px rgba(245,190,11,0.09), 0 1px 0 rgba(255,255,255,0.06) inset;
+  z-index: 80; overflow: hidden; display: none;
   backdrop-filter: blur(16px);
 }
 .dropdown.open { display: block; animation: dropdown-in .22s var(--ease-spring); }
@@ -675,6 +676,59 @@ table.data td.mono { font-family: 'JetBrains Mono', monospace; }
 .empty-block { text-align: center; color: var(--muted); padding: 46px 20px; border: 1px dashed var(--border-strong); border-radius: var(--radius); font-size: 0.9rem; }
 .field small { color: var(--muted); font-size: 0.75rem; display: block; margin-top: 5px; text-transform: none; letter-spacing: 0; }
 .textarea-sm textarea { min-height: 80px; }
+
+/* ---------- Custom select dropdowns ---------- */
+select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23F5BE0B' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
+  padding-right: 34px !important;
+  cursor: pointer;
+  transition: border-color .2s, box-shadow .2s, transform .15s var(--ease-out);
+}
+select:hover { border-color: var(--gold-dim) !important; box-shadow: 0 0 14px rgba(245,190,11,0.1); }
+select:focus { outline: none; border-color: var(--gold-dim) !important; box-shadow: 0 0 0 3px rgba(245,190,11,0.12), 0 0 18px rgba(245,190,11,0.12); }
+select option, select optgroup {
+  background: #12161F; color: var(--text); padding: 8px;
+}
+
+/* ---------- Custom dialog (replaces native confirm/prompt) ---------- */
+.dialog-modal {
+  max-width: 400px; text-align: center;
+  border: 1px solid rgba(245,190,11,0.28);
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 1px rgba(245,190,11,0.08),
+    0 0 44px rgba(245,190,11,0.13),
+    0 1px 0 rgba(255,255,255,0.07) inset;
+}
+.dialog-icon {
+  width: 54px; height: 54px; margin: 2px auto 14px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center; font-size: 1.5rem;
+  background: linear-gradient(160deg, rgba(245,190,11,0.2), rgba(245,190,11,0.06));
+  border: 1px solid rgba(245,190,11,0.35);
+  box-shadow: 0 0 26px var(--gold-glow), inset 0 1px 0 rgba(255,255,255,0.12);
+  animation: dialog-icon-in .45s var(--ease-spring) both;
+}
+@keyframes dialog-icon-in { from { transform: scale(0.4) rotate(-12deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.dialog-modal h3 { font-size: 1.2rem; letter-spacing: -0.015em; }
+.dialog-message { margin-bottom: 6px; }
+.dialog-modal .field { text-align: left; margin-top: 12px; }
+.dialog-actions { margin-top: 20px; }
+.dialog-actions .btn { flex: 1; padding: 11px 16px; }
+.btn-danger {
+  background: linear-gradient(160deg, #ff7a80 0%, var(--danger) 55%, #d43a41 100%);
+  color: #fff; border: none; font-weight: 650;
+  box-shadow: 0 4px 20px rgba(255,92,99,0.25), inset 0 1px 0 rgba(255,255,255,0.3);
+}
+.btn-danger:hover:not(:disabled) {
+  background: linear-gradient(160deg, #ff8f94 0%, #ff6b71 55%, var(--danger) 100%);
+  box-shadow: 0 6px 28px rgba(255,92,99,0.42), inset 0 1px 0 rgba(255,255,255,0.3);
+  border-color: transparent;
+}
+.overlay.open .dialog-modal { animation: dialog-pop .38s var(--ease-spring); }
+@keyframes dialog-pop { from { opacity: 0; transform: translateY(26px) scale(0.92); } to { opacity: 1; transform: none; } }
 
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
