@@ -732,6 +732,34 @@ table.data td.mono { font-family: 'JetBrains Mono', monospace; }
 .field .custom-select { width: 100%; }
 .search-bar .custom-select { min-width: 160px; }
 
+/* ---------- Sell preview ---------- */
+.sell-preview-section {
+  margin: 18px 0 6px; padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.sell-preview-label {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; text-transform: uppercase;
+  letter-spacing: 0.14em; color: var(--muted); margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.sell-preview-label::before {
+  content: ''; width: 14px; height: 1.5px;
+  background: linear-gradient(90deg, var(--gold), transparent);
+}
+.sell-preview-card {
+  max-width: 280px; margin: 0 auto;
+}
+.sell-preview-card .card {
+  border-color: rgba(245,190,11,0.2);
+  box-shadow: 0 0 24px rgba(245,190,11,0.06);
+  transition: border-color .3s, box-shadow .3s;
+}
+.sell-preview-card .card:hover { transform: none; }
+.sell-preview-card .thumb {
+  aspect-ratio: 1.3 / 1;
+  transition: background-image .3s;
+}
+
 /* ---------- Custom dialog (replaces native confirm/prompt) ---------- */
 .dialog-modal {
   max-width: 400px; text-align: center;

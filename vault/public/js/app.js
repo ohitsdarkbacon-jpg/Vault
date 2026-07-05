@@ -687,7 +687,59 @@ $('#sell-type').addEventListener('click', (e) => {
   $('#sell-price-field').style.display = sellType === 'fixed' ? 'block' : 'none';
   $('#sell-auction-fields').style.display = sellType === 'auction' ? 'block' : 'none';
   $('#sell-submit').textContent = sellType === 'fixed' ? 'Post listing' : 'Start auction';
+  updateSellPreview();
 });
+
+const DURATION_LABELS = { '60': '1h', '360': '6h', '1440': '24h', '4320': '3d', '10080': '7d' };
+
+function updateSellPreview() {
+  const title = $('#sell-title').value.trim();
+  const priceCents = sellType === 'fixed'
+    ? Math.round((parseFloat($('#sell-price').value) || 0) * 100)
+    : Math.round((parseFloat($('#sell-start-bid').value) || 0) * 100);
+  const isAuction = sellType === 'auction';
+
+  $('#sell-preview-title').textContent = title || 'Your title here';
+  $('#sell-preview-title').style.opacity = title ? '1' : '0.4';
+  $('#sell-preview-price').textContent = priceCents > 0 ? money(priceCents) : '$0.00';
+  $('#sell-preview-price').style.opacity = priceCents > 0 ? '1' : '0.4';
+  $('#sell-preview-meta').textContent = ME ? `Seller: ${ME.username}` : '';
+  $('#sell-preview-badge').style.display = isAuction ? 'inline-flex' : 'none';
+  $('#sell-preview-btn').textContent = isAuction ? 'View & bid' : 'Buy now';
+
+  if (isAuction) {
+    const dur = $('#sell-duration').value;
+    $('#sell-preview-timer').textContent = (DURATION_LABELS[dur] || dur + 'm') + ' left';
+    $('#sell-preview-timer').style.display = 'inline';
+  } else {
+    $('#sell-preview-timer').style.display = 'none';
+  }
+
+  const file = $('#sell-image-file').files[0];
+  const url = $('#sell-image').value.trim();
+  const thumb = $('#sell-preview-thumb');
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      thumb.style.backgroundImage = `url('${e.target.result}')`;
+      thumb.textContent = '';
+    };
+    reader.readAsDataURL(file);
+  } else if (url) {
+    thumb.style.backgroundImage = `url('${escapeHtml(url)}')`;
+    thumb.textContent = '';
+  } else {
+    thumb.style.backgroundImage = '';
+    thumb.textContent = 'No image';
+  }
+}
+
+['sell-title', 'sell-price', 'sell-start-bid'].forEach(id =>
+  $('#' + id).addEventListener('input', updateSellPreview)
+);
+$('#sell-image').addEventListener('input', debounce(updateSellPreview, 400));
+$('#sell-image-file').addEventListener('change', updateSellPreview);
+$('#sell-duration').addEventListener('change', updateSellPreview);
 
 function openSellModal() {
   if (!ME) return openModal('auth-overlay');
@@ -698,6 +750,7 @@ function openSellModal() {
   ['sell-title','sell-desc','sell-image','sell-price','sell-start-bid'].forEach(id => $('#' + id).value = '');
   $('#sell-image-file').value = '';
   $('#sell-error').textContent = '';
+  updateSellPreview();
   openModal('sell-overlay');
 }
 $('#cta-sell').onclick = $('#nav-sell').onclick = $('#nav-sell-mobile').onclick = (e) => { e.preventDefault(); openSellModal(); };
