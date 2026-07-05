@@ -62,6 +62,55 @@ function closeModal(id) {
   if (id === 'chat-overlay') { clearInterval(chatPollTimer); activeChatOrderId = null; }
   if (id === 'bid-overlay') clearInterval(bidPollTimer);
 }
+// ---------- Custom confirm / prompt dialogs (replace native popups) ----------
+let dialogResolve = null;
+
+function vaultDialog({ title, message, input = false, value = '', placeholder = '', okText = 'Confirm', cancelText = 'Cancel', danger = false, icon = '🛡' }) {
+  return new Promise((resolve) => {
+    dialogResolve = resolve;
+    $('#dialog-icon').textContent = icon;
+    $('#dialog-title').textContent = title;
+    $('#dialog-message').textContent = message || '';
+    $('#dialog-message').style.display = message ? 'block' : 'none';
+    $('#dialog-input-wrap').style.display = input ? 'block' : 'none';
+    $('#dialog-input').value = value;
+    $('#dialog-input').placeholder = placeholder;
+    $('#dialog-ok').textContent = okText;
+    $('#dialog-cancel').textContent = cancelText;
+    $('#dialog-ok').classList.toggle('btn-danger', !!danger);
+    $('#dialog-ok').classList.toggle('btn-gold', !danger);
+    openModal('dialog-overlay');
+    setTimeout(() => (input ? $('#dialog-input') : $('#dialog-ok')).focus(), 60);
+  });
+}
+
+function settleDialog(result) {
+  if (!dialogResolve) return;
+  const resolve = dialogResolve;
+  dialogResolve = null;
+  closeModal('dialog-overlay');
+  resolve(result);
+}
+$('#dialog-ok').addEventListener('click', () => {
+  const isInput = $('#dialog-input-wrap').style.display !== 'none';
+  settleDialog(isInput ? $('#dialog-input').value.trim() : true);
+});
+$('#dialog-cancel').addEventListener('click', () => settleDialog(null));
+$('#dialog-overlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) settleDialog(null); });
+$('#dialog-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#dialog-ok').click(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && $('#dialog-overlay').classList.contains('open')) settleDialog(null);
+});
+
+// confirm() replacement — resolves true/false
+function vaultConfirm(message, opts = {}) {
+  return vaultDialog({ title: opts.title || 'Are you sure?', message, ...opts }).then(r => r !== null);
+}
+// prompt() replacement — resolves the string, or null if cancelled
+function vaultPrompt(message, opts = {}) {
+  return vaultDialog({ title: opts.title || 'One more thing', message, input: true, okText: opts.okText || 'Save', ...opts, danger: false });
+}
+
 $$('[data-close]').forEach(btn => btn.addEventListener('click', () => closeModal(btn.dataset.close)));
 $$('.overlay').forEach(ov => ov.addEventListener('click', e => {
   if (e.target === ov) { ov.classList.remove('open'); if (ov.id === 'chat-overlay') { clearInterval(chatPollTimer); activeChatOrderId = null; } if (ov.id === 'bid-overlay') clearInterval(bidPollTimer); }
@@ -723,7 +772,7 @@ function wireOrderCardActions(container) {
     loadDashboard();
   });
   container.querySelectorAll('[data-confirm]').forEach(b => b.onclick = async () => {
-    if (!confirm('Confirm you received this item in Roblox? This releases payment to the seller and can\'t be undone.')) return;
+    if (!await vaultConfirm('This releases the escrowed payment to the seller — it can\'t be undone.', { title: 'Received your item?', okText: '🔓 Release payment', icon: '📦' })) return;
     b.disabled = true;
     const r = await api(`/api/orders/${b.dataset.confirm}/confirm`, { method: 'POST' });
     if (r.error) { toast(r.error, 'error'); b.disabled = false; return; }
@@ -821,13 +870,13 @@ async function renderDashTab() {
     }).join('') + `</div>` : `<div class="empty-block">No auctions.</div>`;
     c.innerHTML = html;
     c.querySelectorAll('[data-cancel-listing]').forEach(b => b.onclick = async () => {
-      if (!confirm('Remove this listing from the marketplace?')) return;
+      if (!await vaultConfirm('It disappears from the marketplace immediately. You can relist it any time.', { title: 'Remove this listing?', okText: 'Remove listing', danger: true, icon: '🏷' })) return;
       const r2 = await api(`/api/listings/${b.dataset.cancelListing}/cancel`, { method: 'POST' });
       if (r2.error) return toast(r2.error, 'error');
       toast('Listing removed.', 'success'); renderDashTab(); loadListings();
     });
     c.querySelectorAll('[data-cancel-auction]').forEach(b => b.onclick = async () => {
-      if (!confirm('Cancel this auction?')) return;
+      if (!await vaultConfirm('The auction ends immediately. This only works while it has no bids.', { title: 'Cancel this auction?', okText: 'Cancel auction', danger: true, icon: '🔨' })) return;
       const r2 = await api(`/api/auctions/${b.dataset.cancelAuction}/cancel`, { method: 'POST' });
       if (r2.error) return toast(r2.error, 'error');
       toast('Auction cancelled.', 'success'); renderDashTab(); loadAuctions();
@@ -1085,7 +1134,7 @@ async function loadProfile(username) {
   const eb = $('#edit-bio');
   if (eb) eb.onclick = async () => {
     const current = $('#profile-bio-text') ? $('#profile-bio-text').textContent : '';
-    const bio = prompt('Your bio (max 300 chars):', current || '');
+    const bio = await vaultPrompt('Tell traders who you are (max 300 chars).', { title: 'Edit your bio', value: current || '', placeholder: 'Trusted trader since…', okText: 'Save bio', icon: '👤' });
     if (bio === null) return;
     const r2 = await api('/api/my/bio', { method: 'POST', body: JSON.stringify({ bio }) });
     if (r2.error) return toast(r2.error, 'error');
@@ -1142,7 +1191,8 @@ async function renderAdminTab() {
       </div>`).join('') + `</div>`;
     c.querySelectorAll('[data-adm-chat]').forEach(b => b.onclick = () => openChat(parseInt(b.dataset.admChat, 10)));
     c.querySelectorAll('[data-resolve]').forEach(b => b.onclick = async () => {
-      const note = prompt('Optional note for both parties:') || '';
+      const note = await vaultPrompt('Optional note shown to both parties.', { title: b.dataset.action === 'refund_buyer' ? 'Refund the buyer?' : 'Release to the seller?', okText: 'Resolve dispute', placeholder: 'e.g. Chat shows the item was never delivered', icon: '🛡' });
+      if (note === null) return;
       b.disabled = true;
       const r2 = await api(`/api/admin/disputes/${b.dataset.resolve}/resolve`, { method: 'POST', body: JSON.stringify({ action: b.dataset.action, note }) });
       if (r2.error) { toast(r2.error, 'error'); b.disabled = false; return; }
@@ -1177,7 +1227,7 @@ async function renderAdminTab() {
       ? '⚡ Crypto payouts within your caps are sent <b>automatically</b> the moment a seller requests them — anything here hit a cap, failed, or is PayPal. “Send via NOWPayments” retries a crypto one manually; “Mark sent” records an external manual payment; “Reject” refunds their balance. Keep your NOWPayments balance topped up.'
       : 'Automated crypto payouts are off — set NOWPAYMENTS_EMAIL / NOWPAYMENTS_PASSWORD / NOWPAYMENTS_2FA_SECRET to enable them. “Mark sent” records an external manual payment; “Reject” refunds their balance.'}</div>`;
     c.querySelectorAll('[data-send-crypto]').forEach(b => b.onclick = async () => {
-      if (!confirm('Send this payout now from your NOWPayments balance?')) return;
+      if (!await vaultConfirm('Crypto leaves your NOWPayments balance immediately and can\'t be recalled.', { title: 'Send this payout?', okText: '⚡ Send payout', icon: '⚡' })) return;
       b.disabled = true; b.textContent = 'Sending…';
       const r2 = await api(`/api/admin/withdrawals/${b.dataset.sendCrypto}/send-crypto`, { method: 'POST' });
       if (r2.error) { toast(r2.error, 'error'); b.disabled = false; b.textContent = '⚡ Send via NOWPayments'; return; }
@@ -1185,7 +1235,8 @@ async function renderAdminTab() {
       loadAdmin();
     });
     c.querySelectorAll('[data-wd]').forEach(b => b.onclick = async () => {
-      const note = prompt('Optional note to the user:') || '';
+      const note = await vaultPrompt('Optional note shown to the user.', { title: b.dataset.action === 'paid' ? 'Mark as sent?' : 'Reject & refund?', okText: b.dataset.action === 'paid' ? 'Mark sent' : 'Reject withdrawal', icon: '🏦' });
+      if (note === null) return;
       b.disabled = true;
       const r2 = await api(`/api/admin/withdrawals/${b.dataset.wd}`, { method: 'POST', body: JSON.stringify({ action: b.dataset.action, note }) });
       if (r2.error) { toast(r2.error, 'error'); b.disabled = false; return; }
@@ -1221,7 +1272,7 @@ async function renderAdminTab() {
           </div>
         </div>`).join('') + `</div>`;
       $('#admin-content-list').querySelectorAll('[data-takedown]').forEach(b => b.onclick = async () => {
-        if (!confirm('Take down this item? The seller (and any bidders) will be notified.')) return;
+        if (!await vaultConfirm('The seller (and any bidders) will be notified.', { title: 'Take down this item?', okText: 'Take it down', danger: true, icon: '🚫' })) return;
         b.disabled = true;
         const path = b.dataset.takedown === 'auction' ? 'auctions' : 'listings';
         const r2 = await api(`/api/admin/${path}/${b.dataset.id}/remove`, { method: 'POST' });
@@ -1261,11 +1312,12 @@ async function renderAdminTab() {
         </tr>`).join('')}
       </table></div>`;
       $('#admin-users-table').querySelectorAll('[data-credit]').forEach(b => b.onclick = async () => {
-        const raw = prompt(`Adjust ${b.dataset.name}'s balance — dollars to add (negative to remove), e.g. 25 or -10:`);
+        const raw = await vaultPrompt(`Dollars to add to ${b.dataset.name}'s balance — negative to remove.`, { title: 'Adjust balance', placeholder: 'e.g. 25 or -10', okText: 'Next', icon: '◈' });
         if (raw == null) return;
         const dollars = parseFloat(raw);
         if (!isFinite(dollars) || dollars === 0) return toast('Enter a non-zero dollar amount.', 'error');
-        const note = prompt('Optional note shown to the user:') || '';
+        const note = await vaultPrompt('Optional note shown to the user.', { title: `${dollars > 0 ? 'Add' : 'Remove'} $${Math.abs(dollars).toFixed(2)}?`, okText: 'Apply', placeholder: 'e.g. Giveaway winnings', icon: '◈' });
+        if (note === null) return;
         const r2 = await api(`/api/admin/users/${b.dataset.credit}/credit`, {
           method: 'POST',
           body: JSON.stringify({ amount_cents: Math.round(dollars * 100), note }),
@@ -1276,7 +1328,7 @@ async function renderAdminTab() {
         renderUsers();
       });
       $('#admin-users-table').querySelectorAll('[data-ban]').forEach(b => b.onclick = async () => {
-        if (!confirm('Ban this user? Their active listings will be pulled off the market.')) return;
+        if (!await vaultConfirm('Their active listings are pulled off the market and they lose access immediately.', { title: 'Ban this user?', okText: 'Ban user', danger: true, icon: '🔨' })) return;
         const r2 = await api(`/api/admin/users/${b.dataset.ban}/ban`, { method: 'POST' });
         if (r2.error) return toast(r2.error, 'error');
         renderUsers();
