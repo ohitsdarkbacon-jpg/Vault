@@ -37,7 +37,7 @@ router.get('/traders', (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 50);
   const rows = db
     .prepare(
-      `SELECT u.id, u.username, u.avatar_url, u.bio, u.created_at, u.last_seen_at,
+      `SELECT u.id, u.username, u.avatar_url, u.bio, u.created_at, u.last_seen_at, u.is_verified,
         (SELECT COUNT(*) FROM orders o WHERE o.seller_id = u.id AND o.status = 'completed') AS completed_sales,
         (SELECT ROUND(AVG(r.rating), 2) FROM reviews r WHERE r.seller_id = u.id) AS avg_rating,
         (SELECT COUNT(*) FROM reviews r WHERE r.seller_id = u.id) AS review_count,

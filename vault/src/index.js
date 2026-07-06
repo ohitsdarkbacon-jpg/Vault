@@ -17,6 +17,7 @@ const usersRoutes = require('./routes/users');
 const adminRoutes = require('./routes/admin');
 const uploadsRoutes = require('./routes/uploads');
 const dmRoutes = require('./routes/dm');
+const offersRoutes = require('./routes/offers');
 const { startAuctionCloser } = require('./jobs/auctionCloser');
 const { startAutoComplete } = require('./jobs/autoCompleteOrders');
 
@@ -71,12 +72,28 @@ app.get('/api/stats', (req, res) => {
   res.json(s);
 });
 
+// Recent escrowed/completed trades — social proof for the home page.
+app.get('/api/recent-sales', (req, res) => {
+  const rows = db.prepare(
+    `SELECT o.amount_cents, o.created_at,
+      COALESCE(l.title, a.title) AS title,
+      COALESCE(l.image_url, a.image_url) AS image_url
+     FROM orders o
+     LEFT JOIN listings l ON l.id = o.listing_id
+     LEFT JOIN auctions a ON a.id = o.auction_id
+     WHERE o.status IN ('paid','delivered','completed')
+     ORDER BY o.id DESC LIMIT 8`
+  ).all();
+  res.json({ sales: rows });
+});
+
 app.use('/auth', authRoutes);
 app.use('/api/listings', listingsRoutes);
 app.use('/api/auctions', auctionsRoutes);
 app.use('/api/orders', ordersRoutes);   // lifecycle, chat, reviews (must be before paymentsRoutes' /orders/:id)
 app.use('/api', usersRoutes);           // /api/users/:username, /api/my/*, /api/favorites/*
 app.use('/api', dmRoutes);              // /api/traders, /api/dm/*, block/report, /api/my/privacy
+app.use('/api', offersRoutes);          // /api/listings/:id/offers, /api/offers/:id/*, /api/my/offers
 app.use('/api/uploads', uploadsRoutes); // image uploads for listings/auctions
 app.use('/api/admin', adminRoutes);
 app.use('/api', paymentsRoutes); // /api/auctions/:id/checkout/*, /api/listings/:id/checkout/*

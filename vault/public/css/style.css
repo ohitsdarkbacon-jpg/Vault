@@ -947,6 +947,100 @@ table.data td.mono { font-family: 'JetBrains Mono', monospace; }
 }
 .private-profile h3 { color: var(--text); margin: 0 0 6px; }
 
+/* ---------- Verified badge ---------- */
+.verified-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(160deg, var(--gold-2), var(--gold));
+  color: #17130a; font-size: 0.62rem; font-weight: 800;
+  box-shadow: 0 0 10px rgba(245,190,11,0.35);
+  vertical-align: middle;
+}
+
+/* ---------- Recent trades strip ---------- */
+.recent-strip {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(190px, 1fr);
+  gap: 12px; overflow-x: auto; padding-bottom: 6px;
+  scrollbar-width: thin;
+}
+.recent-card {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 10px 12px; backdrop-filter: blur(8px);
+  animation: card-in .45s var(--ease-out) both;
+}
+.recent-card .r-thumb {
+  width: 40px; height: 40px; border-radius: 9px; flex-shrink: 0;
+  background: var(--surface-2) center/cover no-repeat;
+  display: flex; align-items: center; justify-content: center; font-size: 1rem;
+}
+.recent-card .r-title { font-size: 0.8rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recent-card .r-sub { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+.recent-card .r-price { margin-left: auto; font-family: 'JetBrains Mono', monospace; color: var(--live); font-weight: 700; font-size: 0.82rem; flex-shrink: 0; }
+
+/* ---------- Quick bids ---------- */
+.quick-bids { display: flex; gap: 7px; margin-top: 8px; flex-wrap: wrap; }
+.quick-bid {
+  border: 1px solid var(--border-strong); background: rgba(28,34,48,0.5); color: var(--muted);
+  padding: 5px 11px; border-radius: 999px; font-size: 0.76rem; font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  transition: all .15s var(--ease-out);
+}
+.quick-bid:hover { color: var(--gold); border-color: var(--gold-dim); transform: translateY(-1px); }
+
+/* ---------- Buyout button ---------- */
+.btn-buyout {
+  margin-top: 10px;
+  background: linear-gradient(160deg, rgba(61,220,151,0.18), rgba(61,220,151,0.07));
+  border: 1px solid rgba(61,220,151,0.4); color: var(--live); font-weight: 650;
+}
+.btn-buyout:hover:not(:disabled) {
+  background: linear-gradient(160deg, rgba(61,220,151,0.28), rgba(61,220,151,0.12));
+  box-shadow: 0 4px 22px rgba(61,220,151,0.22); border-color: var(--live);
+}
+
+/* ---------- Share / head buttons ---------- */
+.head-btns { display: flex; gap: 4px; align-items: flex-start; }
+.share-btn {
+  background: none; border: none; font-size: 0.95rem; padding: 4px;
+  opacity: 0.55; transition: opacity .15s, transform .2s var(--ease-spring);
+}
+.share-btn:hover { opacity: 1; transform: scale(1.2); }
+
+/* ---------- Offer bits ---------- */
+.offer-note { border-color: rgba(61,220,151,0.4); background: rgba(61,220,151,0.06); }
+.status-offer-pending { color: var(--blue); border-color: rgba(110,168,254,0.35); background: rgba(110,168,254,0.07); }
+.status-offer-accepted { color: var(--live); border-color: rgba(61,220,151,0.35); background: rgba(61,220,151,0.06); }
+.status-offer-countered { color: var(--gold); border-color: rgba(245,190,11,0.35); background: rgba(245,190,11,0.06); }
+
+/* ---------- Char counter ---------- */
+.char-count { float: right; font-size: 0.68rem; color: var(--muted); text-transform: none; letter-spacing: 0; }
+.char-count.hot { color: var(--danger); }
+
+/* ---------- Scroll to top ---------- */
+.scroll-top {
+  position: fixed; bottom: 22px; left: 22px; z-index: 90;
+  width: 40px; height: 40px; border-radius: 12px;
+  background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--gold);
+  font-size: 1.05rem; display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transform: translateY(10px);
+  transition: opacity .25s, transform .25s var(--ease-out), border-color .18s, box-shadow .18s;
+  backdrop-filter: blur(10px);
+}
+.scroll-top.show { opacity: 1; pointer-events: auto; transform: none; }
+.scroll-top:hover { border-color: var(--gold-dim); box-shadow: 0 6px 20px rgba(0,0,0,0.4), 0 0 16px rgba(245,190,11,0.12); }
+
+/* ---------- Button loading spinner ---------- */
+.btn.loading { color: transparent !important; pointer-events: none; position: relative; }
+.btn.loading::before {
+  content: ''; position: absolute; inset: 0; margin: auto;
+  width: 15px; height: 15px; border-radius: 50%;
+  border: 2px solid rgba(245,190,11,0.3); border-top-color: var(--gold);
+  animation: btn-spin .7s linear infinite;
+}
+.btn-gold.loading::before { border-color: rgba(23,19,10,0.3); border-top-color: #17130a; }
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }

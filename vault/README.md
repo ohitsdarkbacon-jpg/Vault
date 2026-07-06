@@ -10,6 +10,12 @@ withdrawals, notifications, public profiles, and an admin panel.
 
 **Trading**
 - Fixed-price listings + timed auctions (bid history, min increments, anti-snipe: bids in the last 2 min extend the auction 2 min)
+- **Offers / negotiation**: buyers make offers below asking price; sellers accept, decline, or counter; an accepted offer becomes that buyer's checkout price on every payment rail. When the item sells, all other offers auto-expire with a notification
+- **⚡ Buy It Now on auctions**: optional buyout price ends the auction instantly for the buyer (bids at/above it are redirected to the buyout)
+- **Edit listings** in place (title/description/image/price) — price cuts ping everyone watching with a 📉 price-drop notification
+- **⏰ Ending-soon alerts**: watchers and the high bidder get notified when an auction they care about enters its final hour
+- Live-updating countdowns, quick-bid chips (min / +1 step / +5 steps), share links with deep-linking (`#listing-N` / `#auction-N`)
+- Recently-traded strip on the home page for social proof
 - Item images: **upload a file from your computer** (PNG/JPG/GIF/WEBP, max 20 MB) or paste an external URL
 - Full-text search (SQLite FTS5 with LIKE fallback), price filters, sorting, pagination
 - Favorites / watchlist
@@ -37,8 +43,10 @@ withdrawals, notifications, public profiles, and an admin panel.
 - In-app notifications: outbid, auction won/sold, item sold, delivered, completed, disputed, refunded, new message, DMs, withdrawal, moderation
 
 **Admin panel** (`#admin`, for users in `ADMIN_DISCORD_IDS`)
-- Live stats incl. money held in escrow + fees earned
+- Live stats incl. money held in escrow + fees earned + open reports
 - Dispute resolution, withdrawal queue, user search + ban/unban
+- **Reports tab**: review user reports and mark them resolved
+- **✔ Verified trader badges**: grant/revoke a trust badge shown next to the user's name site-wide
 - **Content tab**: browse/search live listings & auctions and take any of them down (seller + bidders are notified)
 - Grant or deduct **site credit** on any account (including your own) from the Users tab
 

@@ -4,6 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { computeOrderAmounts } = require('../lib/fees');
 const { notify } = require('../lib/notify');
 const { moderateField } = require('../lib/moderation');
+const { acceptedOfferFor, settleOffersForListing } = require('../lib/fulfillOrder');
 const {
   parsePagination,
   parsePriceCents,
@@ -18,7 +19,7 @@ const MAX_TITLE_LEN = 140;
 const MAX_DESCRIPTION_LEN = 2000;
 
 const listingQuery = `
-  SELECT l.*, u.username AS seller_name
+  SELECT l.*, u.username AS seller_name, u.is_verified AS seller_verified
   FROM listings l JOIN users u ON u.id = l.seller_id
 `;
 
@@ -65,7 +66,7 @@ router.get('/', (req, res) => {
       const orderClause = sortKey === 'relevance' ? 'rank ASC' : orderBy;
       rows = db
         .prepare(
-          `SELECT l.*, u.username AS seller_name, bm25(listings_fts) AS rank
+          `SELECT l.*, u.username AS seller_name, u.is_verified AS seller_verified, bm25(listings_fts) AS rank
            FROM listings_fts
            JOIN listings l ON l.id = listings_fts.rowid
            JOIN users u ON u.id = l.seller_id
@@ -146,7 +147,17 @@ router.post('/', requireAuth, (req, res) => {
 router.get('/:id', (req, res) => {
   const listing = db.prepare(`${listingQuery} WHERE l.id = ?`).get(req.params.id);
   if (!listing) return res.status(404).json({ error: 'Listing not found.' });
-  res.json({ listing });
+  // The viewer's live offer on this listing, so the buy modal can show
+  // "offer pending" / the accepted discounted price.
+  let my_offer = null;
+  if (req.user && req.user.id !== listing.seller_id) {
+    my_offer = db
+      .prepare(
+        "SELECT id, amount_cents, counter_cents, status FROM offers WHERE listing_id = ? AND buyer_id = ? AND status IN ('pending','countered','accepted') ORDER BY id DESC LIMIT 1"
+      )
+      .get(listing.id, req.user.id) || null;
+  }
+  res.json({ listing, my_offer });
 });
 
 // Instant purchase using site credit balance
@@ -161,7 +172,10 @@ router.post('/:id/buy-with-credit', requireAuth, (req, res) => {
   if (listing.seller_id === req.user.id) {
     return res.status(400).json({ error: "You can't buy your own listing." });
   }
-  const { amountCents, feeCents, sellerProceedsCents } = computeOrderAmounts(listing.price_cents);
+  // An accepted offer overrides the sticker price for this buyer.
+  const offer = acceptedOfferFor(listing.id, req.user.id);
+  const baseCents = offer ? offer.amount_cents : listing.price_cents;
+  const { amountCents, feeCents, sellerProceedsCents } = computeOrderAmounts(baseCents);
   if (req.user.site_credit_cents < amountCents) {
     return res.status(400).json({ error: `Insufficient site credit — total is ${(amountCents / 100).toFixed(2)} USD including the buyer fee.` });
   }
@@ -182,6 +196,7 @@ router.post('/:id/buy-with-credit', requireAuth, (req, res) => {
     orderId = info.lastInsertRowid;
   });
   tx();
+  settleOffersForListing(listing.id, req.user.id);
 
   notify(
     listing.seller_id,
@@ -191,6 +206,64 @@ router.post('/:id/buy-with-credit', requireAuth, (req, res) => {
   );
 
   res.json({ ok: true, order_id: orderId });
+});
+
+// Seller edits their own active listing. Lowering the price pings everyone
+// who favorited the item.
+router.patch('/:id', requireAuth, (req, res) => {
+  const listing = db.prepare('SELECT * FROM listings WHERE id = ?').get(req.params.id);
+  if (!listing || listing.seller_id !== req.user.id) return res.status(404).json({ error: 'Listing not found.' });
+  if (listing.status !== 'active') return res.status(400).json({ error: 'Only active listings can be edited.' });
+
+  const body = req.body || {};
+  const updates = {};
+
+  if (body.title != null) {
+    const title = String(body.title).trim();
+    if (!title) return res.status(400).json({ error: 'Title is required.' });
+    if (title.length > MAX_TITLE_LEN) return res.status(400).json({ error: `Title must be ${MAX_TITLE_LEN} characters or fewer.` });
+    const mod = moderateField(title, 'title');
+    if (!mod.ok) return res.status(400).json({ error: mod.error });
+    updates.title = mod.clean;
+  }
+  if (body.description !== undefined) {
+    const desc = body.description ? String(body.description).trim() : null;
+    if (desc && desc.length > MAX_DESCRIPTION_LEN) return res.status(400).json({ error: `Description must be ${MAX_DESCRIPTION_LEN} characters or fewer.` });
+    const mod = moderateField(desc, 'description');
+    if (!mod.ok) return res.status(400).json({ error: mod.error });
+    updates.description = mod.clean || null;
+  }
+  if (body.image_url !== undefined) {
+    if (!isValidImageUrl(body.image_url)) return res.status(400).json({ error: 'Image URL must be a valid http(s) link.' });
+    updates.image_url = body.image_url || null;
+  }
+  if (body.price_cents != null) {
+    if (!Number.isInteger(body.price_cents) || body.price_cents <= 0) {
+      return res.status(400).json({ error: 'Price must be a positive amount.' });
+    }
+    updates.price_cents = body.price_cents;
+  }
+  if (!Object.keys(updates).length) return res.status(400).json({ error: 'Nothing to update.' });
+
+  const sets = Object.keys(updates).map((k) => `${k} = ?`).join(', ');
+  db.prepare(`UPDATE listings SET ${sets} WHERE id = ?`).run(...Object.values(updates), listing.id);
+
+  if (updates.price_cents && updates.price_cents < listing.price_cents) {
+    const watchers = db
+      .prepare("SELECT user_id FROM favorites WHERE kind = 'listing' AND item_id = ? AND user_id != ?")
+      .all(listing.id, req.user.id);
+    for (const w of watchers) {
+      notify(
+        w.user_id,
+        'price_drop',
+        `Price drop on "${updates.title || listing.title}": $${(listing.price_cents / 100).toFixed(2)} → $${(updates.price_cents / 100).toFixed(2)}.`,
+        `#listing-${listing.id}`
+      );
+    }
+  }
+
+  const updated = db.prepare(`${listingQuery} WHERE l.id = ?`).get(listing.id);
+  res.json({ listing: updated });
 });
 
 // Seller cancels their own active listing
