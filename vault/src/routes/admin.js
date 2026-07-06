@@ -26,6 +26,7 @@ router.get('/overview', (req, res) => {
         (SELECT COUNT(*) FROM auctions WHERE status = 'live') AS live_auctions,
         (SELECT COUNT(*) FROM orders WHERE status = 'disputed') AS open_disputes,
         (SELECT COUNT(*) FROM withdrawals WHERE status = 'pending') AS pending_withdrawals,
+        (SELECT COUNT(*) FROM reports WHERE status = 'open') AS open_reports,
         (SELECT COALESCE(SUM(amount_cents),0) FROM orders WHERE status IN ('paid','delivered','disputed') AND escrow_released = 0) AS escrow_held_cents,
         (SELECT COALESCE(SUM(fee_cents),0) FROM orders WHERE status = 'completed') AS fees_earned_cents,
         (SELECT COUNT(*) FROM orders WHERE status = 'completed') AS completed_orders`
@@ -132,19 +133,29 @@ router.get('/users', (req, res) => {
   if (q) {
     rows = db
       .prepare(
-        `SELECT id, provider_id, username, site_credit_cents, is_banned, is_admin, created_at
+        `SELECT id, provider_id, username, site_credit_cents, is_banned, is_admin, is_verified, created_at
          FROM users WHERE username LIKE ? ORDER BY created_at DESC LIMIT 50`
       )
       .all(`%${q.replace(/[%_]/g, '')}%`);
   } else {
     rows = db
       .prepare(
-        `SELECT id, provider_id, username, site_credit_cents, is_banned, is_admin, created_at
+        `SELECT id, provider_id, username, site_credit_cents, is_banned, is_admin, is_verified, created_at
          FROM users ORDER BY created_at DESC LIMIT 50`
       )
       .all();
   }
   res.json({ users: rows });
+});
+
+// Toggle the verified-trader badge.
+router.post('/users/:id/verify', (req, res) => {
+  const target = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+  if (!target) return res.status(404).json({ error: 'User not found.' });
+  const next = target.is_verified ? 0 : 1;
+  db.prepare('UPDATE users SET is_verified = ? WHERE id = ?').run(next, target.id);
+  if (next) notify(target.id, 'admin', "You're now a ✔ Verified trader — the badge shows next to your name across Vault.");
+  res.json({ ok: true, verified: !!next });
 });
 
 router.post('/users/:id/ban', (req, res) => {
@@ -195,6 +206,28 @@ router.post('/users/:id/credit', (req, res) => {
   );
   console.log(`[admin] ${req.user.username} adjusted user ${target.id} credit by ${amount}c -> ${newBalance}c`);
   res.json({ ok: true, balance_cents: newBalance });
+});
+
+// ---------- User reports ----------
+
+router.get('/reports', (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT r.*, ru.username AS reporter_name, tu.username AS reported_name, tu.is_banned AS reported_banned
+       FROM reports r
+       JOIN users ru ON ru.id = r.reporter_id
+       JOIN users tu ON tu.id = r.reported_id
+       WHERE r.status = 'open' ORDER BY r.created_at ASC LIMIT 100`
+    )
+    .all();
+  res.json({ reports: rows });
+});
+
+router.post('/reports/:id/resolve', (req, res) => {
+  const report = db.prepare('SELECT * FROM reports WHERE id = ?').get(req.params.id);
+  if (!report || report.status !== 'open') return res.status(404).json({ error: 'Report not found.' });
+  db.prepare("UPDATE reports SET status = 'resolved' WHERE id = ?").run(report.id);
+  res.json({ ok: true });
 });
 
 // ---------- Content moderation ----------

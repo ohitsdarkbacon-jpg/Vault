@@ -254,6 +254,30 @@ CREATE TABLE IF NOT EXISTS reports (
 CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
 `);
 
+// ============================================================
+// v4 schema — offers/negotiation, auction buyouts, verified
+// traders, ending-soon alerts
+// ============================================================
+
+ensureColumn('users', 'is_verified', 'is_verified INTEGER NOT NULL DEFAULT 0');       // admin-granted trust badge
+ensureColumn('auctions', 'buyout_cents', 'buyout_cents INTEGER');                     // optional Buy It Now price
+ensureColumn('auctions', 'ending_alert_sent', 'ending_alert_sent INTEGER NOT NULL DEFAULT 0'); // watchers alerted <1h left
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS offers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  listing_id INTEGER NOT NULL REFERENCES listings(id),
+  buyer_id INTEGER NOT NULL REFERENCES users(id),
+  amount_cents INTEGER NOT NULL,
+  counter_cents INTEGER,               -- seller's counter-offer, when status = 'countered'
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | countered | accepted | declined | withdrawn | expired | completed
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_offers_listing ON offers(listing_id, status);
+CREATE INDEX IF NOT EXISTS idx_offers_buyer ON offers(buyer_id, status);
+`);
+
 // Seed admins from env: comma-separated Roblox user IDs
 const adminIds = (process.env.ADMIN_DISCORD_IDS || process.env.ADMIN_ROBLOX_IDS || '')
   .split(',')

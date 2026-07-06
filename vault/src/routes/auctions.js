@@ -18,7 +18,7 @@ const MAX_DESCRIPTION_LEN = 2000;
 const MAX_DURATION_MINUTES = 30 * 24 * 60; // 30 days
 
 const auctionQuery = `
-  SELECT a.*, u.username AS seller_name, b.username AS current_bidder_name
+  SELECT a.*, u.username AS seller_name, u.is_verified AS seller_verified, b.username AS current_bidder_name
   FROM auctions a
   JOIN users u ON u.id = a.seller_id
   LEFT JOIN users b ON b.id = a.current_bidder_id
@@ -68,7 +68,7 @@ router.get('/', (req, res) => {
       const orderClause = sortKey === 'relevance' ? 'rank ASC' : orderBy;
       rows = db
         .prepare(
-          `SELECT a.*, u.username AS seller_name, b.username AS current_bidder_name, bm25(auctions_fts) AS rank
+          `SELECT a.*, u.username AS seller_name, u.is_verified AS seller_verified, b.username AS current_bidder_name, bm25(auctions_fts) AS rank
            FROM auctions_fts
            JOIN auctions a ON a.id = auctions_fts.rowid
            JOIN users u ON u.id = a.seller_id
@@ -109,7 +109,7 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', requireAuth, (req, res) => {
-  const { description, image_url, starting_bid_cents, min_increment_cents, duration_minutes } = req.body || {};
+  const { description, image_url, starting_bid_cents, min_increment_cents, duration_minutes, buyout_cents } = req.body || {};
   const title = req.body && req.body.title != null ? String(req.body.title).trim() : '';
   if (!title) return res.status(400).json({ error: 'Title is required.' });
   if (title.length > MAX_TITLE_LEN) {
@@ -120,6 +120,11 @@ router.post('/', requireAuth, (req, res) => {
   }
   if (!Number.isInteger(starting_bid_cents) || starting_bid_cents <= 0) {
     return res.status(400).json({ error: 'Starting bid must be a positive amount.' });
+  }
+  if (buyout_cents != null) {
+    if (!Number.isInteger(buyout_cents) || buyout_cents <= starting_bid_cents) {
+      return res.status(400).json({ error: 'Buy-now price must be higher than the starting bid.' });
+    }
   }
   if (!isValidImageUrl(image_url)) {
     return res.status(400).json({ error: 'Image URL must be a valid http(s) link.' });
@@ -137,8 +142,8 @@ router.post('/', requireAuth, (req, res) => {
 
   const info = db
     .prepare(
-      `INSERT INTO auctions (seller_id, title, description, image_url, starting_bid_cents, min_increment_cents, ends_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO auctions (seller_id, title, description, image_url, starting_bid_cents, min_increment_cents, ends_at, buyout_cents)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       req.user.id,
@@ -147,7 +152,8 @@ router.post('/', requireAuth, (req, res) => {
       image_url || null,
       starting_bid_cents,
       Number.isInteger(min_increment_cents) && min_increment_cents > 0 ? min_increment_cents : 100,
-      endsAt
+      endsAt,
+      buyout_cents || null
     );
   const auction = db.prepare(`${auctionQuery} WHERE a.id = ?`).get(info.lastInsertRowid);
   res.status(201).json({ auction });
@@ -184,6 +190,11 @@ router.post('/:id/bid', requireAuth, (req, res) => {
       error: `Bid must be at least $${(minAcceptable / 100).toFixed(2)}.`,
     });
   }
+  if (auction.buyout_cents && amount_cents >= auction.buyout_cents) {
+    return res.status(400).json({
+      error: `That's at or above the $${(auction.buyout_cents / 100).toFixed(2)} buy-now price — use ⚡ Buy now instead.`,
+    });
+  }
 
   // Anti-sniping: a bid landing in the final 2 minutes pushes the end time
   // out by 2 minutes, so auctions can't be stolen at the buzzer.
@@ -218,6 +229,39 @@ router.post('/:id/bid', requireAuth, (req, res) => {
 
   const updated = db.prepare(`${auctionQuery} WHERE a.id = ?`).get(auction.id);
   res.json({ auction: updated, extended: newEndsAt !== auction.ends_at });
+});
+
+// ⚡ Buy It Now: instantly ends the auction with the caller as winner at the
+// buyout price. They then pay through the normal won-auction checkout.
+router.post('/:id/buyout', requireAuth, (req, res) => {
+  const auction = db.prepare('SELECT * FROM auctions WHERE id = ?').get(req.params.id);
+  if (!auction) return res.status(404).json({ error: 'Auction not found.' });
+  if (auction.status !== 'live' || new Date(auction.ends_at) <= new Date()) {
+    return res.status(400).json({ error: 'This auction has ended.' });
+  }
+  if (!auction.buyout_cents) return res.status(400).json({ error: "This auction doesn't have a buy-now price." });
+  if (auction.seller_id === req.user.id) return res.status(400).json({ error: "You can't buy your own auction." });
+
+  const previousBidderId = auction.current_bidder_id;
+  const tx = db.transaction(() => {
+    db.prepare(
+      `UPDATE auctions SET status = 'ended', winner_id = ?, current_bidder_id = ?,
+       current_bid_cents = ?, ends_at = datetime('now') WHERE id = ? AND status = 'live'`
+    ).run(req.user.id, req.user.id, auction.buyout_cents, auction.id);
+    db.prepare('INSERT INTO bids (auction_id, bidder_id, amount_cents) VALUES (?, ?, ?)').run(
+      auction.id,
+      req.user.id,
+      auction.buyout_cents
+    );
+  });
+  tx();
+
+  const price = `$${(auction.buyout_cents / 100).toFixed(2)}`;
+  notify(auction.seller_id, 'auction_sold', `"${auction.title}" was bought out at ${price} — waiting for the buyer to pay.`, `#auction-${auction.id}`);
+  if (previousBidderId && previousBidderId !== req.user.id) {
+    notify(previousBidderId, 'outbid', `"${auction.title}" was bought out at ${price} before the auction ended.`, '#auctions');
+  }
+  res.json({ ok: true, price_cents: auction.buyout_cents });
 });
 
 // Bid history for an auction (public)

@@ -43,10 +43,28 @@ function timeAgo(iso) {
 function timeLeft(iso) {
   const ms = new Date(iso) - new Date();
   if (ms <= 0) return { text: 'Ended', urgent: true };
-  const m = Math.floor(ms / 60000), h = Math.floor(m / 60), d = Math.floor(h / 24);
-  const text = d > 0 ? `${d}d ${h % 24}h left` : h > 0 ? `${h}h ${m % 60}m left` : `${m}m left`;
+  const s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60), d = Math.floor(h / 24);
+  const text = d > 0 ? `${d}d ${h % 24}h left`
+    : h > 0 ? `${h}h ${m % 60}m left`
+    : m >= 5 ? `${m}m left`
+    : `${m}m ${s % 60}s left`; // final minutes tick by the second
   return { text, urgent: ms < 5 * 60000 };
 }
+
+// Verified-trader badge, shown next to usernames site-wide.
+function vbadge(isVerified) {
+  return isVerified ? '<span class="verified-badge" title="Verified trader">✓</span>' : '';
+}
+
+// Live countdowns: anything rendered with data-ends="<iso>" re-renders every
+// second without a refetch.
+setInterval(() => {
+  $$('[data-ends]').forEach(el => {
+    const t = timeLeft(el.dataset.ends);
+    el.textContent = t.text;
+    el.classList.toggle('urgent', t.urgent);
+  });
+}, 1000);
 
 // ---------- Toasts ----------
 function toast(message, type = 'info') {
@@ -211,6 +229,9 @@ async function route() {
   if (h.startsWith('auction-')) {
     showView('home'); openAuction(h.slice(8)); return;
   }
+  if (h.startsWith('listing-')) {
+    showView('home'); openBuyModal(h.slice(8)); return;
+  }
   showView('home');
   if (h === 'auctions' || h === 'listings') {
     const target = document.getElementById(h);
@@ -286,6 +307,7 @@ const NOTIF_ICONS = {
   order_paid: '🛡', order_delivered: '📦', order_completed: '✅',
   order_disputed: '⚠️', order_refunded: '↩️', new_message: '💬',
   review: '⭐', withdrawal: '🏦', admin: '🛡', dm: '✉️',
+  offer: '💰', price_drop: '📉', ending_soon: '⏰',
 };
 
 async function loadNotifications() {
@@ -363,6 +385,29 @@ async function loadSiteStats() {
     <div class="stat"><b>${r.traders}</b><span>Traders</span></div>
   `;
 }
+async function loadRecentSales() {
+  const r = await api('/api/recent-sales');
+  const sales = r.sales || [];
+  const section = $('#recent-trades-section');
+  if (!sales.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  $('#recent-strip').innerHTML = sales.map(s => `
+    <div class="recent-card">
+      <div class="r-thumb" style="${s.image_url ? `background-image:url('${escapeHtml(s.image_url)}')` : ''}">${s.image_url ? '' : '📦'}</div>
+      <div style="min-width:0">
+        <div class="r-title">${escapeHtml(s.title || 'Item')}</div>
+        <div class="r-sub">${timeAgo(s.created_at)}</div>
+      </div>
+      <div class="r-price">${money(s.amount_cents)}</div>
+    </div>
+  `).join('');
+}
+
+// Scroll-to-top button
+const scrollTopBtn = $('#scroll-top');
+window.addEventListener('scroll', () => scrollTopBtn.classList.toggle('show', window.scrollY > 600), { passive: true });
+scrollTopBtn.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+
 function renderTicker() {
   const items = AUCTIONS.slice(0, 8).map(a => `
     <span class="tick"><span class="dot"></span> <b>${escapeHtml(a.title)}</b> <span class="amt">${money(a.current_bid_cents || a.starting_bid_cents)}</span></span>
@@ -385,7 +430,16 @@ function buildSearchParams(state) {
   return params;
 }
 
+// Shimmer placeholders while a grid loads for the first time.
+function showSkeletons(sel, n = 4) {
+  const grid = $(sel);
+  if (grid && !grid.querySelector('.card')) {
+    grid.innerHTML = Array(n).fill('<div class="skeleton"></div>').join('');
+  }
+}
+
 async function loadAuctions({ append = false } = {}) {
+  if (!append) showSkeletons('#auctions-grid');
   const r = await api(`/api/auctions?${buildSearchParams(auctionState)}`);
   const items = r.auctions || [];
   AUCTIONS = append ? AUCTIONS.concat(items) : items;
@@ -412,12 +466,12 @@ function auctionCardHtml(a) {
     <div class="card" data-auction-id="${a.id}">
       <div class="thumb" style="${a.image_url ? `background-image:url('${escapeHtml(a.image_url)}')` : ''}">${a.image_url ? '' : 'No image'}</div>
       <div class="card-body">
-        <div class="badge"><span class="dot"></span> Live</div>
+        <div class="badge"><span class="dot"></span> Live${a.buyout_cents ? ` · ⚡ ${money(a.buyout_cents)}` : ''}</div>
         <div class="card-title">${escapeHtml(a.title)}</div>
-        <div class="card-meta">Seller: <a class="seller-link" href="#u/${encodeURIComponent(a.seller_name)}" onclick="event.stopPropagation()">${escapeHtml(a.seller_name)}</a>${a.current_bidder_name ? ' · High bidder: ' + escapeHtml(a.current_bidder_name) : ''}</div>
+        <div class="card-meta">Seller: <a class="seller-link" href="#u/${encodeURIComponent(a.seller_name)}" onclick="event.stopPropagation()">${escapeHtml(a.seller_name)}</a> ${vbadge(a.seller_verified)}${a.current_bidder_name ? ' · High bidder: ' + escapeHtml(a.current_bidder_name) : ''}</div>
         <div class="card-foot">
           <span class="price">${money(bid)}</span>
-          <span class="timer ${t.urgent ? 'urgent' : ''}">${t.text}</span>
+          <span class="timer ${t.urgent ? 'urgent' : ''}" data-ends="${escapeHtml(a.ends_at)}">${t.text}</span>
         </div>
         <button class="btn btn-gold btn-full">View &amp; bid</button>
       </div>
@@ -466,10 +520,50 @@ async function refreshAuctionModal() {
       : 'You won this auction. Choose how to pay:';
   }
   const isMine = ME && a.seller_id === ME.id;
-  $('#bid-field').style.display = a.status === 'live' && !isMine ? 'block' : 'none';
-  $('#bid-actions').style.display = a.status === 'live' && !isMine ? 'flex' : 'none';
+  const biddable = a.status === 'live' && !isMine;
+  $('#bid-field').style.display = biddable ? 'block' : 'none';
+  $('#bid-actions').style.display = biddable ? 'flex' : 'none';
   $('#checkout-area').style.display = won ? 'block' : 'none';
   if (a.status !== 'live' && !won) clearInterval(bidPollTimer);
+
+  // Quick-bid chips: the minimum next bid plus two sensible jumps.
+  if (biddable) {
+    const minNext = a.current_bid_cents == null
+      ? a.starting_bid_cents
+      : (a.current_bid_cents + a.min_increment_cents);
+    const steps = [minNext, minNext + a.min_increment_cents, minNext + a.min_increment_cents * 5]
+      .filter(v => !a.buyout_cents || v < a.buyout_cents);
+    $('#quick-bids').innerHTML = steps.map((v, i) =>
+      `<button type="button" class="quick-bid" data-v="${v}">${i === 0 ? 'Min ' : ''}${money(v)}</button>`
+    ).join('');
+    $$('#quick-bids .quick-bid').forEach(b => b.onclick = () => { $('#bid-amount').value = (b.dataset.v / 100).toFixed(2); });
+  } else {
+    $('#quick-bids').innerHTML = '';
+  }
+
+  // ⚡ Buy It Now
+  const buyoutBtn = $('#bid-buyout');
+  if (biddable && a.buyout_cents) {
+    buyoutBtn.style.display = 'block';
+    buyoutBtn.textContent = `⚡ Buy now for ${money(a.buyout_cents)} — skip the bidding`;
+    buyoutBtn.onclick = async () => {
+      if (!ME) return openModal('auth-overlay');
+      const total = buyerTotal(a.buyout_cents);
+      if (!await vaultConfirm(`The auction ends instantly and you pay ${money(total)}${total !== a.buyout_cents ? ` (${money(a.buyout_cents)} + buyer fee)` : ''}.`, { title: 'Buy it now?', okText: `⚡ Buy for ${money(a.buyout_cents)}`, icon: '⚡' })) return;
+      buyoutBtn.classList.add('loading');
+      const r2 = await api(`/api/auctions/${a.id}/buyout`, { method: 'POST' });
+      buyoutBtn.classList.remove('loading');
+      if (r2.error) { $('#bid-error').textContent = r2.error; return; }
+      toast('Auction is yours — pick a payment method to finish.', 'success');
+      await refreshAuctionModal();
+      loadAuctions();
+    };
+  } else {
+    buyoutBtn.style.display = 'none';
+  }
+  $('#bid-share').onclick = () => {
+    navigator.clipboard.writeText(`${location.origin}/#auction-${a.id}`).then(() => toast('Link copied — share it anywhere.', 'success'));
+  };
 
   const br = await api(`/api/auctions/${activeAuctionId}/bids`);
   const bids = br.bids || [];
@@ -527,6 +621,7 @@ $('#auctions-load-more').addEventListener('click', () => { auctionState.page += 
 const listingState = { q: '', minPrice: '', maxPrice: '', sort: 'newest', page: 1, total: 0, totalPages: 1 };
 
 async function loadListings({ append = false } = {}) {
+  if (!append) showSkeletons('#listings-grid');
   const r = await api(`/api/listings?${buildSearchParams(listingState)}`);
   const items = r.listings || [];
   LISTINGS = append ? LISTINGS.concat(items) : items;
@@ -551,7 +646,7 @@ function listingCardHtml(l) {
       <div class="thumb" style="${l.image_url ? `background-image:url('${escapeHtml(l.image_url)}')` : ''}">${l.image_url ? '' : 'No image'}</div>
       <div class="card-body">
         <div class="card-title">${escapeHtml(l.title)}</div>
-        <div class="card-meta">Seller: <a class="seller-link" href="#u/${encodeURIComponent(l.seller_name)}" onclick="event.stopPropagation()">${escapeHtml(l.seller_name)}</a></div>
+        <div class="card-meta">Seller: <a class="seller-link" href="#u/${encodeURIComponent(l.seller_name)}" onclick="event.stopPropagation()">${escapeHtml(l.seller_name)}</a> ${vbadge(l.seller_verified)}</div>
         <div class="card-foot"><span class="price">${l.price_cents ? money(l.price_cents) : 'Auction only'}</span></div>
         <button class="btn btn-gold btn-full" data-buy="${l.id}" ${l.price_cents ? '' : 'disabled'}>Buy now</button>
       </div>
@@ -575,18 +670,59 @@ function renderListings() {
   }));
 }
 
-function openBuyModal(id, itemOverride) {
+async function openBuyModal(id, itemOverride) {
   activeListingId = id;
-  const l = itemOverride || LISTINGS.find(x => String(x.id) === String(id));
+  // Fetch fresh — picks up price edits and the viewer's live offer.
+  const r = await api(`/api/listings/${id}`);
+  const l = r.listing || itemOverride || LISTINGS.find(x => String(x.id) === String(id));
   if (!l) return;
+  const offer = r.my_offer || null;
   $('#buy-thumb').classList.toggle('show', !!l.image_url);
   if (l.image_url) $('#buy-thumb').style.backgroundImage = `url('${l.image_url}')`;
   $('#buy-title').textContent = l.title;
-  const total = buyerTotal(l.price_cents);
-  $('#buy-sub').innerHTML = `<b>${money(total)}</b>${total !== l.price_cents ? ` <span style="color:var(--muted)">(${money(l.price_cents)} + ${(FEE.fee_bps / 100).toFixed(0)}% buyer fee)</span>` : ''} · Seller: <a class="seller-link" href="#u/${encodeURIComponent(l.seller_name)}">${escapeHtml(l.seller_name)}</a>`;
+
+  // An accepted offer replaces the sticker price for this buyer.
+  const base = offer && offer.status === 'accepted' ? offer.amount_cents : l.price_cents;
+  const total = buyerTotal(base);
+  $('#buy-sub').innerHTML = `<b>${money(total)}</b>${total !== base ? ` <span style="color:var(--muted)">(${money(base)} + ${(FEE.fee_bps / 100).toFixed(0)}% buyer fee)</span>` : ''} · Seller: <a class="seller-link" href="#u/${encodeURIComponent(l.seller_name)}">${escapeHtml(l.seller_name)}</a> ${vbadge(l.seller_verified)}`;
   $('#buy-desc').textContent = l.description || '';
   $('#buy-error').textContent = '';
   syncFavStar($('#buy-fav'), 'listing', l.id);
+
+  // Offer state note + button
+  const note = $('#buy-offer-note');
+  const offerBtn = $('#buy-offer');
+  if (offer && offer.status === 'accepted') {
+    note.style.display = 'block';
+    note.innerHTML = `✅ <b>Offer accepted at ${money(offer.amount_cents)}</b> — that's your price below. Check out before someone else buys it.`;
+    offerBtn.style.display = 'none';
+  } else if (offer && offer.status === 'countered') {
+    note.style.display = 'block';
+    note.innerHTML = `↩️ Seller countered your ${money(offer.amount_cents)} offer at <b>${money(offer.counter_cents)}</b> — respond from your dashboard's Offers tab.`;
+    offerBtn.style.display = 'none';
+  } else if (offer) {
+    note.style.display = 'block';
+    note.innerHTML = `⏳ Your <b>${money(offer.amount_cents)}</b> offer is waiting on the seller.`;
+    offerBtn.style.display = 'none';
+  } else {
+    note.style.display = 'none';
+    const canOffer = ME && l.status === 'active' && l.price_cents && (!ME || ME.id !== l.seller_id);
+    offerBtn.style.display = canOffer ? 'block' : 'none';
+    offerBtn.onclick = async () => {
+      const raw = await vaultPrompt(`Asking price is ${money(l.price_cents)}. The seller can accept, decline, or counter.`, { title: 'Make an offer', placeholder: 'e.g. 20.00', okText: 'Send offer', icon: '💰' });
+      if (raw === null) return;
+      const dollars = parseFloat(raw);
+      if (!isFinite(dollars) || dollars <= 0) return toast('Enter a valid dollar amount.', 'error');
+      const r2 = await api(`/api/listings/${l.id}/offers`, { method: 'POST', body: JSON.stringify({ amount_cents: Math.round(dollars * 100) }) });
+      if (r2.error) return toast(r2.error, 'error');
+      toast('Offer sent — you\'ll get a notification when the seller responds.', 'success');
+      openBuyModal(l.id);
+    };
+  }
+  $('#buy-share').onclick = () => {
+    navigator.clipboard.writeText(`${location.origin}/#listing-${l.id}`).then(() => toast('Link copied — share it anywhere.', 'success'));
+  };
+
   $('#buy-credit').textContent = ME && ME.site_credit_cents >= total ? `Use site credit (${money(ME.site_credit_cents)})` : 'Insufficient credit';
   $('#buy-credit').disabled = !ME || ME.site_credit_cents < total;
   openModal('buy-overlay');
@@ -776,15 +912,48 @@ $('#sell-file-clear').addEventListener('click', (e) => {
   syncFileDrop(); updateSellPreview();
 });
 
-function openSellModal() {
+// Live character counter on the description
+$('#sell-desc').addEventListener('input', () => {
+  const len = $('#sell-desc').value.length;
+  const el = $('#sell-desc-count');
+  el.textContent = len ? `${len} / 2000` : '';
+  el.classList.toggle('hot', len > 1900);
+});
+
+let editingListingId = null; // when set, the sell modal saves edits instead of posting
+
+function openSellModal(editListing) {
   if (!ME) return openModal('auth-overlay');
+  editingListingId = editListing ? editListing.id : null;
   const priceLabel = $('#sell-price-field label');
   if (priceLabel) priceLabel.textContent = FEE.fee_mode === 'added'
     ? 'Price (USD) — you receive this full amount'
     : 'Price (USD)';
-  ['sell-title','sell-desc','sell-image','sell-price','sell-start-bid'].forEach(id => $('#' + id).value = '');
+  ['sell-title','sell-desc','sell-image','sell-price','sell-start-bid','sell-buyout'].forEach(id => $('#' + id).value = '');
   $('#sell-image-file').value = '';
   $('#sell-error').textContent = '';
+  $('#sell-desc-count').textContent = '';
+
+  const modal = $('#sell-overlay .modal h3');
+  if (editListing) {
+    // Editing an active fixed-price listing: prefill, lock to fixed type.
+    modal.textContent = 'Edit listing';
+    sellType = 'fixed';
+    $$('#sell-type .pill').forEach(p => p.classList.toggle('active', p.dataset.type === 'fixed'));
+    $('#sell-type').style.display = 'none';
+    $('#sell-price-field').style.display = 'block';
+    $('#sell-auction-fields').style.display = 'none';
+    $('#sell-title').value = editListing.title || '';
+    $('#sell-desc').value = editListing.description || '';
+    $('#sell-image').value = editListing.image_url || '';
+    $('#sell-price').value = editListing.price_cents ? (editListing.price_cents / 100).toFixed(2) : '';
+    $('#sell-submit').textContent = 'Save changes';
+    $('#sell-desc').dispatchEvent(new Event('input'));
+  } else {
+    modal.textContent = 'List an item';
+    $('#sell-type').style.display = 'flex';
+    $('#sell-submit').textContent = sellType === 'fixed' ? 'Post listing' : 'Start auction';
+  }
   syncFileDrop();
   updateSellPreview();
   openModal('sell-overlay');
@@ -811,29 +980,36 @@ $('#sell-submit').onclick = async () => {
   const title = $('#sell-title').value.trim();
   const description = $('#sell-desc').value.trim();
   if (!title) { $('#sell-error').textContent = 'Title is required.'; return; }
-  $('#sell-submit').disabled = true;
+  $('#sell-submit').classList.add('loading');
   const image_url = await resolveSellImage();
-  if (image_url === null) { $('#sell-submit').disabled = false; return; }
+  if (image_url === null) { $('#sell-submit').classList.remove('loading'); return; }
   let r;
-  if (sellType === 'fixed') {
+  if (editingListingId) {
     const price = parseFloat($('#sell-price').value);
-    if (!price || price <= 0) { $('#sell-error').textContent = 'Enter a valid price.'; $('#sell-submit').disabled = false; return; }
+    if (!price || price <= 0) { $('#sell-error').textContent = 'Enter a valid price.'; $('#sell-submit').classList.remove('loading'); return; }
+    r = await api(`/api/listings/${editingListingId}`, { method: 'PATCH', body: JSON.stringify({ title, description, image_url, price_cents: Math.round(price * 100) }) });
+  } else if (sellType === 'fixed') {
+    const price = parseFloat($('#sell-price').value);
+    if (!price || price <= 0) { $('#sell-error').textContent = 'Enter a valid price.'; $('#sell-submit').classList.remove('loading'); return; }
     r = await api('/api/listings', { method: 'POST', body: JSON.stringify({ title, description, image_url, price_cents: Math.round(price * 100) }) });
   } else {
     const start = parseFloat($('#sell-start-bid').value);
     const inc = parseFloat($('#sell-increment').value) || 1;
-    if (!start || start <= 0) { $('#sell-error').textContent = 'Enter a valid starting bid.'; $('#sell-submit').disabled = false; return; }
+    const buyout = parseFloat($('#sell-buyout').value);
+    if (!start || start <= 0) { $('#sell-error').textContent = 'Enter a valid starting bid.'; $('#sell-submit').classList.remove('loading'); return; }
     r = await api('/api/auctions', { method: 'POST', body: JSON.stringify({
       title, description, image_url,
       starting_bid_cents: Math.round(start * 100),
       min_increment_cents: Math.round(inc * 100),
       duration_minutes: parseInt($('#sell-duration').value, 10),
+      buyout_cents: buyout > 0 ? Math.round(buyout * 100) : undefined,
     }) });
   }
-  $('#sell-submit').disabled = false;
+  $('#sell-submit').classList.remove('loading');
   if (r.error) { $('#sell-error').textContent = r.error; return; }
   closeModal('sell-overlay');
-  toast(sellType === 'fixed' ? 'Listing posted!' : 'Auction started!', 'success');
+  toast(editingListingId ? 'Listing updated.' : sellType === 'fixed' ? 'Listing posted!' : 'Auction started!', 'success');
+  if (editingListingId) { editingListingId = null; renderDashTab(); }
   loadListings(); loadAuctions(); loadSiteStats();
 };
 
@@ -942,6 +1118,11 @@ async function loadDashboard() {
   $('#tc-purchases').textContent = ov.purchases_open || '';
   $('#tc-sales').textContent = ov.sales_open || '';
   $('#tc-selling').textContent = (ov.active_listings + ov.live_auctions) || '';
+  api('/api/my/offers').then(r => {
+    const actionable = (r.received || []).filter(o => o.status === 'pending' && o.listing_status === 'active').length
+      + (r.sent || []).filter(o => ['accepted', 'countered'].includes(o.status) && o.listing_status === 'active').length;
+    $('#tc-offers').textContent = actionable || '';
+  });
   renderDashTab();
 }
 
@@ -981,7 +1162,9 @@ async function renderDashTab() {
         <div class="order-main"><div class="order-title">${escapeHtml(l.title)}</div><div class="order-sub">Listed ${timeAgo(l.created_at)}</div></div>
         <div class="order-price">${l.price_cents ? money(l.price_cents) : '—'}</div>
         ${statusBadge(l.status)}
-        <div class="order-actions">${l.status === 'active' ? `<button class="btn btn-small" data-cancel-listing="${l.id}" style="color:var(--danger)">Remove</button>` : ''}</div>
+        <div class="order-actions">${l.status === 'active' ? `
+          <button class="btn btn-small" data-edit-listing="${l.id}">✏️ Edit</button>
+          <button class="btn btn-small" data-cancel-listing="${l.id}" style="color:var(--danger)">Remove</button>` : ''}</div>
       </div>`).join('') + `</div>` : `<div class="empty-block">No fixed-price listings.</div>`;
     html += `<h3 class="section-sub">Auctions</h3>`;
     html += auctions.length ? `<div class="order-list">` + auctions.map(a => {
@@ -1000,6 +1183,10 @@ async function renderDashTab() {
       </div>`;
     }).join('') + `</div>` : `<div class="empty-block">No auctions.</div>`;
     c.innerHTML = html;
+    c.querySelectorAll('[data-edit-listing]').forEach(b => b.onclick = () => {
+      const l = listings.find(x => String(x.id) === String(b.dataset.editListing));
+      if (l) openSellModal(l);
+    });
     c.querySelectorAll('[data-cancel-listing]').forEach(b => b.onclick = async () => {
       if (!await vaultConfirm('It disappears from the marketplace immediately. You can relist it any time.', { title: 'Remove this listing?', okText: 'Remove listing', danger: true, icon: '🏷' })) return;
       const r2 = await api(`/api/listings/${b.dataset.cancelListing}/cancel`, { method: 'POST' });
@@ -1013,6 +1200,82 @@ async function renderDashTab() {
       toast('Auction cancelled.', 'success'); renderDashTab(); loadAuctions();
     });
     c.querySelectorAll('[data-view-auction]').forEach(b => b.onclick = () => openAuction(b.dataset.viewAuction));
+    return;
+  }
+
+  if (dashTab === 'offers') {
+    const r = await api('/api/my/offers');
+    const received = r.received || [], sent = r.sent || [];
+    const offerBadge = (o) => {
+      const map = { pending: 'offer-pending', countered: 'offer-countered', accepted: 'offer-accepted' };
+      return `<span class="status-badge ${map[o.status] ? 'status-' + map[o.status] : ''}">${o.status}</span>`;
+    };
+    const rowHtml = (o, who) => `
+      <div class="order-card">
+        <div class="order-thumb" style="${o.image_url ? `background-image:url('${escapeHtml(o.image_url)}')` : ''}">${o.image_url ? '' : '💰'}</div>
+        <div class="order-main">
+          <div class="order-title">${escapeHtml(o.title)}</div>
+          <div class="order-sub">${who} · asking ${money(o.price_cents)} · offered <b>${money(o.amount_cents)}</b>${o.status === 'countered' ? ` · countered at <b>${money(o.counter_cents)}</b>` : ''} · ${timeAgo(o.updated_at)}</div>
+        </div>
+        ${offerBadge(o)}
+        <div class="order-actions" data-offer-actions="${o.id}"></div>
+      </div>`;
+
+    let html = `<h3 class="section-sub" style="margin-top:0">Offers on my listings</h3>`;
+    html += received.length
+      ? `<div class="order-list">${received.map(o => rowHtml(o, `from <a href="#u/${encodeURIComponent(o.buyer_name)}">${escapeHtml(o.buyer_name)}</a>`)).join('')}</div>`
+      : `<div class="empty-block">No offers received yet.</div>`;
+    html += `<h3 class="section-sub">Offers I've made</h3>`;
+    html += sent.length
+      ? `<div class="order-list">${sent.map(o => rowHtml(o, `to <a href="#u/${encodeURIComponent(o.seller_name)}">${escapeHtml(o.seller_name)}</a>`)).join('')}</div>`
+      : `<div class="empty-block">You haven't made any offers — find something on the marketplace and hit 💰 Make an offer.</div>`;
+    c.innerHTML = html;
+
+    const offerAct = async (id, action, body) => {
+      const r2 = await api(`/api/offers/${id}/${action}`, { method: 'POST', body: body ? JSON.stringify(body) : undefined });
+      if (r2.error) return toast(r2.error, 'error');
+      toast('Done.', 'success');
+      renderDashTab();
+    };
+    received.forEach(o => {
+      const slot = c.querySelector(`[data-offer-actions="${o.id}"]`);
+      if (!slot || o.listing_status !== 'active') return;
+      if (o.status === 'pending') {
+        slot.innerHTML = `
+          <button class="btn btn-small btn-gold" data-a="accept">Accept ${money(o.amount_cents)}</button>
+          <button class="btn btn-small" data-a="counter">↩ Counter</button>
+          <button class="btn btn-small" data-a="decline" style="color:var(--danger)">Decline</button>`;
+        slot.querySelector('[data-a="accept"]').onclick = () => offerAct(o.id, 'accept');
+        slot.querySelector('[data-a="decline"]').onclick = () => offerAct(o.id, 'decline');
+        slot.querySelector('[data-a="counter"]').onclick = async () => {
+          const raw = await vaultPrompt(`They offered ${money(o.amount_cents)}, you're asking ${money(o.price_cents)}.`, { title: 'Counter-offer', placeholder: 'e.g. 30.00', okText: 'Send counter', icon: '↩️' });
+          if (raw === null) return;
+          const d = parseFloat(raw);
+          if (!isFinite(d) || d <= 0) return toast('Enter a valid dollar amount.', 'error');
+          offerAct(o.id, 'counter', { amount_cents: Math.round(d * 100) });
+        };
+      } else if (o.status === 'countered') {
+        slot.innerHTML = `<span class="order-sub">Waiting on the buyer</span>`;
+      }
+    });
+    sent.forEach(o => {
+      const slot = c.querySelector(`[data-offer-actions="${o.id}"]`);
+      if (!slot) return;
+      if (o.status === 'accepted' && o.listing_status === 'active') {
+        slot.innerHTML = `<button class="btn btn-small btn-gold" data-a="buy">Buy at ${money(o.amount_cents)}</button>
+          <button class="btn btn-small" data-a="withdraw" style="color:var(--danger)">Withdraw</button>`;
+        slot.querySelector('[data-a="buy"]').onclick = () => openBuyModal(o.listing_id);
+        slot.querySelector('[data-a="withdraw"]').onclick = () => offerAct(o.id, 'withdraw');
+      } else if (o.status === 'countered' && o.listing_status === 'active') {
+        slot.innerHTML = `<button class="btn btn-small btn-gold" data-a="accept">Accept ${money(o.counter_cents)}</button>
+          <button class="btn btn-small" data-a="withdraw" style="color:var(--danger)">Withdraw</button>`;
+        slot.querySelector('[data-a="accept"]').onclick = () => offerAct(o.id, 'accept');
+        slot.querySelector('[data-a="withdraw"]').onclick = () => offerAct(o.id, 'withdraw');
+      } else if (o.status === 'pending' && o.listing_status === 'active') {
+        slot.innerHTML = `<button class="btn btn-small" data-a="withdraw" style="color:var(--danger)">Withdraw</button>`;
+        slot.querySelector('[data-a="withdraw"]').onclick = () => offerAct(o.id, 'withdraw');
+      }
+    });
     return;
   }
 
@@ -1233,7 +1496,7 @@ async function loadTraders() {
       <div class="trader-top">
         ${traderAvatar(t.username, t.avatar_url)}
         <div>
-          <div class="trader-name">${escapeHtml(t.username)} <span class="online-dot ${t.online ? '' : 'off'}" title="${t.online ? 'Online' : 'Offline'}"></span></div>
+          <div class="trader-name">${escapeHtml(t.username)} ${vbadge(t.is_verified)} <span class="online-dot ${t.online ? '' : 'off'}" title="${t.online ? 'Online' : 'Offline'}"></span></div>
           <div class="trader-sub">${t.avg_rating ? `★ ${t.avg_rating} (${t.review_count})` : 'No reviews yet'} · ${t.completed_sales} sale${t.completed_sales === 1 ? '' : 's'}${t.items_live ? ` · ${t.items_live} on market` : ''}</div>
         </div>
       </div>
@@ -1388,7 +1651,7 @@ async function loadProfile(username) {
     <div class="profile-head">
       ${u.avatar_url ? `<img src="${escapeHtml(u.avatar_url)}" alt="">` : `<div class="profile-avatar-fallback">${escapeHtml(u.username[0].toUpperCase())}</div>`}
       <div>
-        <h2>${escapeHtml(u.username)} <span class="online-dot ${u.online ? '' : 'off'}" title="${u.online ? 'Online' : 'Offline'}"></span> ${u.is_banned ? '<span class="status-badge status-disputed">Banned</span>' : ''} ${isMe && ME.profile_hidden ? '<span class="status-badge">🔒 Hidden</span>' : ''}</h2>
+        <h2>${escapeHtml(u.username)} ${vbadge(u.is_verified)} <span class="online-dot ${u.online ? '' : 'off'}" title="${u.online ? 'Online' : 'Offline'}"></span> ${u.is_banned ? '<span class="status-badge status-disputed">Banned</span>' : ''} ${isMe && ME.profile_hidden ? '<span class="status-badge">🔒 Hidden</span>' : ''}</h2>
         <div class="profile-meta">
           <span>${stars}</span>
           <span>·</span><span>${u.completed_sales} completed sale${u.completed_sales === 1 ? '' : 's'}</span>
@@ -1475,9 +1738,11 @@ async function loadAdmin() {
     <div class="stat-card"><div class="val">${r.active_listings + r.live_auctions}</div><div class="lbl">Items live</div></div>
     <div class="stat-card"><div class="val ${r.open_disputes ? 'gold' : ''}">${r.open_disputes}</div><div class="lbl">Open disputes</div></div>
     <div class="stat-card"><div class="val ${r.pending_withdrawals ? 'gold' : ''}">${r.pending_withdrawals}</div><div class="lbl">Pending payouts</div></div>
+    <div class="stat-card"><div class="val ${r.open_reports ? 'gold' : ''}">${r.open_reports}</div><div class="lbl">Open reports</div></div>
     <div class="stat-card"><div class="val">${money(r.escrow_held_cents)}</div><div class="lbl">Held in escrow</div></div>
     <div class="stat-card"><div class="val gold">${money(r.fees_earned_cents)}</div><div class="lbl">Fees earned</div></div>
   `;
+  $('#tc-reports').textContent = r.open_reports || '';
   renderAdminTab();
 }
 
@@ -1607,6 +1872,33 @@ async function renderAdminTab() {
     return;
   }
 
+  if (adminTab === 'reports') {
+    const r = await api('/api/admin/reports');
+    const reports = r.reports || [];
+    if (!reports.length) { c.innerHTML = '<div class="empty-block">No open reports. 🎉</div>'; return; }
+    c.innerHTML = `<div class="order-list">` + reports.map(rp => `
+      <div class="order-card" style="align-items:flex-start">
+        <div class="order-main">
+          <div class="order-title">⚑ <a href="#u/${encodeURIComponent(rp.reported_name)}">${escapeHtml(rp.reported_name)}</a> ${rp.reported_banned ? '<span class="status-badge status-disputed">Banned</span>' : ''}</div>
+          <div class="order-sub">Reported by <a href="#u/${encodeURIComponent(rp.reporter_name)}">${escapeHtml(rp.reporter_name)}</a> · ${timeAgo(rp.created_at)}</div>
+          <div class="inline-note danger" style="margin-bottom:0">“${escapeHtml(rp.reason)}”</div>
+        </div>
+        <div class="order-actions" style="flex-direction:column;align-items:stretch">
+          <button class="btn btn-small" data-view-user="${escapeHtml(rp.reported_name)}">View profile</button>
+          <button class="btn btn-small btn-gold" data-resolve-report="${rp.id}">Mark resolved</button>
+        </div>
+      </div>`).join('') + `</div>`;
+    c.querySelectorAll('[data-view-user]').forEach(b => b.onclick = () => { location.hash = 'u/' + encodeURIComponent(b.dataset.viewUser); });
+    c.querySelectorAll('[data-resolve-report]').forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      const r2 = await api(`/api/admin/reports/${b.dataset.resolveReport}/resolve`, { method: 'POST' });
+      if (r2.error) { toast(r2.error, 'error'); b.disabled = false; return; }
+      toast('Report resolved.', 'success');
+      loadAdmin();
+    });
+    return;
+  }
+
   if (adminTab === 'users') {
     c.innerHTML = `
       <div class="search-bar" style="margin-bottom:14px"><div class="search-input-wrap" style="flex:1">
@@ -1620,12 +1912,13 @@ async function renderAdminTab() {
       $('#admin-users-table').innerHTML = `<div class="table-wrap"><table class="data">
         <tr><th>User</th><th>Balance</th><th>Joined</th><th>Status</th><th></th></tr>
         ${us.map(u => `<tr>
-          <td><a href="#u/${encodeURIComponent(u.username)}" style="color:var(--gold)">${escapeHtml(u.username)}</a>${u.is_admin ? ' 🛡' : ''}</td>
+          <td><a href="#u/${encodeURIComponent(u.username)}" style="color:var(--gold)">${escapeHtml(u.username)}</a> ${vbadge(u.is_verified)}${u.is_admin ? ' 🛡' : ''}</td>
           <td class="mono">${money(u.site_credit_cents)}</td>
           <td>${timeAgo(u.created_at)}</td>
           <td>${u.is_banned ? '<span class="status-badge status-disputed">Banned</span>' : '<span class="status-badge status-active">Active</span>'}</td>
           <td style="white-space:nowrap">
             <button class="btn btn-small btn-gold" data-credit="${u.id}" data-name="${escapeHtml(u.username)}">＋ Credit</button>
+            <button class="btn btn-small" data-verify="${u.id}">${u.is_verified ? 'Unverify' : '✓ Verify'}</button>
             ${u.is_admin ? '' : (u.is_banned
               ? `<button class="btn btn-small" data-unban="${u.id}">Unban</button>`
               : `<button class="btn btn-small" data-ban="${u.id}" style="color:var(--danger)">Ban</button>`)}
@@ -1646,6 +1939,12 @@ async function renderAdminTab() {
         if (r2.error) return toast(r2.error, 'error');
         toast(`Balance updated to ${money(r2.balance_cents)}.`, 'success');
         await loadMe(); // refresh nav balance in case an admin credited themselves
+        renderUsers();
+      });
+      $('#admin-users-table').querySelectorAll('[data-verify]').forEach(b => b.onclick = async () => {
+        const r2 = await api(`/api/admin/users/${b.dataset.verify}/verify`, { method: 'POST' });
+        if (r2.error) return toast(r2.error, 'error');
+        toast(r2.verified ? 'Verified badge granted.' : 'Verified badge removed.', 'success');
         renderUsers();
       });
       $('#admin-users-table').querySelectorAll('[data-ban]').forEach(b => b.onclick = async () => {
@@ -1674,6 +1973,7 @@ async function renderAdminTab() {
   api('/api/config').then(c => { if (c.fee_bps) FEE = c; });
   await loadMe();
   loadSiteStats();
+  loadRecentSales();
   loadAuctions();
   loadListings();
   route();

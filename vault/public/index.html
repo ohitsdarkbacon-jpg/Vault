@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="Vault — trade Roblox items with escrow-protected settlement via card or crypto checkout.">
+<meta name="theme-color" content="#0B0E15">
+<meta property="og:title" content="Vault — Roblox Trading Exchange">
+<meta property="og:description" content="Escrow-protected Roblox item trading. Card, crypto, or site credit — funds release only when the buyer confirms delivery.">
+<meta property="og:type" content="website">
 <title>Vault — Roblox Trading Exchange</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Crect width='26' height='26' rx='6' fill='%23F2B705'/%3E%3Ctext x='13' y='19' font-size='15' font-family='sans-serif' font-weight='800' text-anchor='middle' fill='%230A0D12'%3EV%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -60,6 +64,11 @@
     <button class="btn" id="cta-sell">List an item</button>
   </div>
   <div class="hero-stats" id="hero-stats"></div>
+</section>
+
+<section class="section" id="recent-trades-section" style="display:none;padding-top:0;padding-bottom:34px">
+  <div class="section-head"><div><span class="eyebrow">Live activity</span><h2 style="font-size:1.2rem">Recently traded</h2></div></div>
+  <div class="recent-strip" id="recent-strip"></div>
 </section>
 
 <section class="section" id="auctions">
@@ -155,6 +164,7 @@
       <button class="tab active" data-tab="purchases">Purchases <span class="count" id="tc-purchases"></span></button>
       <button class="tab" data-tab="sales">Sales <span class="count" id="tc-sales"></span></button>
       <button class="tab" data-tab="selling">My listings <span class="count" id="tc-selling"></span></button>
+      <button class="tab" data-tab="offers">Offers <span class="count" id="tc-offers"></span></button>
       <button class="tab" data-tab="bids">My bids</button>
       <button class="tab" data-tab="wallet">Wallet</button>
       <button class="tab" data-tab="favorites">Favorites</button>
@@ -208,6 +218,7 @@
       <button class="tab active" data-tab="disputes">Disputes</button>
       <button class="tab" data-tab="withdrawals">Withdrawals</button>
       <button class="tab" data-tab="content">Content</button>
+      <button class="tab" data-tab="reports">Reports <span class="count" id="tc-reports"></span></button>
       <button class="tab" data-tab="users">Users</button>
     </div>
     <div id="admin-content"></div>
@@ -220,6 +231,8 @@
 </footer>
 
 <div class="toast-stack" id="toast-stack"></div>
+
+<button class="scroll-top" id="scroll-top" title="Back to top" aria-label="Back to top">↑</button>
 
 <!-- Sell / list modal -->
 <div class="overlay" id="sell-overlay">
@@ -234,7 +247,7 @@
           <button type="button" class="pill" data-type="auction">Auction</button>
         </div>
         <div class="field"><label>Title</label><input id="sell-title" placeholder="Dominus Empyreus" maxlength="140"></div>
-        <div class="field"><label>Description</label><textarea id="sell-desc" placeholder="Condition, trade history, proof screenshots…" maxlength="2000"></textarea></div>
+        <div class="field"><label>Description <span class="char-count" id="sell-desc-count"></span></label><textarea id="sell-desc" placeholder="Condition, trade history, proof screenshots…" maxlength="2000"></textarea></div>
         <div class="field">
           <label>Image</label>
           <input id="sell-image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
@@ -253,6 +266,10 @@
           <div class="field-row">
             <div class="field"><label>Starting bid (USD)</label><input id="sell-start-bid" type="number" min="1" step="0.01" placeholder="10.00"></div>
             <div class="field"><label>Min increment (USD)</label><input id="sell-increment" type="number" min="0.5" step="0.5" placeholder="1.00" value="1.00"></div>
+          </div>
+          <div class="field">
+            <label>⚡ Buy-now price (USD, optional)</label>
+            <input id="sell-buyout" type="number" min="1" step="0.01" placeholder="e.g. 60.00 — lets someone end the auction instantly">
           </div>
           <div class="field">
             <label>Duration</label>
@@ -301,16 +318,24 @@
     <button class="modal-close" data-close="bid-overlay">✕</button>
     <div class="card-head-row">
       <div class="modal-thumb" id="bid-thumb"></div>
-      <button class="fav-star" id="bid-fav" title="Watch this auction">★</button>
+      <div class="head-btns">
+        <button class="share-btn" id="bid-share" title="Copy link">🔗</button>
+        <button class="fav-star" id="bid-fav" title="Watch this auction">★</button>
+      </div>
     </div>
     <h3 id="bid-title">Auction</h3>
     <div class="sub" id="bid-sub"></div>
     <div class="sub" id="bid-desc" style="margin-top:6px"></div>
-    <div class="field" id="bid-field"><label>Your bid (USD)</label><input id="bid-amount" type="number" min="0" step="0.01"></div>
+    <div class="field" id="bid-field">
+      <label>Your bid (USD)</label>
+      <input id="bid-amount" type="number" min="0" step="0.01">
+      <div class="quick-bids" id="quick-bids"></div>
+    </div>
     <div class="error-text" id="bid-error"></div>
     <div class="modal-actions" id="bid-actions">
       <button class="btn btn-gold" id="bid-submit" style="flex:1">Place bid</button>
     </div>
+    <button class="btn btn-buyout btn-full" id="bid-buyout" style="display:none"></button>
     <div id="checkout-area" style="display:none">
       <div class="sub" style="margin-bottom:10px;">You won this auction. Choose how to pay:</div>
       <div class="pay-options">
@@ -328,18 +353,23 @@
     <button class="modal-close" data-close="buy-overlay">✕</button>
     <div class="card-head-row">
       <div class="modal-thumb" id="buy-thumb"></div>
-      <button class="fav-star" id="buy-fav" title="Save this listing">★</button>
+      <div class="head-btns">
+        <button class="share-btn" id="buy-share" title="Copy link">🔗</button>
+        <button class="fav-star" id="buy-fav" title="Save this listing">★</button>
+      </div>
     </div>
     <h3 id="buy-title">Item</h3>
     <div class="sub" id="buy-sub"></div>
     <div class="sub" id="buy-desc" style="margin-top:6px"></div>
     <div class="inline-note">🛡 <b>Escrow protected</b> — the seller only gets paid after you confirm you received the item in Roblox.</div>
+    <div class="inline-note offer-note" id="buy-offer-note" style="display:none"></div>
     <div class="error-text" id="buy-error"></div>
     <div class="pay-options">
       <button class="btn btn-gold" id="buy-credit">Use site credit</button>
       <button class="btn" id="buy-stripe">💳 Card</button>
       <button class="btn" id="buy-crypto">◈ Crypto</button>
     </div>
+    <button class="btn btn-full" id="buy-offer" style="margin-top:10px">💰 Make an offer</button>
   </div>
 </div>
 

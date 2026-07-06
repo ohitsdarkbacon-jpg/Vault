@@ -5,6 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 const { computeOrderAmounts } = require('../lib/fees');
 const { createCheckoutSession } = require('../lib/stripe');
 const { createPayment } = require('../lib/nowpayments');
+const { acceptedOfferFor } = require('../lib/fulfillOrder');
 
 const router = express.Router();
 
@@ -37,7 +38,9 @@ function loadListingForCheckout(req) {
   if (listing.status !== 'active') return { error: [400, 'This listing is no longer available.'] };
   if (!listing.price_cents) return { error: [400, 'This item is auction-only.'] };
   if (listing.seller_id === req.user.id) return { error: [400, "You can't buy your own listing."] };
-  return { listing };
+  // An accepted offer overrides the sticker price for this buyer.
+  const offer = acceptedOfferFor(listing.id, req.user.id);
+  return { listing, baseCents: offer ? offer.amount_cents : listing.price_cents };
 }
 
 // baseCents = the listing price / winning bid. In 'added' fee mode the buyer
@@ -128,14 +131,14 @@ router.post('/auctions/:id/checkout/crypto', requireAuth, async (req, res) => {
 // ---------- Fixed-price listing checkout (card / crypto) ----------
 
 router.post('/listings/:id/checkout/stripe', requireAuth, async (req, res) => {
-  const { listing, error } = loadListingForCheckout(req);
+  const { listing, baseCents, error } = loadListingForCheckout(req);
   if (error) return res.status(error[0]).json({ error: error[1] });
 
   const { orderId, amountCents } = createPendingOrder({
     buyerId: req.user.id,
     sellerId: listing.seller_id,
     listingId: listing.id,
-    baseCents: listing.price_cents,
+    baseCents,
     method: 'stripe',
   });
 
@@ -156,7 +159,7 @@ router.post('/listings/:id/checkout/stripe', requireAuth, async (req, res) => {
 });
 
 router.post('/listings/:id/checkout/crypto', requireAuth, async (req, res) => {
-  const { listing, error } = loadListingForCheckout(req);
+  const { listing, baseCents, error } = loadListingForCheckout(req);
   if (error) return res.status(error[0]).json({ error: error[1] });
 
   const payCurrency = String(req.body?.pay_currency || '').toLowerCase();
@@ -168,7 +171,7 @@ router.post('/listings/:id/checkout/crypto', requireAuth, async (req, res) => {
     buyerId: req.user.id,
     sellerId: listing.seller_id,
     listingId: listing.id,
-    baseCents: listing.price_cents,
+    baseCents,
     method: 'crypto',
   });
 

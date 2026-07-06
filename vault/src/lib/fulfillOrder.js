@@ -2,6 +2,38 @@ const db = require('../db');
 const { notify } = require('./notify');
 
 /**
+ * Returns the buyer's ACCEPTED offer on a listing, if any — checkout paths use
+ * its amount instead of the sticker price.
+ */
+function acceptedOfferFor(listingId, buyerId) {
+  return db
+    .prepare("SELECT * FROM offers WHERE listing_id = ? AND buyer_id = ? AND status = 'accepted'")
+    .get(listingId, buyerId);
+}
+
+/**
+ * Called when a listing actually sells: the winning buyer's accepted offer (if
+ * any) completes, every other live offer expires and its buyer is told.
+ */
+function settleOffersForListing(listingId, winningBuyerId) {
+  db.prepare(
+    "UPDATE offers SET status = 'completed', updated_at = datetime('now') WHERE listing_id = ? AND buyer_id = ? AND status = 'accepted'"
+  ).run(listingId, winningBuyerId);
+  const losers = db
+    .prepare(
+      "SELECT o.*, l.title FROM offers o JOIN listings l ON l.id = o.listing_id WHERE o.listing_id = ? AND o.buyer_id != ? AND o.status IN ('pending','countered','accepted')"
+    )
+    .all(listingId, winningBuyerId);
+  if (!losers.length) return;
+  db.prepare(
+    "UPDATE offers SET status = 'expired', updated_at = datetime('now') WHERE listing_id = ? AND buyer_id != ? AND status IN ('pending','countered','accepted')"
+  ).run(listingId, winningBuyerId);
+  for (const o of losers) {
+    notify(o.buyer_id, 'offer', `"${o.title}" was sold to someone else — your offer expired.`, '#listings');
+  }
+}
+
+/**
  * Marks an order as paid and moves the buyer's money into ESCROW.
  *
  * The seller is NOT credited here. Funds are held until either:
@@ -65,6 +97,8 @@ function fulfillOrder(orderId) {
     }
   });
   tx();
+
+  if (order.listing_id) settleOffersForListing(order.listing_id, order.buyer_id);
 
   const item = getOrderItemTitle(order);
   notify(
@@ -165,4 +199,4 @@ function getOrderItemTitle(order) {
   return `Order #${order.id}`;
 }
 
-module.exports = { fulfillOrder, releaseEscrow, refundOrder, getOrderItemTitle };
+module.exports = { fulfillOrder, releaseEscrow, refundOrder, getOrderItemTitle, acceptedOfferFor, settleOffersForListing };
