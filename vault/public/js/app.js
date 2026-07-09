@@ -1049,11 +1049,11 @@ function orderCardHtml(o, role) {
     actions.push(`<button class="btn btn-small btn-gold" data-confirm="${o.id}">Confirm receipt</button>`);
     actions.push(`<button class="btn btn-small" data-dispute="${o.id}" style="color:var(--danger)">Dispute</button>`);
   }
-  if (role === 'buyer' && o.status === 'completed' && !o.review_rating) {
-    actions.push(`<button class="btn btn-small" data-review="${o.id}" data-seller="${escapeHtml(o.seller_name)}">⭐ Review seller</button>`);
+  if (o.status === 'completed' && !o.review_rating) {
+    actions.push(`<button class="btn btn-small" data-review="${o.id}" data-seller="${escapeHtml(other)}">⭐ Review ${role === 'buyer' ? 'seller' : 'buyer'}</button>`);
   }
   if (o.review_rating) {
-    actions.push(`<span class="stars">${'★'.repeat(o.review_rating)}<span class="off">${'★'.repeat(5 - o.review_rating)}</span></span>`);
+    actions.push(`<span class="stars" title="Your review">${'★'.repeat(o.review_rating)}<span class="off">${'★'.repeat(5 - o.review_rating)}</span></span>`);
   }
   return `
   <div class="order-card" id="oc-${o.id}">
@@ -1674,15 +1674,26 @@ async function loadProfile(username) {
     ${r.listings.length ? `<h3 class="section-sub">Listings</h3><div class="grid" id="pf-listings">${r.listings.map(listingCardHtml).join('')}</div>` : ''}
     ${!r.auctions.length && !r.listings.length ? `<div class="empty-block" style="margin-top:22px">Nothing on the market right now.</div>` : ''}
     <h3 class="section-sub">Reviews</h3>
+    ${(() => {
+      const hist = r.histogram || {};
+      const histTotal = [1, 2, 3, 4, 5].reduce((a, s) => a + (hist[s] || 0), 0);
+      return histTotal ? `<div class="rating-histogram">${[5, 4, 3, 2, 1].map(s => {
+        const cnt = hist[s] || 0;
+        return `<div class="hist-row"><span class="hist-star">${s}★</span><div class="hist-bar"><i style="width:${Math.round(cnt / histTotal * 100)}%"></i></div><span class="hist-count">${cnt}</span></div>`;
+      }).join('')}</div>` : '';
+    })()}
     ${r.reviews.length ? `<div class="review-list">${r.reviews.map(rv => `
       <div class="review-item">
         <div class="r-head">
           ${rv.reviewer_avatar ? `<img src="${escapeHtml(rv.reviewer_avatar)}">` : ''}
           <b>${escapeHtml(rv.reviewer_name)}</b>
           <span class="stars">${'★'.repeat(rv.rating)}<span class="off">${'★'.repeat(5 - rv.rating)}</span></span>
+          <span class="r-role">${rv.reviewer_role === 'buyer' ? 'bought from them' : 'sold to them'}</span>
           <span class="r-time">${timeAgo(rv.created_at)}</span>
         </div>
         ${rv.comment ? `<div class="r-body">${escapeHtml(rv.comment)}</div>` : ''}
+        ${rv.reply ? `<div class="r-reply"><b>↩ ${escapeHtml(u.username)} replied</b> · ${timeAgo(rv.replied_at)}<div>${escapeHtml(rv.reply)}</div></div>` : ''}
+        ${isMe && !rv.reply ? `<button class="btn btn-small" data-reply-review="${rv.id}" style="margin-top:8px">↩ Reply</button>` : ''}
       </div>`).join('')}</div>` : `<div class="empty-block">No reviews yet.</div>`}
   `;
   const pfa = $('#pf-auctions'); if (pfa) pfa.querySelectorAll('[data-auction-id]').forEach(card => card.addEventListener('click', () => openAuction(card.dataset.auctionId)));
@@ -1716,6 +1727,15 @@ async function loadProfile(username) {
   if (pm) pm.onclick = () => { location.hash = 'messages/' + encodeURIComponent(u.username); };
   const pb = $('#pf-block');
   if (pb) pb.onclick = () => toggleBlock(u.username, pb);
+  page.querySelectorAll('[data-reply-review]').forEach(b => b.onclick = async () => {
+    const reply = await vaultPrompt('Your reply is shown publicly under the review.', { title: 'Reply to this review', placeholder: 'e.g. Thanks for the smooth trade!', okText: 'Post reply', icon: '↩️' });
+    if (reply === null) return;
+    if (!reply) return toast('Write a reply first.', 'error');
+    const r2 = await api(`/api/reviews/${b.dataset.replyReview}/reply`, { method: 'POST', body: JSON.stringify({ reply }) });
+    if (r2.error) return toast(r2.error, 'error');
+    toast('Reply posted.', 'success');
+    loadProfile(username);
+  });
   const pr = $('#pf-report');
   if (pr) pr.onclick = async () => {
     const reason = await vaultPrompt('What did this user do? A moderator will review your report.', { title: `Report ${u.username}`, placeholder: 'e.g. Scam attempt, harassment in DMs…', okText: 'Submit report', icon: '⚑' });

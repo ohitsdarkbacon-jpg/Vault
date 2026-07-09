@@ -39,8 +39,8 @@ router.get('/traders', (req, res) => {
     .prepare(
       `SELECT u.id, u.username, u.avatar_url, u.bio, u.created_at, u.last_seen_at, u.is_verified,
         (SELECT COUNT(*) FROM orders o WHERE o.seller_id = u.id AND o.status = 'completed') AS completed_sales,
-        (SELECT ROUND(AVG(r.rating), 2) FROM reviews r WHERE r.seller_id = u.id) AS avg_rating,
-        (SELECT COUNT(*) FROM reviews r WHERE r.seller_id = u.id) AS review_count,
+        (SELECT ROUND(AVG(r.rating), 2) FROM reviews r WHERE r.subject_id = u.id) AS avg_rating,
+        (SELECT COUNT(*) FROM reviews r WHERE r.subject_id = u.id) AS review_count,
         (SELECT COUNT(*) FROM listings l WHERE l.seller_id = u.id AND l.status = 'active') +
         (SELECT COUNT(*) FROM auctions a WHERE a.seller_id = u.id AND a.status = 'live') AS items_live
        FROM users u
