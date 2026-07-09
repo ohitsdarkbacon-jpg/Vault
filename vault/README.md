@@ -38,7 +38,7 @@ withdrawals, notifications, public profiles, and an admin panel.
 - **Profile privacy**: hide your profile — you vanish from the directory and your profile page goes private (existing DM threads stay open; your listings stay on the marketplace)
 - **Block users** (they can't DM you, you can't DM them) and **report users** to moderators
 - Online presence: last-seen tracking with an "online" dot (active in the last 5 min)
-- 1–5★ seller reviews on completed orders; ratings on profiles
+- **Two-way reviews**: after a completed order, the buyer rates the seller AND the seller rates the buyer (1–5★ + comment, moderated). Profiles show a star-breakdown histogram, per-review role chips ("bought from them" / "sold to them"), and the reviewed party can post one public reply
 - Public profiles: rating, completed sales, member since, bio, live inventory
 - In-app notifications: outbid, auction won/sold, item sold, delivered, completed, disputed, refunded, new message, DMs, withdrawal, moderation
 

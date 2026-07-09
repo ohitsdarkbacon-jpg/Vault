@@ -10,6 +10,8 @@ const router = express.Router();
 const MIN_WITHDRAWAL_CENTS = parseInt(process.env.MIN_WITHDRAWAL_CENTS || '500', 10); // $5
 const MAX_BIO_LEN = 300;
 
+// review_rating = the CALLER's own review of the order (reviews are two-way,
+// so the join must be pinned to one reviewer).
 const orderCardQuery = `
   SELECT o.*,
     bu.username AS buyer_name, su.username AS seller_name,
@@ -22,7 +24,7 @@ const orderCardQuery = `
   JOIN users su ON su.id = o.seller_id
   LEFT JOIN listings l ON l.id = o.listing_id
   LEFT JOIN auctions a ON a.id = o.auction_id
-  LEFT JOIN reviews r ON r.order_id = o.id
+  LEFT JOIN reviews r ON r.order_id = o.id AND r.reviewer_id = ?
 `;
 
 // ---------- Public seller profile ----------
@@ -48,10 +50,16 @@ router.get('/users/:username', (req, res) => {
     .prepare(
       `SELECT
         (SELECT COUNT(*) FROM orders WHERE seller_id = ? AND status = 'completed') AS completed_sales,
-        (SELECT COUNT(*) FROM reviews WHERE seller_id = ?) AS review_count,
-        (SELECT ROUND(AVG(rating), 2) FROM reviews WHERE seller_id = ?) AS avg_rating`
+        (SELECT COUNT(*) FROM reviews WHERE subject_id = ?) AS review_count,
+        (SELECT ROUND(AVG(rating), 2) FROM reviews WHERE subject_id = ?) AS avg_rating`
     )
     .get(user.id, user.id, user.id);
+
+  // Star breakdown for the histogram (5★ → 1★)
+  const histogram = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  db.prepare('SELECT rating, COUNT(*) c FROM reviews WHERE subject_id = ? GROUP BY rating')
+    .all(user.id)
+    .forEach((row) => { histogram[row.rating] = row.c; });
 
   const listings = db
     .prepare(
@@ -67,14 +75,18 @@ router.get('/users/:username', (req, res) => {
     .all(user.id);
   const reviews = db
     .prepare(
-      `SELECT r.rating, r.comment, r.created_at, u.username AS reviewer_name, u.avatar_url AS reviewer_avatar
-       FROM reviews r JOIN users u ON u.id = r.reviewer_id
-       WHERE r.seller_id = ? ORDER BY r.created_at DESC LIMIT 20`
+      `SELECT r.id, r.rating, r.comment, r.reply, r.replied_at, r.created_at,
+        u.username AS reviewer_name, u.avatar_url AS reviewer_avatar,
+        CASE WHEN o.buyer_id = r.reviewer_id THEN 'buyer' ELSE 'seller' END AS reviewer_role
+       FROM reviews r
+       JOIN users u ON u.id = r.reviewer_id
+       JOIN orders o ON o.id = r.order_id
+       WHERE r.subject_id = ? ORDER BY r.created_at DESC LIMIT 20`
     )
     .all(user.id);
 
   const { last_seen_at, ...pub } = user;
-  res.json({ user: { ...pub, ...stats, online, blocked_by_me }, listings, auctions, reviews });
+  res.json({ user: { ...pub, ...stats, online, blocked_by_me }, listings, auctions, reviews, histogram });
 });
 
 // ---------- My dashboard ----------
@@ -99,14 +111,14 @@ router.get('/my/overview', requireAuth, (req, res) => {
 router.get('/my/purchases', requireAuth, (req, res) => {
   const rows = db
     .prepare(`${orderCardQuery} WHERE o.buyer_id = ? ORDER BY o.updated_at DESC LIMIT 100`)
-    .all(req.user.id);
+    .all(req.user.id, req.user.id);
   res.json({ orders: rows });
 });
 
 router.get('/my/sales', requireAuth, (req, res) => {
   const rows = db
     .prepare(`${orderCardQuery} WHERE o.seller_id = ? AND o.status != 'pending' ORDER BY o.updated_at DESC LIMIT 100`)
-    .all(req.user.id);
+    .all(req.user.id, req.user.id);
   res.json({ orders: rows });
 });
 
@@ -144,6 +156,26 @@ router.post('/my/bio', requireAuth, (req, res) => {
   const mod = moderateField(bio, 'bio');
   if (!mod.ok) return res.status(400).json({ error: mod.error });
   db.prepare('UPDATE users SET bio = ? WHERE id = ?').run(mod.clean || null, req.user.id);
+  res.json({ ok: true });
+});
+
+// ---------- Review replies ----------
+// The reviewed party may post ONE public reply under a review of them.
+const MAX_REPLY_LEN = 500;
+
+router.post('/reviews/:id/reply', requireAuth, (req, res) => {
+  const review = db.prepare('SELECT * FROM reviews WHERE id = ?').get(req.params.id);
+  if (!review) return res.status(404).json({ error: 'Review not found.' });
+  if (review.subject_id !== req.user.id) return res.status(403).json({ error: 'You can only reply to reviews of you.' });
+  if (review.reply) return res.status(400).json({ error: 'You already replied to this review.' });
+
+  const reply = String(req.body?.reply || '').trim().slice(0, MAX_REPLY_LEN);
+  if (!reply) return res.status(400).json({ error: 'Write a reply first.' });
+  const mod = moderateField(reply, 'reply');
+  if (!mod.ok) return res.status(400).json({ error: mod.error });
+
+  db.prepare("UPDATE reviews SET reply = ?, replied_at = datetime('now') WHERE id = ?").run(mod.clean, review.id);
+  notify(review.reviewer_id, 'review', `${req.user.username} replied to your review.`, `#u/${req.user.username}`);
   res.json({ ok: true });
 });
 

@@ -947,6 +947,37 @@ table.data td.mono { font-family: 'JetBrains Mono', monospace; }
 }
 .private-profile h3 { color: var(--text); margin: 0 0 6px; }
 
+/* ---------- Reviews: histogram, role chips, replies ---------- */
+.rating-histogram {
+  max-width: 330px; margin-bottom: 16px; padding: 14px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  backdrop-filter: blur(8px);
+}
+.hist-row { display: flex; align-items: center; gap: 9px; padding: 3px 0; }
+.hist-star { font-family: 'JetBrains Mono', monospace; font-size: 0.74rem; color: var(--muted); width: 24px; flex-shrink: 0; }
+.hist-bar {
+  flex: 1; height: 7px; border-radius: 4px; overflow: hidden;
+  background: rgba(148,163,184,0.1);
+}
+.hist-bar i {
+  display: block; height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, var(--gold), var(--gold-2));
+  box-shadow: 0 0 8px rgba(245,190,11,0.35);
+  transition: width .6s var(--ease-out);
+}
+.hist-count { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--muted); width: 22px; text-align: right; flex-shrink: 0; }
+.r-role {
+  font-size: 0.68rem; color: var(--muted); padding: 2px 8px; border-radius: 20px;
+  border: 1px solid var(--border); background: rgba(28,34,48,0.5); white-space: nowrap;
+}
+.r-reply {
+  margin-top: 10px; padding: 10px 13px; border-radius: 9px;
+  background: rgba(245,190,11,0.05); border-left: 2px solid var(--gold);
+  font-size: 0.82rem; color: var(--muted);
+}
+.r-reply b { color: var(--gold); font-size: 0.74rem; }
+.r-reply div { color: var(--text); margin-top: 4px; line-height: 1.45; }
+
 /* ---------- Verified badge ---------- */
 .verified-badge {
   display: inline-flex; align-items: center; justify-content: center;

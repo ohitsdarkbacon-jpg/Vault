@@ -263,6 +263,34 @@ ensureColumn('users', 'is_verified', 'is_verified INTEGER NOT NULL DEFAULT 0'); 
 ensureColumn('auctions', 'buyout_cents', 'buyout_cents INTEGER');                     // optional Buy It Now price
 ensureColumn('auctions', 'ending_alert_sent', 'ending_alert_sent INTEGER NOT NULL DEFAULT 0'); // watchers alerted <1h left
 
+// ---- Two-way reviews migration ----
+// v2 reviews were buyer→seller only (order_id UNIQUE, subject column named
+// seller_id). Rebuild so both parties can review an order once each, the
+// subject can post one public reply, and the subject column is role-neutral.
+const reviewCols = db.prepare('PRAGMA table_info(reviews)').all().map((c) => c.name);
+if (reviewCols.length && !reviewCols.includes('subject_id')) {
+  db.exec(`
+    CREATE TABLE reviews_v2 (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL REFERENCES orders(id),
+      reviewer_id INTEGER NOT NULL REFERENCES users(id),
+      subject_id INTEGER NOT NULL REFERENCES users(id),
+      rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+      comment TEXT,
+      reply TEXT,
+      replied_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE (order_id, reviewer_id)
+    );
+    INSERT INTO reviews_v2 (id, order_id, reviewer_id, subject_id, rating, comment, created_at)
+      SELECT id, order_id, reviewer_id, seller_id, rating, comment, created_at FROM reviews;
+    DROP INDEX IF EXISTS idx_reviews_seller;
+    DROP TABLE reviews;
+    ALTER TABLE reviews_v2 RENAME TO reviews;
+    CREATE INDEX IF NOT EXISTS idx_reviews_subject ON reviews(subject_id);
+  `);
+}
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS offers (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

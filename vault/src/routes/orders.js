@@ -12,6 +12,8 @@ const MAX_MESSAGE_LEN = 1000;
 const MAX_REVIEW_LEN = 500;
 const MAX_DISPUTE_LEN = 1000;
 
+// review_rating = the VIEWER's own review of this order (two-way reviews mean
+// an unpinned join could return two rows per order).
 const orderQuery = `
   SELECT o.*,
     bu.username AS buyer_name, bu.avatar_url AS buyer_avatar,
@@ -24,11 +26,11 @@ const orderQuery = `
   JOIN users su ON su.id = o.seller_id
   LEFT JOIN listings l ON l.id = o.listing_id
   LEFT JOIN auctions a ON a.id = o.auction_id
-  LEFT JOIN reviews r ON r.order_id = o.id
+  LEFT JOIN reviews r ON r.order_id = o.id AND r.reviewer_id = ?
 `;
 
 function loadOrderForParty(req, res) {
-  const order = db.prepare(`${orderQuery} WHERE o.id = ?`).get(req.params.id);
+  const order = db.prepare(`${orderQuery} WHERE o.id = ?`).get(req.user.id, req.params.id);
   if (!order || (order.buyer_id !== req.user.id && order.seller_id !== req.user.id && !req.user.is_admin)) {
     res.status(404).json({ error: 'Order not found.' });
     return null;
@@ -188,28 +190,33 @@ router.post('/:id/messages', requireAuth, (req, res) => {
   res.status(201).json({ message });
 });
 
-// ---------- Review (buyer -> seller, once, on completed orders) ----------
+// ---------- Reviews (two-way: each party rates the other, once, on completed orders) ----------
 
 router.post('/:id/review', requireAuth, (req, res) => {
   const order = loadOrderForParty(req, res);
   if (!order) return;
-  if (order.buyer_id !== req.user.id) return res.status(403).json({ error: 'Only the buyer can review this order.' });
+  if (![order.buyer_id, order.seller_id].includes(req.user.id)) {
+    return res.status(403).json({ error: 'Only the buyer or seller can review this order.' });
+  }
   if (order.status !== 'completed') return res.status(400).json({ error: 'You can review once the order is completed.' });
 
   const rating = parseInt(req.body?.rating, 10);
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
     return res.status(400).json({ error: 'Rating must be 1–5 stars.' });
   }
-  const comment = req.body?.comment ? String(req.body.comment).trim().slice(0, MAX_REVIEW_LEN) : null;
+  const rawComment = req.body?.comment ? String(req.body.comment).trim().slice(0, MAX_REVIEW_LEN) : null;
+  const mod = moderateField(rawComment, 'comment');
+  if (!mod.ok) return res.status(400).json({ error: mod.error });
 
-  const existing = db.prepare('SELECT id FROM reviews WHERE order_id = ?').get(order.id);
+  const subjectId = req.user.id === order.buyer_id ? order.seller_id : order.buyer_id;
+  const existing = db.prepare('SELECT id FROM reviews WHERE order_id = ? AND reviewer_id = ?').get(order.id, req.user.id);
   if (existing) return res.status(400).json({ error: 'You already reviewed this order.' });
 
   db.prepare(
-    'INSERT INTO reviews (order_id, reviewer_id, seller_id, rating, comment) VALUES (?, ?, ?, ?, ?)'
-  ).run(order.id, req.user.id, order.seller_id, rating, comment);
+    'INSERT INTO reviews (order_id, reviewer_id, subject_id, rating, comment) VALUES (?, ?, ?, ?, ?)'
+  ).run(order.id, req.user.id, subjectId, rating, mod.clean || null);
 
-  notify(order.seller_id, 'review', `${req.user.username} left you a ${rating}★ review on "${order.item_title}".`, `#u/${req.user.username}`);
+  notify(subjectId, 'review', `${req.user.username} left you a ${rating}★ review on "${order.item_title}".`, `#u/${req.user.username}`);
   res.status(201).json({ ok: true });
 });
 
