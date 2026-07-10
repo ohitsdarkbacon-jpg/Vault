@@ -101,10 +101,11 @@ router.get('/my/overview', requireAuth, (req, res) => {
         (SELECT COUNT(*) FROM listings WHERE seller_id = ? AND status = 'active') AS active_listings,
         (SELECT COUNT(*) FROM auctions WHERE seller_id = ? AND status = 'live') AS live_auctions,
         (SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0) AS unread_notifications,
-        (SELECT ROUND(AVG(rating),2) FROM reviews WHERE seller_id = ?) AS avg_rating,
-        (SELECT COUNT(*) FROM reviews WHERE seller_id = ?) AS review_count`
+        (SELECT COALESCE(SUM(seller_proceeds_cents),0) FROM orders WHERE seller_id = ? AND status = 'completed') AS total_earned_cents,
+        (SELECT ROUND(AVG(rating),2) FROM reviews WHERE subject_id = ?) AS avg_rating,
+        (SELECT COUNT(*) FROM reviews WHERE subject_id = ?) AS review_count`
     )
-    .get(uid, uid, uid, uid, uid, uid, uid);
+    .get(uid, uid, uid, uid, uid, uid, uid, uid);
   res.json({ balance_cents: req.user.site_credit_cents, ...counts });
 });
 

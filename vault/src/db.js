@@ -175,7 +175,9 @@ CREATE TABLE IF NOT EXISTS reviews (
   comment TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE INDEX IF NOT EXISTS idx_reviews_seller ON reviews(seller_id);
+-- NOTE: no index on reviews(seller_id) here — the v4 migration below rebuilds
+-- this table with subject_id (dropping seller_id), so indexing it again on a
+-- later boot would crash. idx_reviews_subject is created by the migration.
 
 CREATE TABLE IF NOT EXISTS notifications (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -290,6 +292,23 @@ if (reviewCols.length && !reviewCols.includes('subject_id')) {
     CREATE INDEX IF NOT EXISTS idx_reviews_subject ON reviews(subject_id);
   `);
 }
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS topups (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  amount_cents INTEGER NOT NULL,
+  method TEXT NOT NULL CHECK (method IN ('stripe','crypto')),
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | paid | failed
+  stripe_session_id TEXT,
+  nowpayments_payment_id TEXT,
+  pay_currency TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_topups_np ON topups(nowpayments_payment_id);
+CREATE INDEX IF NOT EXISTS idx_topups_user ON topups(user_id);
+`);
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS offers (

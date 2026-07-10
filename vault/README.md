@@ -16,12 +16,13 @@ withdrawals, notifications, public profiles, and an admin panel.
 - **⏰ Ending-soon alerts**: watchers and the high bidder get notified when an auction they care about enters its final hour
 - Live-updating countdowns, quick-bid chips (min / +1 step / +5 steps), share links with deep-linking (`#listing-N` / `#auction-N`)
 - Recently-traded strip on the home page for social proof
-- Item images: **upload a file from your computer** (PNG/JPG/GIF/WEBP, max 20 MB) or paste an external URL
+- Item images are **required** on every listing/auction: upload from your computer (PNG/JPG/GIF/WEBP, max 7 MB) or paste an external URL. Click any item image for a full-size lightbox
 - Full-text search (SQLite FTS5 with LIKE fallback), price filters, sorting, pagination
 - Favorites / watchlist
 
 **Money (the important part)**
 - Checkout via Stripe (card), NOWPayments (BTC/ETH/USDT/LTC/SOL), or site credit
+- **Add funds**: top up your balance ($5–$1,000) by card or crypto from the Wallet tab — credited automatically via webhook, with a polling fallback
 - Crypto checkout shows a **live transaction tracker** (awaiting deposit → confirming on-chain → in escrow), fed by the NOWPayments status API with partial-payment detection
 - **Double-sell protection**: if two buyers pay for the same item in a race, the first payment wins and the second is automatically refunded as site credit
 - **Escrow**: payment is held until the buyer confirms receipt → then the seller's balance is credited (minus the fee, default 6%, `PLATFORM_FEE_BPS`)

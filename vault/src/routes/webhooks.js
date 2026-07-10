@@ -5,6 +5,7 @@ const { stripe } = require('../lib/stripe');
 const { verifyIpnSignature, FINISHED_STATUSES } = require('../lib/nowpayments');
 const { isPayoutIpn, handlePayoutIpn } = require('../lib/payouts');
 const { fulfillOrder } = require('../lib/fulfillOrder');
+const { fulfillTopup } = require('./topups');
 const { notify, notifyAdmins } = require('../lib/notify');
 
 const router = express.Router();
@@ -26,7 +27,12 @@ function stripeWebhookHandler(req, res) {
     const session = event.data.object;
     const orderId = session.metadata?.order_id;
     if (orderId && session.payment_status === 'paid') {
-      fulfillOrder(Number(orderId));
+      // Balance top-ups reuse the same checkout flow with a "topup:" marker.
+      if (String(orderId).startsWith('topup:')) {
+        fulfillTopup(Number(String(orderId).slice(6)));
+      } else {
+        fulfillOrder(Number(orderId));
+      }
     }
   }
 
@@ -50,6 +56,19 @@ router.post('/nowpayments', (req, res) => {
   }
 
   const { payment_id, payment_status, order_id } = req.body;
+
+  // ---- Balance top-ups (matched by payment id, or the "topup:" order tag) ----
+  const topup = db.prepare('SELECT * FROM topups WHERE nowpayments_payment_id = ?').get(String(payment_id));
+  if (topup || String(order_id || '').startsWith('topup:')) {
+    const topupId = topup ? topup.id : Number(String(order_id).slice(6));
+    if (FINISHED_STATUSES.has(payment_status)) {
+      fulfillTopup(topupId);
+    } else if (['failed', 'expired', 'refunded'].includes(payment_status)) {
+      db.prepare("UPDATE topups SET status = 'failed', updated_at = datetime('now') WHERE id = ? AND status = 'pending'").run(topupId);
+    }
+    return res.json({ received: true });
+  }
+
   db.prepare(
     "UPDATE orders SET updated_at = datetime('now') WHERE nowpayments_payment_id = ?"
   ).run(String(payment_id));

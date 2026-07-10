@@ -126,6 +126,9 @@ router.post('/', requireAuth, (req, res) => {
       return res.status(400).json({ error: 'Buy-now price must be higher than the starting bid.' });
     }
   }
+  if (!image_url) {
+    return res.status(400).json({ error: 'An image of your item is required — upload one or paste a URL.' });
+  }
   if (!isValidImageUrl(image_url)) {
     return res.status(400).json({ error: 'Image URL must be a valid http(s) link.' });
   }
@@ -162,6 +165,10 @@ router.post('/', requireAuth, (req, res) => {
 router.get('/:id', (req, res) => {
   const auction = db.prepare(`${auctionQuery} WHERE a.id = ?`).get(req.params.id);
   if (!auction) return res.status(404).json({ error: 'Auction not found.' });
+  auction.watch_count = db
+    .prepare("SELECT COUNT(*) c FROM favorites WHERE kind = 'auction' AND item_id = ?")
+    .get(auction.id).c;
+  auction.bid_count = db.prepare('SELECT COUNT(*) c FROM bids WHERE auction_id = ?').get(auction.id).c;
   res.json({ auction });
 });
 
