@@ -403,6 +403,32 @@ async function loadRecentSales() {
   `).join('');
 }
 
+// ---------- Image lightbox: click any modal thumb to view it full-size ----------
+function openLightbox(url) {
+  const ov = document.createElement('div');
+  ov.className = 'lightbox';
+  ov.innerHTML = `<img src="${escapeHtml(url)}" alt="">`;
+  ov.onclick = () => ov.remove();
+  document.body.appendChild(ov);
+  const esc = (e) => { if (e.key === 'Escape') { ov.remove(); document.removeEventListener('keydown', esc); } };
+  document.addEventListener('keydown', esc);
+}
+['bid-thumb', 'buy-thumb'].forEach(id => {
+  $('#' + id).addEventListener('click', function () {
+    const bg = this.style.backgroundImage;
+    const m = bg && bg.match(/url\(["']?(.+?)["']?\)/);
+    if (m) openLightbox(m[1]);
+  });
+});
+
+// ---------- "/" focuses the nearest search box ----------
+document.addEventListener('keydown', (e) => {
+  if (e.key !== '/' || e.target.matches('input, textarea')) return;
+  const view = document.querySelector('.view.active');
+  const box = view && view.querySelector('input[type="search"]');
+  if (box) { e.preventDefault(); box.focus(); }
+});
+
 // Scroll-to-top button
 const scrollTopBtn = $('#scroll-top');
 window.addEventListener('scroll', () => scrollTopBtn.classList.toggle('show', window.scrollY > 600), { passive: true });
@@ -481,10 +507,10 @@ function auctionCardHtml(a) {
 function renderAuctions() {
   const grid = $('#auctions-grid');
   if (!AUCTIONS.length) {
-    const msg = (auctionState.q || auctionState.minPrice || auctionState.maxPrice)
-      ? 'No auctions match your search.'
-      : 'No live auctions right now — check back soon, or list your own.';
-    grid.innerHTML = `<div class="empty">${msg}</div>`;
+    const filtered = auctionState.q || auctionState.minPrice || auctionState.maxPrice;
+    grid.innerHTML = filtered
+      ? `<div class="empty">No auctions match your search.<br><button class="btn btn-small" style="margin-top:12px" onclick="document.getElementById('auctions-clear').click()">Clear filters</button></div>`
+      : `<div class="empty">No live auctions right now.<br><button class="btn btn-small btn-gold" style="margin-top:12px" onclick="document.getElementById('cta-sell').click()">Start the first auction</button></div>`;
     return;
   }
   grid.innerHTML = AUCTIONS.map(auctionCardHtml).join('');
@@ -507,7 +533,7 @@ async function refreshAuctionModal() {
   if (a.image_url) $('#bid-thumb').style.backgroundImage = `url('${a.image_url}')`;
   $('#bid-title').textContent = a.title;
   const t = timeLeft(a.ends_at);
-  $('#bid-sub').innerHTML = `Current bid <b>${money(a.current_bid_cents || a.starting_bid_cents)}</b> · ${t.text} · min increment ${money(a.min_increment_cents)} · Seller <a class="seller-link" href="#u/${encodeURIComponent(a.seller_name)}">${escapeHtml(a.seller_name)}</a>`;
+  $('#bid-sub').innerHTML = `Current bid <b>${money(a.current_bid_cents || a.starting_bid_cents)}</b> · <span data-ends="${escapeHtml(a.ends_at)}">${t.text}</span> · ${a.bid_count || 0} bid${a.bid_count === 1 ? '' : 's'}${a.watch_count ? ` · 👁 ${a.watch_count} watching` : ''} · Seller <a class="seller-link" href="#u/${encodeURIComponent(a.seller_name)}">${escapeHtml(a.seller_name)}</a> ${vbadge(a.seller_verified)}`;
   $('#bid-desc').textContent = a.description || '';
   syncFavStar($('#bid-fav'), 'auction', a.id);
 
@@ -656,10 +682,10 @@ function listingCardHtml(l) {
 function renderListings() {
   const grid = $('#listings-grid');
   if (!LISTINGS.length) {
-    const msg = (listingState.q || listingState.minPrice || listingState.maxPrice)
-      ? 'No listings match your search.'
-      : 'No fixed-price listings yet.';
-    grid.innerHTML = `<div class="empty">${msg}</div>`;
+    const filtered = listingState.q || listingState.minPrice || listingState.maxPrice;
+    grid.innerHTML = filtered
+      ? `<div class="empty">No listings match your search.<br><button class="btn btn-small" style="margin-top:12px" onclick="document.getElementById('listings-clear').click()">Clear filters</button></div>`
+      : `<div class="empty">No fixed-price listings yet.<br><button class="btn btn-small btn-gold" style="margin-top:12px" onclick="document.getElementById('cta-sell').click()">List the first item</button></div>`;
     return;
   }
   grid.innerHTML = LISTINGS.map(listingCardHtml).join('');
@@ -684,7 +710,7 @@ async function openBuyModal(id, itemOverride) {
   // An accepted offer replaces the sticker price for this buyer.
   const base = offer && offer.status === 'accepted' ? offer.amount_cents : l.price_cents;
   const total = buyerTotal(base);
-  $('#buy-sub').innerHTML = `<b>${money(total)}</b>${total !== base ? ` <span style="color:var(--muted)">(${money(base)} + ${(FEE.fee_bps / 100).toFixed(0)}% buyer fee)</span>` : ''} · Seller: <a class="seller-link" href="#u/${encodeURIComponent(l.seller_name)}">${escapeHtml(l.seller_name)}</a> ${vbadge(l.seller_verified)}`;
+  $('#buy-sub').innerHTML = `<b>${money(total)}</b>${total !== base ? ` <span style="color:var(--muted)">(${money(base)} + ${(FEE.fee_bps / 100).toFixed(0)}% buyer fee)</span>` : ''}${l.watch_count ? ` · 👁 ${l.watch_count} watching` : ''} · Seller: <a class="seller-link" href="#u/${encodeURIComponent(l.seller_name)}">${escapeHtml(l.seller_name)}</a> ${vbadge(l.seller_verified)}`;
   $('#buy-desc').textContent = l.description || '';
   $('#buy-error').textContent = '';
   syncFavStar($('#buy-fav'), 'listing', l.id);
@@ -769,12 +795,18 @@ $('#currency-choices').addEventListener('click', async (e) => {
   const btn = e.target.closest('.pill');
   if (!btn || !pendingCryptoContext) return;
   const currency = btn.dataset.cur;
-  const { kind, id } = pendingCryptoContext;
-  const url = kind === 'auction' ? `/api/auctions/${id}/checkout/crypto` : `/api/listings/${id}/checkout/crypto`;
-  const r = await api(url, { method: 'POST', body: JSON.stringify({ pay_currency: currency }) });
+  const { kind, id, amountCents } = pendingCryptoContext;
+  let r;
+  if (kind === 'topup') {
+    r = await api('/api/topup/crypto', { method: 'POST', body: JSON.stringify({ amount_cents: amountCents, pay_currency: currency }) });
+  } else {
+    const url = kind === 'auction' ? `/api/auctions/${id}/checkout/crypto` : `/api/listings/${id}/checkout/crypto`;
+    r = await api(url, { method: 'POST', body: JSON.stringify({ pay_currency: currency }) });
+  }
   if (r.error) { toast(r.error, 'error'); return; }
   closeModal('currency-overlay');
   closeModal('buy-overlay');
+  closeModal('topup-overlay');
   showCryptoPayment(r);
 });
 
@@ -787,7 +819,10 @@ function setCryptoStep(n) {
   });
 }
 
+// Works for both order checkouts (payment.order_id) and balance top-ups
+// (payment.topup_id) — same modal, different poll endpoint + success copy.
 function showCryptoPayment(payment) {
+  const isTopup = !!payment.topup_id;
   $('#crypto-amount').textContent = `${payment.pay_amount} ${String(payment.pay_currency).toUpperCase()}`;
   $('#crypto-address').textContent = payment.pay_address;
   $('#crypto-status').textContent = 'Waiting for your transaction…';
@@ -795,25 +830,7 @@ function showCryptoPayment(payment) {
   setCryptoStep(0);
   openModal('crypto-overlay');
 
-  clearInterval(cryptoPollTimer);
-  cryptoPollTimer = setInterval(async () => {
-    const r = await api(`/api/orders/${payment.order_id}`);
-    if (!r.order) return;
-    if (['paid', 'delivered', 'completed'].includes(r.order.status)) {
-      setCryptoStep(2);
-      $('#crypto-status').textContent = '✓ Payment received — held in escrow. Open your dashboard to coordinate the trade.';
-      $('#crypto-status').classList.add('paid');
-      clearInterval(cryptoPollTimer);
-      loadMe(); loadListings(); loadAuctions();
-      return;
-    }
-    if (r.order.status === 'failed') {
-      $('#crypto-status').textContent = '✕ Payment failed or expired. No funds were taken — you can retry from the item page.';
-      clearInterval(cryptoPollTimer);
-      return;
-    }
-    // Still pending — show the live on-chain state when the backend has it.
-    const p = r.payment;
+  const renderLive = (p) => {
     if (!p) return;
     if (p.status === 'confirming' || p.status === 'confirmed' || p.status === 'sending') {
       setCryptoStep(1);
@@ -825,8 +842,73 @@ function showCryptoPayment(payment) {
       setCryptoStep(0);
       $('#crypto-status').textContent = 'Waiting for your transaction…';
     }
+  };
+  const succeed = (msg) => {
+    setCryptoStep(2);
+    $('#crypto-status').textContent = msg;
+    $('#crypto-status').classList.add('paid');
+    clearInterval(cryptoPollTimer);
+    loadMe();
+  };
+  const fail = (msg) => {
+    $('#crypto-status').textContent = msg;
+    clearInterval(cryptoPollTimer);
+  };
+
+  clearInterval(cryptoPollTimer);
+  cryptoPollTimer = setInterval(async () => {
+    if (isTopup) {
+      const r = await api(`/api/topup/${payment.topup_id}`);
+      if (r.status === 'paid') return succeed(`✓ ${money(r.amount_cents)} added to your balance. Happy trading!`);
+      if (r.status === 'failed') return fail('✕ Payment failed or expired. No funds were taken — you can retry from your wallet.');
+      renderLive(r.payment);
+      return;
+    }
+    const r = await api(`/api/orders/${payment.order_id}`);
+    if (!r.order) return;
+    if (['paid', 'delivered', 'completed'].includes(r.order.status)) {
+      succeed('✓ Payment received — held in escrow. Open your dashboard to coordinate the trade.');
+      loadListings(); loadAuctions();
+      return;
+    }
+    if (r.order.status === 'failed') {
+      return fail('✕ Payment failed or expired. No funds were taken — you can retry from the item page.');
+    }
+    renderLive(r.payment);
   }, 6000);
 }
+
+// ---------- Add funds (balance top-up) ----------
+$('#topup-chips').addEventListener('click', (e) => {
+  const b = e.target.closest('.quick-bid');
+  if (!b) return;
+  $('#topup-amount').value = (b.dataset.v / 100).toFixed(2);
+  $('#topup-error').textContent = '';
+});
+function topupAmountCents() {
+  const v = parseFloat($('#topup-amount').value);
+  if (!isFinite(v) || v < 5 || v > 1000) {
+    $('#topup-error').textContent = 'Enter an amount between $5 and $1,000.';
+    return null;
+  }
+  $('#topup-error').textContent = '';
+  return Math.round(v * 100);
+}
+$('#topup-stripe').onclick = async () => {
+  const cents = topupAmountCents();
+  if (cents == null) return;
+  $('#topup-stripe').classList.add('loading');
+  const r = await api('/api/topup/stripe', { method: 'POST', body: JSON.stringify({ amount_cents: cents }) });
+  $('#topup-stripe').classList.remove('loading');
+  if (r.error) { $('#topup-error').textContent = r.error; return; }
+  window.location.href = r.url;
+};
+$('#topup-crypto').onclick = () => {
+  const cents = topupAmountCents();
+  if (cents == null) return;
+  pendingCryptoContext = { kind: 'topup', amountCents: cents };
+  openModal('currency-overlay');
+};
 
 $('#crypto-copy').onclick = () => {
   navigator.clipboard.writeText($('#crypto-address').textContent).then(() => toast('Address copied', 'success'));
@@ -980,6 +1062,10 @@ $('#sell-submit').onclick = async () => {
   const title = $('#sell-title').value.trim();
   const description = $('#sell-desc').value.trim();
   if (!title) { $('#sell-error').textContent = 'Title is required.'; return; }
+  if (!$('#sell-image-file').files[0] && !$('#sell-image').value.trim()) {
+    $('#sell-error').textContent = 'An image of your item is required — upload one or paste a URL.';
+    return;
+  }
   $('#sell-submit').classList.add('loading');
   const image_url = await resolveSellImage();
   if (image_url === null) { $('#sell-submit').classList.remove('loading'); return; }
@@ -1113,7 +1199,8 @@ async function loadDashboard() {
     <div class="stat-card"><div class="val">${ov.purchases_open}</div><div class="lbl">Open purchases</div></div>
     <div class="stat-card"><div class="val">${ov.sales_open}</div><div class="lbl">Open sales</div></div>
     <div class="stat-card"><div class="val">${ov.active_listings + ov.live_auctions}</div><div class="lbl">Items on the market</div></div>
-    <div class="stat-card"><div class="val">${ov.avg_rating ? ov.avg_rating + '★' : '—'}</div><div class="lbl">Seller rating (${ov.review_count})</div></div>
+    <div class="stat-card"><div class="val gold">${money(ov.total_earned_cents || 0)}</div><div class="lbl">Lifetime earned</div></div>
+    <div class="stat-card"><div class="val">${ov.avg_rating ? ov.avg_rating + '★' : '—'}</div><div class="lbl">Rating (${ov.review_count})</div></div>
   `;
   $('#tc-purchases').textContent = ov.purchases_open || '';
   $('#tc-sales').textContent = ov.sales_open || '';
@@ -1307,7 +1394,8 @@ async function renderDashTab() {
       <div class="order-card" style="justify-content:space-between">
         <div><div class="order-title">Available balance</div><div class="order-sub">Escrow releases and refunds land here. Withdraw any time (min ${money(r.min_cents || 500)}).</div></div>
         <div class="order-price" style="font-size:1.4rem;color:var(--gold)">${money(ME.site_credit_cents)}</div>
-        <button class="btn btn-gold" id="open-withdraw">Withdraw</button>
+        <button class="btn btn-gold" id="open-topup">＋ Add funds</button>
+        <button class="btn" id="open-withdraw">Withdraw</button>
       </div>
       <h3 class="section-sub">Withdrawal history</h3>
       ${ws.length ? `<div class="table-wrap"><table class="data">
@@ -1320,6 +1408,11 @@ async function renderDashTab() {
         </tr>`).join('')}
       </table></div>` : `<div class="empty-block">No withdrawals yet.</div>`}
     `;
+    $('#open-topup').onclick = () => {
+      $('#topup-amount').value = '';
+      $('#topup-error').textContent = '';
+      openModal('topup-overlay');
+    };
     $('#open-withdraw').onclick = () => {
       $('#withdraw-balance').textContent = `Available: ${money(ME.site_credit_cents)} · min ${money(r.min_cents || 500)}`;
       $('#withdraw-amount').value = '';
@@ -2005,6 +2098,15 @@ async function renderAdminTab() {
     route();
   } else if (params.get('checkout') === 'cancelled') {
     toast('Checkout cancelled.', 'info');
+    history.replaceState({}, '', '/');
+  }
+  if (params.get('topup') === 'success') {
+    toast('Payment received — the funds will appear in your balance momentarily.', 'success');
+    history.replaceState({}, '', '/#dashboard');
+    route();
+    setTimeout(loadMe, 4000); // give the webhook a beat, then refresh the balance chip
+  } else if (params.get('topup') === 'cancelled') {
+    toast('Top-up cancelled — no charge was made.', 'info');
     history.replaceState({}, '', '/');
   }
   if (params.get('auth_error')) {

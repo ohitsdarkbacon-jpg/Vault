@@ -119,6 +119,9 @@ router.post('/', requireAuth, (req, res) => {
   if (price_cents != null && (!Number.isInteger(price_cents) || price_cents <= 0)) {
     return res.status(400).json({ error: 'Price must be a positive amount.' });
   }
+  if (!image_url) {
+    return res.status(400).json({ error: 'An image of your item is required — upload one or paste a URL.' });
+  }
   if (!isValidImageUrl(image_url)) {
     return res.status(400).json({ error: 'Image URL must be a valid http(s) link.' });
   }
@@ -147,6 +150,9 @@ router.post('/', requireAuth, (req, res) => {
 router.get('/:id', (req, res) => {
   const listing = db.prepare(`${listingQuery} WHERE l.id = ?`).get(req.params.id);
   if (!listing) return res.status(404).json({ error: 'Listing not found.' });
+  listing.watch_count = db
+    .prepare("SELECT COUNT(*) c FROM favorites WHERE kind = 'listing' AND item_id = ?")
+    .get(listing.id).c;
   // The viewer's live offer on this listing, so the buy modal can show
   // "offer pending" / the accepted discounted price.
   let my_offer = null;
@@ -234,8 +240,9 @@ router.patch('/:id', requireAuth, (req, res) => {
     updates.description = mod.clean || null;
   }
   if (body.image_url !== undefined) {
+    if (!body.image_url) return res.status(400).json({ error: 'Listings must have an image.' });
     if (!isValidImageUrl(body.image_url)) return res.status(400).json({ error: 'Image URL must be a valid http(s) link.' });
-    updates.image_url = body.image_url || null;
+    updates.image_url = body.image_url;
   }
   if (body.price_cents != null) {
     if (!Number.isInteger(body.price_cents) || body.price_cents <= 0) {

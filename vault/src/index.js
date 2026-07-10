@@ -18,6 +18,7 @@ const adminRoutes = require('./routes/admin');
 const uploadsRoutes = require('./routes/uploads');
 const dmRoutes = require('./routes/dm');
 const offersRoutes = require('./routes/offers');
+const { router: topupsRouter } = require('./routes/topups');
 const { startAuctionCloser } = require('./jobs/auctionCloser');
 const { startAutoComplete } = require('./jobs/autoCompleteOrders');
 
@@ -94,6 +95,7 @@ app.use('/api/orders', ordersRoutes);   // lifecycle, chat, reviews (must be bef
 app.use('/api', usersRoutes);           // /api/users/:username, /api/my/*, /api/favorites/*
 app.use('/api', dmRoutes);              // /api/traders, /api/dm/*, block/report, /api/my/privacy
 app.use('/api', offersRoutes);          // /api/listings/:id/offers, /api/offers/:id/*, /api/my/offers
+app.use('/api', topupsRouter);          // /api/topup/* — add funds to balance
 app.use('/api/uploads', uploadsRoutes); // image uploads for listings/auctions
 app.use('/api/admin', adminRoutes);
 app.use('/api', paymentsRoutes); // /api/auctions/:id/checkout/*, /api/listings/:id/checkout/*
