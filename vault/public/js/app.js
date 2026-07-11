@@ -1818,8 +1818,9 @@ async function requestTicket(postId, ownerName, iAmOwner) {
   } else {
     partner = ownerName;
   }
-  // Optional tip — held now, paid to the middleman when the trade completes.
-  const tipRaw = await vaultPrompt(`Trading with ${partner}. Add an optional tip for the middleman to show gratitude — it's held from your balance and paid when they complete the trade (refunded if the ticket is cancelled). Leave empty to skip.`, { title: '💰 Tip the middleman?', placeholder: 'e.g. 2.00 — optional, leave empty to skip', okText: '⚖️ Find middleman', icon: '⚖️' });
+  // Optional tip — informational only, shown to the middleman as a promise
+  // of gratitude. Nothing is held or charged.
+  const tipRaw = await vaultPrompt(`Trading with ${partner}. Optionally promise the middleman a tip as a way to show gratitude — it's just shown to them with the request, you settle it yourselves. Leave empty to skip.`, { title: '💰 Tip the middleman?', placeholder: 'e.g. 2.00 — optional, leave empty to skip', okText: '⚖️ Find middleman', icon: '⚖️' });
   if (tipRaw === null) return;
   let tip_cents;
   if (tipRaw !== '') {
@@ -1830,8 +1831,7 @@ async function requestTicket(postId, ownerName, iAmOwner) {
   const r = await api(`/api/trades/${postId}/ticket`, { method: 'POST', body: JSON.stringify({ partner, tip_cents }) });
   if (r.error && !r.id) return toast(r.error, 'error');
   if (r.error) return toast(r.error, 'info');
-  toast(`⚖️ ${r.middleman} was requested${tip_cents ? ` with a ${money(tip_cents)} tip` : ''} — you'll be notified when they accept.`, 'success');
-  loadMe(); // tip hold changes the balance chip
+  toast(`⚖️ ${r.middleman} was requested${tip_cents ? ` with a ${money(tip_cents)} tip promised` : ''} — you'll be notified when they accept.`, 'success');
 }
 
 // Post-a-trade modal

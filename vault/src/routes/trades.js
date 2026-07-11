@@ -11,32 +11,7 @@ const MAX_ITEM_LEN = 140;
 const MAX_NOTES_LEN = 500;
 const ONLINE_WINDOW_MIN = 5;
 const MM_RESPONSE_WINDOW_MS = 2 * 60 * 1000; // middleman must accept within 2 minutes
-const MAX_TIP_CENTS = 50000; // $500 tip ceiling
-
 function money(cents) { return `$${(cents / 100).toFixed(2)}`; }
-
-// Tips are held from the requester when the ticket is created, paid to the
-// middleman on completion, and refunded on cancel/unavailable. tip_settled
-// guards against paying or refunding twice.
-function settleTip(ticketId, outcome) {
-  const t = db.prepare('SELECT * FROM mm_tickets WHERE id = ?').get(ticketId);
-  if (!t || !t.tip_cents || t.tip_settled) return;
-  const tx = db.transaction(() => {
-    const info = db.prepare('UPDATE mm_tickets SET tip_settled = 1 WHERE id = ? AND tip_settled = 0').run(t.id);
-    if (!info.changes) return;
-    if (outcome === 'paid' && t.middleman_id) {
-      db.prepare('UPDATE users SET site_credit_cents = site_credit_cents + ? WHERE id = ?').run(t.tip_cents, t.middleman_id);
-    } else {
-      db.prepare('UPDATE users SET site_credit_cents = site_credit_cents + ? WHERE id = ?').run(t.tip_cents, t.requester_id);
-    }
-  });
-  tx();
-  if (outcome === 'paid' && t.middleman_id) {
-    notify(t.middleman_id, 'mm', `💰 You received a ${money(t.tip_cents)} tip for middlemanning ticket #${t.id}. Thanks for keeping trades safe!`, '#dashboard');
-  } else if (outcome === 'refunded') {
-    notify(t.requester_id, 'mm', `Your ${money(t.tip_cents)} middleman tip for ticket #${t.id} was refunded to your balance.`, '#dashboard');
-  }
-}
 
 const tradeQuery = `
   SELECT t.*, u.username, u.avatar_url, u.is_verified, u.last_seen_at
@@ -136,7 +111,6 @@ function assignMiddleman(ticketId) {
   const mm = pickMiddleman(ticket);
   if (!mm) {
     db.prepare("UPDATE mm_tickets SET status = 'unavailable', middleman_id = NULL, updated_at = datetime('now') WHERE id = ?").run(ticket.id);
-    settleTip(ticket.id, 'refunded');
     notify(ticket.requester_id, 'mm', 'No middleman is available right now — retry later, or trade directly in game if you both trust each other.', '#dashboard');
     return null;
   }
@@ -170,28 +144,17 @@ router.post('/trades/:id/ticket', requireAuth, (req, res) => {
     .get(post.id, req.user.id, req.user.id);
   if (existing) return res.status(400).json({ error: 'You already have an open ticket on this trade.' });
 
-  // Optional tip — pure gratitude, held now, paid to the middleman when they
-  // complete the trade (refunded if the ticket dies first).
+  // Optional tip — purely informational. Nothing is held or paid by the
+  // platform; it's a promise of gratitude the traders settle themselves,
+  // shown to the middleman with the assignment.
   const tip = req.body?.tip_cents == null ? 0 : parseInt(req.body.tip_cents, 10);
-  if (!Number.isInteger(tip) || tip < 0 || tip > MAX_TIP_CENTS) {
-    return res.status(400).json({ error: `Tip must be between $0 and ${money(MAX_TIP_CENTS)}.` });
-  }
-  if (tip > 0 && req.user.site_credit_cents < tip) {
-    return res.status(400).json({ error: `Not enough site credit for a ${money(tip)} tip — your balance is ${money(req.user.site_credit_cents)}.` });
+  if (!Number.isInteger(tip) || tip < 0) {
+    return res.status(400).json({ error: 'Tip must be a positive amount (or leave it empty).' });
   }
 
-  let ticketId;
-  const tx = db.transaction(() => {
-    const info = db
-      .prepare('INSERT INTO mm_tickets (trade_post_id, requester_id, partner_id, tip_cents) VALUES (?, ?, ?, ?)')
-      .run(post.id, req.user.id, partner.id, tip);
-    ticketId = info.lastInsertRowid;
-    if (tip > 0) {
-      db.prepare('UPDATE users SET site_credit_cents = site_credit_cents - ? WHERE id = ?').run(tip, req.user.id);
-    }
-  });
-  tx();
-  const info = { lastInsertRowid: ticketId };
+  const info = db
+    .prepare('INSERT INTO mm_tickets (trade_post_id, requester_id, partner_id, tip_cents) VALUES (?, ?, ?, ?)')
+    .run(post.id, req.user.id, partner.id, tip);
   const mm = assignMiddleman(info.lastInsertRowid);
   if (!mm) {
     return res.status(200).json({ ok: false, id: info.lastInsertRowid, error: 'No middlemen are online right now — retry later, or trade directly in game.' });
@@ -257,9 +220,9 @@ router.post('/mm/tickets/:id/complete', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'Only the active middleman can complete a ticket.' });
   }
   db.prepare("UPDATE mm_tickets SET status = 'completed', updated_at = datetime('now') WHERE id = ?").run(t.id);
-  settleTip(t.id, 'paid');
   for (const uid of [t.requester_id, t.partner_id]) {
-    notify(uid, 'mm', `✅ Middleman ticket #${t.id} completed — happy trading!`, '#dashboard');
+    const tipNudge = t.tip_cents && uid === t.requester_id ? ` Don't forget the ${money(t.tip_cents)} tip you promised ${req.user.username}!` : '';
+    notify(uid, 'mm', `✅ Middleman ticket #${t.id} completed — happy trading!${tipNudge}`, '#dashboard');
   }
   res.json({ ok: true });
 });
@@ -271,7 +234,6 @@ router.post('/mm/tickets/:id/cancel', requireAuth, (req, res) => {
   if (![t.requester_id, t.partner_id].includes(req.user.id)) return res.status(403).json({ error: 'Only a trade party can cancel.' });
   if (!['assigned', 'active', 'unavailable'].includes(t.status)) return res.status(400).json({ error: `Ticket is already ${t.status}.` });
   db.prepare("UPDATE mm_tickets SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?").run(t.id);
-  settleTip(t.id, 'refunded');
   if (t.middleman_id) notify(t.middleman_id, 'mm', `Ticket #${t.id} was cancelled by the traders.`, '#dashboard');
   res.json({ ok: true });
 });
