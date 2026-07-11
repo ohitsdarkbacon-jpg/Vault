@@ -1485,7 +1485,7 @@ async function renderDashTab() {
       return `
       <div class="order-card">
         <div class="order-main">
-          <div class="order-title">#${t.id} · ${escapeHtml(t.offering)} ⇄ ${escapeHtml(t.wants)}</div>
+          <div class="order-title">#${t.id} · ${escapeHtml(t.offering)} ⇄ ${escapeHtml(t.wants)}${t.tip_cents ? ` <span class="status-badge status-offer-accepted">💰 ${money(t.tip_cents)} tip</span>` : ''}</div>
           <div class="order-sub">${escapeHtml(t.requester_name)} + ${escapeHtml(t.partner_name)}${t.middleman_name ? ` · MM: <b>${escapeHtml(t.middleman_name)}</b>` : ''} · ${timeAgo(t.updated_at)}</div>
         </div>
         ${badge(t.status)}
@@ -1799,19 +1799,39 @@ async function loadTradePosts() {
     toast('Trade post closed.', 'success');
     loadTradePosts();
   });
-  grid.querySelectorAll('[data-ticket]').forEach(b => b.onclick = () => requestTicket(b.dataset.ticket));
+  grid.querySelectorAll('[data-ticket]').forEach(b => b.onclick = () => {
+    const post = posts.find(x => String(x.id) === String(b.dataset.ticket));
+    requestTicket(post.id, post.username, ME && ME.id === post.user_id);
+  });
 }
 $('#trades-q').addEventListener('input', debounce(loadTradePosts, 300));
 
-async function requestTicket(postId) {
+async function requestTicket(postId, ownerName, iAmOwner) {
   if (!ME) return openModal('auth-overlay');
-  const partner = await vaultPrompt('Who are you trading with? A random ONLINE middleman is assigned — if they don\'t respond in 2 minutes it rotates. Middlemen are optional; you can always trade directly in game.', { title: '⚖️ Request a middleman', placeholder: 'Trade partner\'s username', okText: 'Find middleman', icon: '⚖️' });
-  if (partner === null) return;
-  if (!partner) return toast('Enter your trade partner\'s username.', 'error');
-  const r = await api(`/api/trades/${postId}/ticket`, { method: 'POST', body: JSON.stringify({ partner }) });
+  // The partner is obvious when you're on someone else's post — it's the
+  // poster. Owners name whoever they matched with in DMs.
+  let partner;
+  if (iAmOwner) {
+    partner = await vaultPrompt('Who did you match with? A random ONLINE middleman is assigned — if they don\'t respond in 2 minutes it rotates. Middlemen are optional; you can always trade directly in game.', { title: '⚖️ Request a middleman', placeholder: 'Trade partner\'s username', okText: 'Next', icon: '⚖️' });
+    if (partner === null) return;
+    if (!partner) return toast('Enter your trade partner\'s username.', 'error');
+  } else {
+    partner = ownerName;
+  }
+  // Optional tip — informational only, shown to the middleman as a promise
+  // of gratitude. Nothing is held or charged.
+  const tipRaw = await vaultPrompt(`Trading with ${partner}. Optionally promise the middleman a tip as a way to show gratitude — it's just shown to them with the request, you settle it yourselves. Leave empty to skip.`, { title: '💰 Tip the middleman?', placeholder: 'e.g. 2.00 — optional, leave empty to skip', okText: '⚖️ Find middleman', icon: '⚖️' });
+  if (tipRaw === null) return;
+  let tip_cents;
+  if (tipRaw !== '') {
+    const dollars = parseFloat(tipRaw);
+    if (!isFinite(dollars) || dollars < 0) return toast('Enter a valid tip amount, or leave it empty.', 'error');
+    tip_cents = Math.round(dollars * 100);
+  }
+  const r = await api(`/api/trades/${postId}/ticket`, { method: 'POST', body: JSON.stringify({ partner, tip_cents }) });
   if (r.error && !r.id) return toast(r.error, 'error');
   if (r.error) return toast(r.error, 'info');
-  toast(`⚖️ ${r.middleman} was requested — you'll be notified when they accept.`, 'success');
+  toast(`⚖️ ${r.middleman} was requested${tip_cents ? ` with a ${money(tip_cents)} tip promised` : ''} — you'll be notified when they accept.`, 'success');
 }
 
 // Post-a-trade modal

@@ -38,7 +38,8 @@ withdrawals, notifications, public profiles, and an admin panel.
 **In-game trading (item-for-item, no money)**
 - **Trade board** (`#trading`): post what you HAVE ⇄ what you WANT (e.g. Shadow Dragon for Strawberry Elephant), tagged by game, searchable; interested traders DM you
 - **Middleman network**: anyone can apply, admins approve/reject/revoke from the panel
-- **Middleman tickets** (optional — you can always trade directly in game): once two traders match, either party requests a ticket. A random **online** middleman is auto-assigned; if they don't respond within **2 minutes** the ticket rotates to the next online middleman, and if nobody's left it goes unavailable with a notification. Middlemen accept/pass from their dashboard, coordinate via DMs, and mark the trade completed.
+- **Middleman tickets** (optional — you can always trade directly in game): once two traders match, either party requests a ticket (the partner auto-fills when you're on their post). A random **online** middleman is auto-assigned; if they don't respond within **2 minutes** the ticket rotates to the next online middleman, and if nobody's left it goes unavailable with a notification. Middlemen accept/pass from their dashboard, coordinate via DMs, and mark the trade completed.
+- **Optional middleman tips**: promise a gratitude tip when requesting a ticket — purely informational, nothing is held or charged by the platform. The middleman sees it with the assignment, and the requester gets a friendly reminder to send it when the ticket completes.
 
 **Community & trust**
 - Per-order buyer↔seller chat (coordinate the in-game trade; admins can read it during disputes)

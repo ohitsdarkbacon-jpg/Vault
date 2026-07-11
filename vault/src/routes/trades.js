@@ -11,6 +11,7 @@ const MAX_ITEM_LEN = 140;
 const MAX_NOTES_LEN = 500;
 const ONLINE_WINDOW_MIN = 5;
 const MM_RESPONSE_WINDOW_MS = 2 * 60 * 1000; // middleman must accept within 2 minutes
+function money(cents) { return `$${(cents / 100).toFixed(2)}`; }
 
 const tradeQuery = `
   SELECT t.*, u.username, u.avatar_url, u.is_verified, u.last_seen_at
@@ -118,7 +119,7 @@ function assignMiddleman(ticketId) {
   db.prepare(
     "UPDATE mm_tickets SET middleman_id = ?, assigned_at = datetime('now'), tried = ?, updated_at = datetime('now') WHERE id = ?"
   ).run(mm.id, JSON.stringify(tried), ticket.id);
-  notify(mm.id, 'mm', `⚖️ You've been selected to middleman a trade (ticket #${ticket.id}). Accept within 2 minutes or it rotates to someone else.`, '#dashboard');
+  notify(mm.id, 'mm', `⚖️ You've been selected to middleman a trade (ticket #${ticket.id})${ticket.tip_cents ? ` — includes a ${money(ticket.tip_cents)} tip` : ''}. Accept within 2 minutes or it rotates to someone else.`, '#dashboard');
   return mm;
 }
 
@@ -143,9 +144,17 @@ router.post('/trades/:id/ticket', requireAuth, (req, res) => {
     .get(post.id, req.user.id, req.user.id);
   if (existing) return res.status(400).json({ error: 'You already have an open ticket on this trade.' });
 
+  // Optional tip — purely informational. Nothing is held or paid by the
+  // platform; it's a promise of gratitude the traders settle themselves,
+  // shown to the middleman with the assignment.
+  const tip = req.body?.tip_cents == null ? 0 : parseInt(req.body.tip_cents, 10);
+  if (!Number.isInteger(tip) || tip < 0) {
+    return res.status(400).json({ error: 'Tip must be a positive amount (or leave it empty).' });
+  }
+
   const info = db
-    .prepare('INSERT INTO mm_tickets (trade_post_id, requester_id, partner_id) VALUES (?, ?, ?)')
-    .run(post.id, req.user.id, partner.id);
+    .prepare('INSERT INTO mm_tickets (trade_post_id, requester_id, partner_id, tip_cents) VALUES (?, ?, ?, ?)')
+    .run(post.id, req.user.id, partner.id, tip);
   const mm = assignMiddleman(info.lastInsertRowid);
   if (!mm) {
     return res.status(200).json({ ok: false, id: info.lastInsertRowid, error: 'No middlemen are online right now — retry later, or trade directly in game.' });
@@ -212,7 +221,8 @@ router.post('/mm/tickets/:id/complete', requireAuth, (req, res) => {
   }
   db.prepare("UPDATE mm_tickets SET status = 'completed', updated_at = datetime('now') WHERE id = ?").run(t.id);
   for (const uid of [t.requester_id, t.partner_id]) {
-    notify(uid, 'mm', `✅ Middleman ticket #${t.id} completed — happy trading!`, '#dashboard');
+    const tipNudge = t.tip_cents && uid === t.requester_id ? ` Don't forget the ${money(t.tip_cents)} tip you promised ${req.user.username}!` : '';
+    notify(uid, 'mm', `✅ Middleman ticket #${t.id} completed — happy trading!${tipNudge}`, '#dashboard');
   }
   res.json({ ok: true });
 });

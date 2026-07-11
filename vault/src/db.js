@@ -335,12 +335,18 @@ CREATE TABLE IF NOT EXISTS mm_tickets (
   status TEXT NOT NULL DEFAULT 'assigned',     -- assigned | active | completed | cancelled | unavailable
   assigned_at TEXT,                            -- drives the 2-minute response window
   tried TEXT NOT NULL DEFAULT '[]',            -- JSON array of middleman ids already asked
+  tip_cents INTEGER NOT NULL DEFAULT 0,        -- optional gratuity, held from the requester
+  tip_settled INTEGER NOT NULL DEFAULT 0,      -- 1 once paid out or refunded
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_mm_tickets_status ON mm_tickets(status);
 CREATE INDEX IF NOT EXISTS idx_mm_tickets_mm ON mm_tickets(middleman_id, status);
 `);
+
+// Tip columns arrived after mm_tickets shipped — upgrade older databases.
+ensureColumn('mm_tickets', 'tip_cents', 'tip_cents INTEGER NOT NULL DEFAULT 0');
+ensureColumn('mm_tickets', 'tip_settled', 'tip_settled INTEGER NOT NULL DEFAULT 0');
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS topups (
