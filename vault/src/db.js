@@ -262,8 +262,17 @@ CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
 // ============================================================
 
 ensureColumn('users', 'is_verified', 'is_verified INTEGER NOT NULL DEFAULT 0');       // admin-granted trust badge
-ensureColumn('listings', 'category', "category TEXT NOT NULL DEFAULT 'other'");        // item category for browse filters
+ensureColumn('listings', 'category', "category TEXT NOT NULL DEFAULT 'other'");        // game category for browse filters
 ensureColumn('auctions', 'category', "category TEXT NOT NULL DEFAULT 'other'");
+
+// Categories switched from item types to game names — reset any value that
+// isn't in the current list (see lib/search.js) back to the default bucket.
+{
+  const { CATEGORIES } = require('./lib/search');
+  const marks = CATEGORIES.map(() => '?').join(',');
+  db.prepare(`UPDATE listings SET category = 'other' WHERE category NOT IN (${marks})`).run(...CATEGORIES);
+  db.prepare(`UPDATE auctions SET category = 'other' WHERE category NOT IN (${marks})`).run(...CATEGORIES);
+}
 ensureColumn('auctions', 'buyout_cents', 'buyout_cents INTEGER');                     // optional Buy It Now price
 ensureColumn('auctions', 'ending_alert_sent', 'ending_alert_sent INTEGER NOT NULL DEFAULT 0'); // watchers alerted <1h left
 

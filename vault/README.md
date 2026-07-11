@@ -10,7 +10,7 @@ withdrawals, notifications, public profiles, and an admin panel.
 
 **Trading**
 - Fixed-price listings + timed auctions (bid history, min increments, anti-snipe: bids in the last 2 min extend the auction 2 min)
-- **Item categories** (Limiteds, Dominus, Accessories, Faces, Gear, Bundles) with one-tap filter chips on both browse sections and tags on item cards
+- **Game categories** (Adopt Me, Blox Fruits, MM2, Grow a Garden, Steal a Brainrot, Pet Sim 99, Da Hood) with one-tap filter chips on both browse sections and tags on item cards — Vault is for real-money trades of in-game items, not Robux-purchasable limiteds
 - **🔥 Most watched** trending strip on the home page (ranked by watcher count)
 - **Profile achievements**: auto-earned badges — 🤝 First Trade, 💼 Power Seller, 🌟 Top Rated, 🐋 Big Fish ($100+ trade), 🏛 Vault Veteran
 - **Offers / negotiation**: buyers make offers below asking price; sellers accept, decline, or counter; an accepted offer becomes that buyer's checkout price on every payment rail. When the item sells, all other offers auto-expire with a notification

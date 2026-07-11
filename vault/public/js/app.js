@@ -57,8 +57,9 @@ function vbadge(isVerified) {
 }
 
 const CATEGORY_LABELS = {
-  limiteds: 'Limiteds', dominus: 'Dominus', accessories: 'Accessories',
-  faces: 'Faces', gear: 'Gear', bundles: 'Bundles', other: 'Other',
+  'adopt-me': 'Adopt Me', 'blox-fruits': 'Blox Fruits', 'mm2': 'MM2',
+  'grow-a-garden': 'Grow a Garden', 'steal-a-brainrot': 'Steal a Brainrot',
+  'pet-sim-99': 'Pet Sim 99', 'da-hood': 'Da Hood', other: 'Other',
 };
 function catTag(category) {
   return category && category !== 'other'
