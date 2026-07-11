@@ -19,6 +19,7 @@ const uploadsRoutes = require('./routes/uploads');
 const dmRoutes = require('./routes/dm');
 const offersRoutes = require('./routes/offers');
 const { router: topupsRouter } = require('./routes/topups');
+const { router: tradesRouter, startTicketRotator } = require('./routes/trades');
 const { startAuctionCloser } = require('./jobs/auctionCloser');
 const { startAutoComplete } = require('./jobs/autoCompleteOrders');
 
@@ -56,8 +57,8 @@ app.use('/api/orders/:id/messages', messageLimiter);
 // ---- API routes ----
 app.get('/api/me', (req, res) => {
   if (!req.user) return res.json({ user: null });
-  const { id, provider_id, username, avatar_url, site_credit_cents, is_admin, bio, created_at, profile_hidden } = req.user;
-  res.json({ user: { id, provider_id, username, avatar_url, site_credit_cents, is_admin, bio, created_at, profile_hidden } });
+  const { id, provider_id, username, avatar_url, site_credit_cents, is_admin, bio, created_at, profile_hidden, middleman_status } = req.user;
+  res.json({ user: { id, provider_id, username, avatar_url, site_credit_cents, is_admin, bio, created_at, profile_hidden, middleman_status } });
 });
 
 app.get('/api/config', (req, res) => {
@@ -113,6 +114,7 @@ app.use('/api', usersRoutes);           // /api/users/:username, /api/my/*, /api
 app.use('/api', dmRoutes);              // /api/traders, /api/dm/*, block/report, /api/my/privacy
 app.use('/api', offersRoutes);          // /api/listings/:id/offers, /api/offers/:id/*, /api/my/offers
 app.use('/api', topupsRouter);          // /api/topup/* — add funds to balance
+app.use('/api', tradesRouter);          // /api/trades/*, /api/mm/* — in-game trading + middlemen
 app.use('/api/uploads', uploadsRoutes); // image uploads for listings/auctions
 app.use('/api/admin', adminRoutes);
 app.use('/api', paymentsRoutes); // /api/auctions/:id/checkout/*, /api/listings/:id/checkout/*
@@ -138,6 +140,7 @@ app.use((err, req, res, next) => {
 
 startAuctionCloser();
 startAutoComplete();
+startTicketRotator(); // rotate middleman tickets that hit the 2-min window
 
 app.listen(config.port, () => {
   console.log(`Vault backend listening on http://localhost:${config.port}`);

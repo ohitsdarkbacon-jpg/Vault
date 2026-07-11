@@ -9,7 +9,7 @@
 <meta property="og:description" content="Escrow-protected Roblox item trading. Card, crypto, or site credit — funds release only when the buyer confirms delivery.">
 <meta property="og:type" content="website">
 <title>Vault — Roblox Trading Exchange</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='vg' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23A78BFA'/%3E%3Cstop offset='1' stop-color='%236D28D9'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23vg)'/%3E%3Ccircle cx='32' cy='32' r='17' fill='none' stroke='rgba(255,255,255,0.92)' stroke-width='3.5'/%3E%3Cg stroke='rgba(255,255,255,0.92)' stroke-width='3.5' stroke-linecap='round'%3E%3Cline x1='32' y1='9' x2='32' y2='15'/%3E%3Cline x1='32' y1='49' x2='32' y2='55'/%3E%3Cline x1='9' y1='32' x2='15' y2='32'/%3E%3Cline x1='49' y1='32' x2='55' y2='32'/%3E%3C/g%3E%3Cpath d='M25 26 L32 40 L39 26' fill='none' stroke='white' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='vg' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23A78BFA'/%3E%3Cstop offset='1' stop-color='%236D28D9'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23vg)'/%3E%3Ccircle cx='32' cy='32' r='18.5' fill='none' stroke='rgba(255,255,255,0.94)' stroke-width='3.4'/%3E%3Cg stroke='rgba(255,255,255,0.94)' stroke-width='3.2' stroke-linecap='round'%3E%3Cline x1='41.0' y1='32.0' x2='46.5' y2='32.0'/%3E%3Cline x1='36.5' y1='39.8' x2='39.2' y2='44.6'/%3E%3Cline x1='27.5' y1='39.8' x2='24.8' y2='44.6'/%3E%3Cline x1='23.0' y1='32.0' x2='17.5' y2='32.0'/%3E%3Cline x1='27.5' y1='24.2' x2='24.7' y2='19.4'/%3E%3Cline x1='36.5' y1='24.2' x2='39.2' y2='19.4'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='5' fill='rgba(255,255,255,0.96)'/%3E%3Ccircle cx='32' cy='32' r='2' fill='%236D28D9'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
@@ -28,17 +28,19 @@
         </linearGradient>
       </defs>
       <rect width="64" height="64" rx="16" fill="url(#logo-grad)"/>
-      <circle class="logo-door" cx="32" cy="32" r="17" fill="none" stroke="rgba(255,255,255,0.92)" stroke-width="3.5"/>
-      <g class="logo-spokes" stroke="rgba(255,255,255,0.92)" stroke-width="3.5" stroke-linecap="round">
-        <line x1="32" y1="9" x2="32" y2="15"/><line x1="32" y1="49" x2="32" y2="55"/>
-        <line x1="9" y1="32" x2="15" y2="32"/><line x1="49" y1="32" x2="55" y2="32"/>
+      <circle cx="32" cy="32" r="18.5" fill="none" stroke="rgba(255,255,255,0.94)" stroke-width="3.4"/>
+      <circle cx="32" cy="32" r="14.5" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.2"/>
+      <g class="logo-spokes" stroke="rgba(255,255,255,0.94)" stroke-width="3.2" stroke-linecap="round">
+        <line x1="41.0" y1="32.0" x2="46.5" y2="32.0"/><line x1="36.5" y1="39.8" x2="39.2" y2="44.6"/><line x1="27.5" y1="39.8" x2="24.8" y2="44.6"/><line x1="23.0" y1="32.0" x2="17.5" y2="32.0"/><line x1="27.5" y1="24.2" x2="24.7" y2="19.4"/><line x1="36.5" y1="24.2" x2="39.2" y2="19.4"/>
       </g>
-      <path d="M25 26 L32 40 L39 26" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="32" cy="32" r="5" fill="rgba(255,255,255,0.96)"/>
+      <circle cx="32" cy="32" r="2" fill="#6D28D9"/>
     </svg>
     Vault</a>
   <nav id="main-nav">
     <a href="#auctions" data-scroll>Live auctions</a>
     <a href="#listings" data-scroll>Marketplace</a>
+    <a href="#trading">Trading</a>
     <a href="#traders">Traders</a>
     <a href="#" id="nav-sell">Sell an item</a>
   </nav>
@@ -60,6 +62,7 @@
 <div class="mobile-nav" id="mobile-nav">
   <a href="#auctions" data-scroll>Live auctions</a>
   <a href="#listings" data-scroll>Marketplace</a>
+  <a href="#trading">Trading</a>
   <a href="#traders">Traders</a>
   <a href="#messages">Messages</a>
   <a href="#" id="nav-sell-mobile">Sell an item</a>
@@ -187,6 +190,7 @@
       <button class="tab" data-tab="sales">Sales <span class="count" id="tc-sales"></span></button>
       <button class="tab" data-tab="selling">My listings <span class="count" id="tc-selling"></span></button>
       <button class="tab" data-tab="offers">Offers <span class="count" id="tc-offers"></span></button>
+      <button class="tab" data-tab="trades">Trades <span class="count" id="tc-trades"></span></button>
       <button class="tab" data-tab="bids">My bids</button>
       <button class="tab" data-tab="wallet">Wallet</button>
       <button class="tab" data-tab="favorites">Favorites</button>
@@ -216,6 +220,24 @@
   </div>
 </div>
 
+<!-- ================= IN-GAME TRADING VIEW ================= -->
+<div class="view" id="view-trading">
+  <div class="page">
+    <div class="page-head">
+      <div><h2>In-game trading</h2><div class="sub">Item-for-item trades — no money involved. Match through DMs, then trade directly in game or request a middleman for safety.</div></div>
+      <button class="btn btn-gold" id="post-trade-btn">+ Post a trade</button>
+    </div>
+    <div class="search-bar" style="margin-bottom:14px">
+      <div class="search-input-wrap" style="flex:1">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="search" id="trades-q" placeholder="Search items, e.g. Shadow Dragon…" autocomplete="off">
+      </div>
+    </div>
+    <div class="cat-chips" id="trades-cats"></div>
+    <div class="trade-grid" id="trades-grid"><div class="empty">Loading trades…</div></div>
+  </div>
+</div>
+
 <!-- ================= MESSAGES VIEW ================= -->
 <div class="view" id="view-messages">
   <div class="page">
@@ -240,6 +262,7 @@
       <button class="tab active" data-tab="disputes">Disputes</button>
       <button class="tab" data-tab="withdrawals">Withdrawals</button>
       <button class="tab" data-tab="content">Content</button>
+      <button class="tab" data-tab="middlemen">Middlemen <span class="count" id="tc-mm"></span></button>
       <button class="tab" data-tab="reports">Reports <span class="count" id="tc-reports"></span></button>
       <button class="tab" data-tab="users">Users</button>
     </div>
@@ -532,6 +555,37 @@
     <div class="field"><label id="withdraw-dest-label">PayPal email</label><input id="withdraw-dest" placeholder="you@example.com"><small id="withdraw-dest-hint">Double-check the address — crypto transfers can't be reversed.</small></div>
     <div class="error-text" id="withdraw-error"></div>
     <div class="modal-actions"><button class="btn btn-gold" id="withdraw-submit" style="flex:1">Request withdrawal</button></div>
+  </div>
+</div>
+
+<!-- Post trade modal -->
+<div class="overlay" id="trade-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="trade-overlay">✕</button>
+    <h3>Post a trade</h3>
+    <div class="sub">Item-for-item, no money. People who want your item will DM you.</div>
+    <div class="field"><label>I have</label><input id="trade-offering" placeholder="Shadow Dragon (FR)" maxlength="140"></div>
+    <div class="field"><label>I want</label><input id="trade-wants" placeholder="Strawberry Elephant, or offers" maxlength="140"></div>
+    <div class="field">
+      <label>Game</label>
+      <div class="custom-select" id="trade-category" data-value="other">
+        <div class="cs-trigger"><span class="cs-label">Other</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="cs-dropdown">
+          <div class="cs-option" data-value="adopt-me">Adopt Me</div>
+          <div class="cs-option" data-value="blox-fruits">Blox Fruits</div>
+          <div class="cs-option" data-value="mm2">Murder Mystery 2</div>
+          <div class="cs-option" data-value="grow-a-garden">Grow a Garden</div>
+          <div class="cs-option" data-value="steal-a-brainrot">Steal a Brainrot</div>
+          <div class="cs-option" data-value="pet-sim-99">Pet Simulator 99</div>
+          <div class="cs-option" data-value="da-hood">Da Hood</div>
+          <div class="cs-option active" data-value="other">Other</div>
+        </div>
+      </div>
+    </div>
+    <div class="field"><label>Notes (optional)</label><input id="trade-notes" placeholder="e.g. NFR only, no adds" maxlength="500"></div>
+    <div class="field"><label>Image URL (optional)</label><input id="trade-image" placeholder="https://… or /uploads/…"></div>
+    <div class="error-text" id="trade-error"></div>
+    <div class="modal-actions"><button class="btn btn-gold" id="trade-submit" style="flex:1">Post trade</button></div>
   </div>
 </div>
 

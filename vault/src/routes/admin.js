@@ -208,6 +208,46 @@ router.post('/users/:id/credit', (req, res) => {
   res.json({ ok: true, balance_cents: newBalance });
 });
 
+// ---------- Middleman network ----------
+
+router.get('/middlemen', (req, res) => {
+  const pending = db
+    .prepare("SELECT id, username, avatar_url, created_at, last_seen_at FROM users WHERE middleman_status = 'pending' ORDER BY username")
+    .all();
+  const approved = db
+    .prepare(
+      `SELECT u.id, u.username, u.avatar_url, u.last_seen_at,
+        (SELECT COUNT(*) FROM mm_tickets k WHERE k.middleman_id = u.id AND k.status = 'completed') AS completed_tickets
+       FROM users u WHERE u.middleman_status = 'approved' ORDER BY u.username`
+    )
+    .all();
+  res.json({ pending, approved });
+});
+
+// action: approve | reject (pending apps) | revoke (approved MMs)
+router.post('/middlemen/:userId', (req, res) => {
+  const target = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.userId);
+  if (!target) return res.status(404).json({ error: 'User not found.' });
+  const action = String(req.body?.action || '');
+
+  if (action === 'approve') {
+    if (target.middleman_status !== 'pending') return res.status(400).json({ error: 'No pending application.' });
+    db.prepare("UPDATE users SET middleman_status = 'approved' WHERE id = ?").run(target.id);
+    notify(target.id, 'mm', "⚖️ You're now an approved middleman! You'll get tickets when traders request one while you're online — respond within 2 minutes.");
+  } else if (action === 'reject') {
+    if (target.middleman_status !== 'pending') return res.status(400).json({ error: 'No pending application.' });
+    db.prepare("UPDATE users SET middleman_status = 'rejected' WHERE id = ?").run(target.id);
+    notify(target.id, 'mm', 'Your middleman application was not approved this time.');
+  } else if (action === 'revoke') {
+    if (target.middleman_status !== 'approved') return res.status(400).json({ error: 'Not an approved middleman.' });
+    db.prepare("UPDATE users SET middleman_status = 'none' WHERE id = ?").run(target.id);
+    notify(target.id, 'mm', 'Your middleman status was revoked by an admin.');
+  } else {
+    return res.status(400).json({ error: 'Action must be approve, reject, or revoke.' });
+  }
+  res.json({ ok: true });
+});
+
 // ---------- User reports ----------
 
 router.get('/reports', (req, res) => {
