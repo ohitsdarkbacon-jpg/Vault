@@ -9,7 +9,7 @@
 <meta property="og:description" content="Escrow-protected Roblox item trading. Card, crypto, or site credit — funds release only when the buyer confirms delivery.">
 <meta property="og:type" content="website">
 <title>Vault — Roblox Trading Exchange</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Crect width='26' height='26' rx='6' fill='%238B5CF6'/%3E%3Ctext x='13' y='19' font-size='15' font-family='sans-serif' font-weight='800' text-anchor='middle' fill='white'%3EV%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='vg' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23A78BFA'/%3E%3Cstop offset='1' stop-color='%236D28D9'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23vg)'/%3E%3Ccircle cx='32' cy='32' r='17' fill='none' stroke='rgba(255,255,255,0.92)' stroke-width='3.5'/%3E%3Cg stroke='rgba(255,255,255,0.92)' stroke-width='3.5' stroke-linecap='round'%3E%3Cline x1='32' y1='9' x2='32' y2='15'/%3E%3Cline x1='32' y1='49' x2='32' y2='55'/%3E%3Cline x1='9' y1='32' x2='15' y2='32'/%3E%3Cline x1='49' y1='32' x2='55' y2='32'/%3E%3C/g%3E%3Cpath d='M25 26 L32 40 L39 26' fill='none' stroke='white' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
@@ -20,7 +20,22 @@
 <div class="bg-fx" aria-hidden="true"><i></i><i></i><i></i><span class="bg-grid"></span></div>
 
 <header>
-  <a class="brand" href="#home"><div class="mark">V</div> Vault</a>
+  <a class="brand" href="#home">
+    <svg class="logo" viewBox="0 0 64 64" aria-hidden="true">
+      <defs>
+        <linearGradient id="logo-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#A78BFA"/><stop offset="1" stop-color="#6D28D9"/>
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="16" fill="url(#logo-grad)"/>
+      <circle class="logo-door" cx="32" cy="32" r="17" fill="none" stroke="rgba(255,255,255,0.92)" stroke-width="3.5"/>
+      <g class="logo-spokes" stroke="rgba(255,255,255,0.92)" stroke-width="3.5" stroke-linecap="round">
+        <line x1="32" y1="9" x2="32" y2="15"/><line x1="32" y1="49" x2="32" y2="55"/>
+        <line x1="9" y1="32" x2="15" y2="32"/><line x1="49" y1="32" x2="55" y2="32"/>
+      </g>
+      <path d="M25 26 L32 40 L39 26" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Vault</a>
   <nav id="main-nav">
     <a href="#auctions" data-scroll>Live auctions</a>
     <a href="#listings" data-scroll>Marketplace</a>
@@ -66,6 +81,11 @@
   <div class="hero-stats" id="hero-stats"></div>
 </section>
 
+<section class="section" id="trending-section" style="display:none;padding-top:0;padding-bottom:10px">
+  <div class="section-head"><div><span class="eyebrow">Hot right now</span><h2 style="font-size:1.2rem">🔥 Most watched</h2></div></div>
+  <div class="recent-strip" id="trending-strip"></div>
+</section>
+
 <section class="section" id="recent-trades-section" style="display:none;padding-top:0;padding-bottom:34px">
   <div class="section-head"><div><span class="eyebrow">Live activity</span><h2 style="font-size:1.2rem">Recently traded</h2></div></div>
   <div class="recent-strip" id="recent-strip"></div>
@@ -99,6 +119,7 @@
     </div>
     <button class="clear-btn" id="auctions-clear">Clear</button>
   </div>
+  <div class="cat-chips" id="auctions-cats"></div>
   <div class="search-meta" id="auctions-meta"></div>
   <div class="grid" id="auctions-grid"><div class="empty">Loading auctions…</div></div>
   <div class="load-more-wrap" id="auctions-load-more-wrap" style="display:none;">
@@ -133,6 +154,7 @@
     </div>
     <button class="clear-btn" id="listings-clear">Clear</button>
   </div>
+  <div class="cat-chips" id="listings-cats"></div>
   <div class="search-meta" id="listings-meta"></div>
   <div class="grid" id="listings-grid"><div class="empty">Loading listings…</div></div>
   <div class="load-more-wrap" id="listings-load-more-wrap" style="display:none;">
@@ -246,11 +268,27 @@
           <button type="button" class="pill active" data-type="fixed">Fixed price</button>
           <button type="button" class="pill" data-type="auction">Auction</button>
         </div>
-        <div class="field"><label>Title</label><input id="sell-title" placeholder="Dominus Empyreus" maxlength="140"></div>
+        <div class="field"><label>Title</label><input id="sell-title" placeholder="Neon Shadow Dragon (FR)" maxlength="140"></div>
+        <div class="field">
+          <label>Category</label>
+          <div class="custom-select" id="sell-category" data-value="other">
+            <div class="cs-trigger"><span class="cs-label">Other</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <div class="cs-dropdown">
+              <div class="cs-option" data-value="adopt-me">Adopt Me</div>
+              <div class="cs-option" data-value="blox-fruits">Blox Fruits</div>
+              <div class="cs-option" data-value="mm2">Murder Mystery 2</div>
+              <div class="cs-option" data-value="grow-a-garden">Grow a Garden</div>
+              <div class="cs-option" data-value="steal-a-brainrot">Steal a Brainrot</div>
+              <div class="cs-option" data-value="pet-sim-99">Pet Simulator 99</div>
+              <div class="cs-option" data-value="da-hood">Da Hood</div>
+              <div class="cs-option active" data-value="other">Other</div>
+            </div>
+          </div>
+        </div>
         <div class="field"><label>Description <span class="char-count" id="sell-desc-count"></span></label><textarea id="sell-desc" placeholder="Condition, trade history, proof screenshots…" maxlength="2000"></textarea></div>
         <div class="field">
           <label>Image <span class="req">required</span></label>
-          <input id="sell-image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
+          <input id="sell-image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/avif" hidden>
           <div class="image-input-row">
             <label class="file-drop" id="sell-file-drop" for="sell-image-file" title="Upload an image from your computer">
               <svg class="file-drop-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
@@ -259,7 +297,7 @@
             </label>
             <input id="sell-image" placeholder="or paste an image URL…">
           </div>
-          <small>Buyers need to see what they're getting. PNG, JPG, GIF or WEBP — up to 7&nbsp;MB.</small>
+          <small>Buyers need to see what they're getting. Paste a screenshot (Ctrl+V), drag &amp; drop, or upload — any image format, up to 20&nbsp;MB.</small>
         </div>
         <div class="field" id="sell-price-field"><label>Price (USD)</label><input id="sell-price" type="number" min="1" step="0.01" placeholder="25.00"></div>
         <div id="sell-auction-fields" style="display:none">

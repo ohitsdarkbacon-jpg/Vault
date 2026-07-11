@@ -47,7 +47,19 @@ function cleanQueryString(q) {
   return typeof q === 'string' ? q.trim().slice(0, MAX_QUERY_LEN) : '';
 }
 
+// Item categories = the biggest trading-economy Roblox games right now.
+// (No limiteds — those are bought with Robux on the official marketplace;
+// Vault is for real-money trades of in-game items.) 'other' is the default.
+const CATEGORIES = ['adopt-me', 'blox-fruits', 'mm2', 'grow-a-garden', 'steal-a-brainrot', 'pet-sim-99', 'da-hood', 'other'];
+
+function parseCategory(raw) {
+  const c = typeof raw === 'string' ? raw.toLowerCase().trim() : '';
+  return CATEGORIES.includes(c) ? c : null;
+}
+
 module.exports = {
+  CATEGORIES,
+  parseCategory,
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
   parsePagination,
