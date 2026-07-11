@@ -238,6 +238,7 @@ async function route() {
     showView('admin'); loadAdmin(); return;
   }
   if (h === 'traders') { showView('traders'); loadTraders(); return; }
+  if (h === 'trading') { showView('trading'); renderCatChips('#trades-cats', tradeState, loadTradePosts); loadTradePosts(); return; }
   if (h === 'messages' || h.startsWith('messages/')) {
     if (!ME) { showView('home'); return openModal('auth-overlay'); }
     showView('messages');
@@ -330,7 +331,7 @@ const NOTIF_ICONS = {
   order_paid: '🛡', order_delivered: '📦', order_completed: '✅',
   order_disputed: '⚠️', order_refunded: '↩️', new_message: '💬',
   review: '⭐', withdrawal: '🏦', admin: '🛡', dm: '✉️',
-  offer: '💰', price_drop: '📉', ending_soon: '⏰',
+  offer: '💰', price_drop: '📉', ending_soon: '⏰', mm: '⚖️',
 };
 
 async function loadNotifications() {
@@ -1293,6 +1294,10 @@ async function loadDashboard() {
   $('#tc-purchases').textContent = ov.purchases_open || '';
   $('#tc-sales').textContent = ov.sales_open || '';
   $('#tc-selling').textContent = (ov.active_listings + ov.live_auctions) || '';
+  api('/api/mm/tickets').then(r => {
+    const waiting = (r.tickets || []).filter(t => ME && t.middleman_id === ME.id && t.status === 'assigned').length;
+    $('#tc-trades').textContent = waiting || '';
+  });
   api('/api/my/offers').then(r => {
     const actionable = (r.received || []).filter(o => o.status === 'pending' && o.listing_status === 'active').length
       + (r.sent || []).filter(o => ['accepted', 'countered'].includes(o.status) && o.listing_status === 'active').length;
@@ -1450,6 +1455,90 @@ async function renderDashTab() {
         slot.innerHTML = `<button class="btn btn-small" data-a="withdraw" style="color:var(--danger)">Withdraw</button>`;
         slot.querySelector('[data-a="withdraw"]').onclick = () => offerAct(o.id, 'withdraw');
       }
+    });
+    return;
+  }
+
+  if (dashTab === 'trades') {
+    const [tk, tp] = await Promise.all([api('/api/mm/tickets'), api('/api/trades')]);
+    const tickets = tk.tickets || [];
+    const myPosts = (tp.trades || []).filter(t => ME && t.user_id === ME.id);
+    const badge = (st) => {
+      const map = { assigned: 'status-paid', active: 'status-active', completed: 'status-completed', cancelled: '', unavailable: 'status-disputed' };
+      return `<span class="status-badge ${map[st] || ''}">${st}</span>`;
+    };
+    let html = '';
+
+    // Middleman panel
+    if (tk.middleman_status === 'approved') {
+      html += `<div class="inline-note">⚖️ You're an <b>approved middleman</b>. Tickets assigned to you appear below — respond within 2 minutes or they rotate.</div>`;
+    } else if (tk.middleman_status === 'pending') {
+      html += `<div class="inline-note">⏳ Your middleman application is waiting for admin review.</div>`;
+    } else {
+      html += `<div class="inline-note">Want to help traders and build reputation? <button class="btn btn-small btn-gold" id="apply-mm" style="margin-left:6px">⚖️ Apply to be a middleman</button></div>`;
+    }
+
+    html += `<h3 class="section-sub">Middleman tickets</h3>`;
+    html += tickets.length ? `<div class="order-list">` + tickets.map(t => {
+      const iAmMM = ME && t.middleman_id === ME.id;
+      const isParty = ME && (t.requester_id === ME.id || t.partner_id === ME.id);
+      return `
+      <div class="order-card">
+        <div class="order-main">
+          <div class="order-title">#${t.id} · ${escapeHtml(t.offering)} ⇄ ${escapeHtml(t.wants)}</div>
+          <div class="order-sub">${escapeHtml(t.requester_name)} + ${escapeHtml(t.partner_name)}${t.middleman_name ? ` · MM: <b>${escapeHtml(t.middleman_name)}</b>` : ''} · ${timeAgo(t.updated_at)}</div>
+        </div>
+        ${badge(t.status)}
+        <div class="order-actions">
+          ${iAmMM && t.status === 'assigned' ? `
+            <button class="btn btn-small btn-gold" data-tk-accept="${t.id}">✓ Accept</button>
+            <button class="btn btn-small" data-tk-decline="${t.id}" style="color:var(--danger)">Pass</button>` : ''}
+          ${iAmMM && t.status === 'active' ? `
+            <button class="btn btn-small" data-tk-dm="${escapeHtml(t.requester_name)}">💬 ${escapeHtml(t.requester_name)}</button>
+            <button class="btn btn-small" data-tk-dm="${escapeHtml(t.partner_name)}">💬 ${escapeHtml(t.partner_name)}</button>
+            <button class="btn btn-small btn-gold" data-tk-complete="${t.id}">✅ Mark completed</button>` : ''}
+          ${isParty && t.status === 'active' && t.middleman_name ? `<button class="btn btn-small btn-gold" data-tk-dm="${escapeHtml(t.middleman_name)}">💬 Message middleman</button>` : ''}
+          ${isParty && ['assigned','active','unavailable'].includes(t.status) ? `<button class="btn btn-small" data-tk-cancel="${t.id}" style="color:var(--danger)">Cancel</button>` : ''}
+        </div>
+      </div>`;
+    }).join('') + `</div>` : `<div class="empty-block">No middleman tickets yet — request one from any trade post when you've matched with someone.</div>`;
+
+    html += `<h3 class="section-sub">My trade posts</h3>`;
+    html += myPosts.length ? `<div class="order-list">` + myPosts.map(t => `
+      <div class="order-card">
+        <div class="order-main">
+          <div class="order-title">${escapeHtml(t.offering)} ⇄ ${escapeHtml(t.wants)}</div>
+          <div class="order-sub">${CATEGORY_LABELS[t.category] || t.category} · posted ${timeAgo(t.created_at)}</div>
+        </div>
+        <div class="order-actions"><button class="btn btn-small" data-close-post="${t.id}" style="color:var(--danger)">Close</button></div>
+      </div>`).join('') + `</div>` : `<div class="empty-block">No open trade posts — post one from the <a href="#trading" style="color:var(--gold)">Trading</a> board.</div>`;
+
+    c.innerHTML = html;
+
+    const am = $('#apply-mm');
+    if (am) am.onclick = async () => {
+      if (!await vaultConfirm('Middlemen hold both sides of a trade so neither trader can scam. You\'ll get ticket requests while online and must respond within 2 minutes. An admin reviews your application.', { title: 'Apply to be a middleman?', okText: '⚖️ Apply', icon: '⚖️' })) return;
+      const r2 = await api('/api/middleman/apply', { method: 'POST' });
+      if (r2.error) return toast(r2.error, 'error');
+      toast('Application sent — an admin will review it.', 'success');
+      ME.middleman_status = 'pending';
+      renderDashTab();
+    };
+    const act = (id, action) => async () => {
+      const r2 = await api(`/api/mm/tickets/${id}/${action}`, { method: 'POST' });
+      if (r2.error) return toast(r2.error, 'error');
+      toast(action === 'accept' ? 'Ticket accepted — DM both traders to coordinate.' : 'Done.', 'success');
+      renderDashTab();
+    };
+    c.querySelectorAll('[data-tk-accept]').forEach(b => b.onclick = act(b.dataset.tkAccept, 'accept'));
+    c.querySelectorAll('[data-tk-decline]').forEach(b => b.onclick = act(b.dataset.tkDecline, 'decline'));
+    c.querySelectorAll('[data-tk-complete]').forEach(b => b.onclick = act(b.dataset.tkComplete, 'complete'));
+    c.querySelectorAll('[data-tk-cancel]').forEach(b => b.onclick = act(b.dataset.tkCancel, 'cancel'));
+    c.querySelectorAll('[data-tk-dm]').forEach(b => b.onclick = () => { location.hash = 'messages/' + encodeURIComponent(b.dataset.tkDm); });
+    c.querySelectorAll('[data-close-post]').forEach(b => b.onclick = async () => {
+      const r2 = await api(`/api/trades/${b.dataset.closePost}/close`, { method: 'POST' });
+      if (r2.error) return toast(r2.error, 'error');
+      renderDashTab();
     });
     return;
   }
@@ -1656,6 +1745,99 @@ async function sendChat() {
 }
 $('#chat-send').onclick = sendChat;
 $('#chat-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+
+// ============================================================
+// In-game trading (item-for-item posts + middleman tickets)
+// ============================================================
+const tradeState = { category: '' };
+
+async function loadTradePosts() {
+  const q = $('#trades-q').value.trim();
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  if (tradeState.category) params.set('category', tradeState.category);
+  const r = await api(`/api/trades?${params}`);
+  const grid = $('#trades-grid');
+  const posts = r.trades || [];
+  if (!posts.length) {
+    grid.innerHTML = `<div class="empty">No open trades${q || tradeState.category ? ' match your filters' : ' yet'}.<br><button class="btn btn-small btn-gold" style="margin-top:12px" onclick="document.getElementById('post-trade-btn').click()">Post the first trade</button></div>`;
+    return;
+  }
+  grid.innerHTML = posts.map(t => `
+    <div class="trade-card" data-id="${t.id}">
+      ${t.image_url ? `<div class="trade-img" style="background-image:url('${escapeHtml(t.image_url)}')"></div>` : ''}
+      <div class="trade-body">
+        <div class="trade-pair">
+          <div class="trade-side"><span class="trade-lbl">Has</span><b>${escapeHtml(t.offering)}</b></div>
+          <span class="trade-arrow">⇄</span>
+          <div class="trade-side"><span class="trade-lbl">Wants</span><b>${escapeHtml(t.wants)}</b></div>
+        </div>
+        ${t.notes ? `<div class="trade-notes">${escapeHtml(t.notes)}</div>` : ''}
+        <div class="trade-meta">
+          ${t.category !== 'other' ? `<span class="thumb-tag" style="position:static">${CATEGORY_LABELS[t.category] || t.category}</span>` : ''}
+          <a class="seller-link" href="#u/${encodeURIComponent(t.username)}">${escapeHtml(t.username)}</a> ${vbadge(t.is_verified)}
+          <span class="online-dot ${t.online ? '' : 'off'}"></span>
+          <span style="color:var(--muted);font-size:0.74rem">· ${timeAgo(t.created_at)}</span>
+        </div>
+        <div class="trade-actions">
+          ${ME && ME.id === t.user_id
+            ? `<button class="btn btn-small" data-close-trade="${t.id}" style="color:var(--danger)">Close</button>`
+            : `<button class="btn btn-small btn-gold" data-dm-trade="${escapeHtml(t.username)}">💬 Message</button>`}
+          ${ME ? `<button class="btn btn-small" data-ticket="${t.id}" title="Optional — a trusted middleman holds the trade together">⚖️ Request middleman</button>` : ''}
+        </div>
+      </div>
+    </div>
+  `).join('');
+  grid.querySelectorAll('[data-dm-trade]').forEach(b => b.onclick = () => {
+    if (!ME) return openModal('auth-overlay');
+    location.hash = 'messages/' + encodeURIComponent(b.dataset.dmTrade);
+  });
+  grid.querySelectorAll('[data-close-trade]').forEach(b => b.onclick = async () => {
+    if (!await vaultConfirm('This removes your trade post from the board.', { title: 'Close this trade?', okText: 'Close trade', danger: true, icon: '🔁' })) return;
+    const r2 = await api(`/api/trades/${b.dataset.closeTrade}/close`, { method: 'POST' });
+    if (r2.error) return toast(r2.error, 'error');
+    toast('Trade post closed.', 'success');
+    loadTradePosts();
+  });
+  grid.querySelectorAll('[data-ticket]').forEach(b => b.onclick = () => requestTicket(b.dataset.ticket));
+}
+$('#trades-q').addEventListener('input', debounce(loadTradePosts, 300));
+
+async function requestTicket(postId) {
+  if (!ME) return openModal('auth-overlay');
+  const partner = await vaultPrompt('Who are you trading with? A random ONLINE middleman is assigned — if they don\'t respond in 2 minutes it rotates. Middlemen are optional; you can always trade directly in game.', { title: '⚖️ Request a middleman', placeholder: 'Trade partner\'s username', okText: 'Find middleman', icon: '⚖️' });
+  if (partner === null) return;
+  if (!partner) return toast('Enter your trade partner\'s username.', 'error');
+  const r = await api(`/api/trades/${postId}/ticket`, { method: 'POST', body: JSON.stringify({ partner }) });
+  if (r.error && !r.id) return toast(r.error, 'error');
+  if (r.error) return toast(r.error, 'info');
+  toast(`⚖️ ${r.middleman} was requested — you'll be notified when they accept.`, 'success');
+}
+
+// Post-a-trade modal
+$('#post-trade-btn').onclick = () => {
+  if (!ME) return openModal('auth-overlay');
+  ['trade-offering','trade-wants','trade-notes','trade-image'].forEach(id => $('#' + id).value = '');
+  $('#trade-error').textContent = '';
+  openModal('trade-overlay');
+};
+$('#trade-submit').onclick = async () => {
+  const offering = $('#trade-offering').value.trim();
+  const wants = $('#trade-wants').value.trim();
+  if (!offering || !wants) { $('#trade-error').textContent = 'Fill in what you have and what you want.'; return; }
+  $('#trade-submit').classList.add('loading');
+  const r = await api('/api/trades', { method: 'POST', body: JSON.stringify({
+    offering, wants,
+    category: $('#trade-category').value,
+    notes: $('#trade-notes').value.trim() || undefined,
+    image_url: $('#trade-image').value.trim() || undefined,
+  }) });
+  $('#trade-submit').classList.remove('loading');
+  if (r.error) { $('#trade-error').textContent = r.error; return; }
+  closeModal('trade-overlay');
+  toast('Trade posted — traders will DM you with offers.', 'success');
+  loadTradePosts();
+};
 
 // ============================================================
 // Traders directory
@@ -1945,6 +2127,7 @@ async function loadAdmin() {
     <div class="stat-card"><div class="val gold">${money(r.fees_earned_cents)}</div><div class="lbl">Fees earned</div></div>
   `;
   $('#tc-reports').textContent = r.open_reports || '';
+  api('/api/admin/middlemen').then(m => { $('#tc-mm').textContent = (m.pending || []).length || ''; });
   renderAdminTab();
 }
 
@@ -2071,6 +2254,44 @@ async function renderAdminTab() {
     };
     $('#admin-content-q').addEventListener('input', debounce(renderContent, 300));
     renderContent();
+    return;
+  }
+
+  if (adminTab === 'middlemen') {
+    const r = await api('/api/admin/middlemen');
+    const pending = r.pending || [], approved = r.approved || [];
+    let html = `<h3 class="section-sub" style="margin-top:0">Applications</h3>`;
+    html += pending.length ? `<div class="order-list">` + pending.map(u => `
+      <div class="order-card">
+        <div class="order-main">
+          <div class="order-title"><a href="#u/${encodeURIComponent(u.username)}" style="color:var(--gold)">${escapeHtml(u.username)}</a></div>
+          <div class="order-sub">Member ${timeAgo(u.created_at)}</div>
+        </div>
+        <div class="order-actions">
+          <button class="btn btn-small btn-gold" data-mm-approve="${u.id}">✓ Approve</button>
+          <button class="btn btn-small" data-mm-reject="${u.id}" style="color:var(--danger)">Reject</button>
+        </div>
+      </div>`).join('') + `</div>` : `<div class="empty-block">No pending applications.</div>`;
+    html += `<h3 class="section-sub">Approved middlemen</h3>`;
+    html += approved.length ? `<div class="order-list">` + approved.map(u => `
+      <div class="order-card">
+        <div class="order-main">
+          <div class="order-title">⚖️ <a href="#u/${encodeURIComponent(u.username)}" style="color:var(--gold)">${escapeHtml(u.username)}</a></div>
+          <div class="order-sub">${u.completed_tickets} completed ticket${u.completed_tickets === 1 ? '' : 's'}</div>
+        </div>
+        <div class="order-actions"><button class="btn btn-small" data-mm-revoke="${u.id}" style="color:var(--danger)">Revoke</button></div>
+      </div>`).join('') + `</div>` : `<div class="empty-block">No approved middlemen yet.</div>`;
+    c.innerHTML = html;
+    const mmAct = (id, action) => async () => {
+      if (action === 'revoke' && !await vaultConfirm('They stop receiving middleman tickets immediately.', { title: 'Revoke middleman status?', okText: 'Revoke', danger: true, icon: '⚖️' })) return;
+      const r2 = await api(`/api/admin/middlemen/${id}`, { method: 'POST', body: JSON.stringify({ action }) });
+      if (r2.error) return toast(r2.error, 'error');
+      toast('Done.', 'success');
+      loadAdmin();
+    };
+    c.querySelectorAll('[data-mm-approve]').forEach(b => b.onclick = mmAct(b.dataset.mmApprove, 'approve'));
+    c.querySelectorAll('[data-mm-reject]').forEach(b => b.onclick = mmAct(b.dataset.mmReject, 'reject'));
+    c.querySelectorAll('[data-mm-revoke]').forEach(b => b.onclick = mmAct(b.dataset.mmRevoke, 'revoke'));
     return;
   }
 

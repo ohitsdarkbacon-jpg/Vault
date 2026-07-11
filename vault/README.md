@@ -35,6 +35,11 @@ withdrawals, notifications, public profiles, and an admin panel.
 - **One-click automated crypto payouts** via the NOWPayments Mass Payouts API — admin hits ⚡, the server authenticates (JWT + auto-generated 2FA/TOTP code), NOWPayments sends crypto from your balance to the seller's wallet, and the IPN webhook flips the withdrawal to Paid when the transfer confirms. PayPal stays manual.
 - **Fee modes** (`FEE_MODE`): `added` (default — buyer pays price + 6% at checkout, seller keeps 100% of the price) or `deducted` (classic: fee comes out of seller proceeds)
 
+**In-game trading (item-for-item, no money)**
+- **Trade board** (`#trading`): post what you HAVE ⇄ what you WANT (e.g. Shadow Dragon for Strawberry Elephant), tagged by game, searchable; interested traders DM you
+- **Middleman network**: anyone can apply, admins approve/reject/revoke from the panel
+- **Middleman tickets** (optional — you can always trade directly in game): once two traders match, either party requests a ticket. A random **online** middleman is auto-assigned; if they don't respond within **2 minutes** the ticket rotates to the next online middleman, and if nobody's left it goes unavailable with a notification. Middlemen accept/pass from their dashboard, coordinate via DMs, and mark the trade completed.
+
 **Community & trust**
 - Per-order buyer↔seller chat (coordinate the in-game trade; admins can read it during disputes)
 - **Direct messages**: message any trader on the site — conversation inbox with unread badges, live polling, online status

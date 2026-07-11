@@ -304,6 +304,44 @@ if (reviewCols.length && !reviewCols.includes('subject_id')) {
   `);
 }
 
+// ============================================================
+// v5 schema — in-game trading: item-for-item trade posts and
+// the middleman network (apply → admin approval → ticket
+// assignment with online-random rotation)
+// ============================================================
+
+ensureColumn('users', 'middleman_status', "middleman_status TEXT NOT NULL DEFAULT 'none'"); // none | pending | approved | rejected
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS trade_posts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  offering TEXT NOT NULL,              -- what they have, e.g. "Shadow Dragon (FR)"
+  wants TEXT NOT NULL,                 -- what they want, e.g. "Strawberry Elephant"
+  category TEXT NOT NULL DEFAULT 'other',
+  image_url TEXT,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'open', -- open | closed
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_trade_posts_status ON trade_posts(status, created_at);
+
+CREATE TABLE IF NOT EXISTS mm_tickets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  trade_post_id INTEGER NOT NULL REFERENCES trade_posts(id),
+  requester_id INTEGER NOT NULL REFERENCES users(id),
+  partner_id INTEGER NOT NULL REFERENCES users(id),
+  middleman_id INTEGER REFERENCES users(id),   -- current assignee
+  status TEXT NOT NULL DEFAULT 'assigned',     -- assigned | active | completed | cancelled | unavailable
+  assigned_at TEXT,                            -- drives the 2-minute response window
+  tried TEXT NOT NULL DEFAULT '[]',            -- JSON array of middleman ids already asked
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_mm_tickets_status ON mm_tickets(status);
+CREATE INDEX IF NOT EXISTS idx_mm_tickets_mm ON mm_tickets(middleman_id, status);
+`);
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS topups (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
