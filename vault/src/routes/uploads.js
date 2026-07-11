@@ -12,11 +12,15 @@ const router = express.Router();
 // Railway volume path when UPLOAD_DIR is set).
 fs.mkdirSync(config.uploadDir, { recursive: true });
 
+// Every mainstream raster image format — screenshots, camera shots, exports.
+// SVG is deliberately excluded: it can embed scripts (stored-XSS vector).
 const ALLOWED = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
   'image/gif': '.gif',
   'image/webp': '.webp',
+  'image/bmp': '.bmp',
+  'image/avif': '.avif',
 };
 
 const storage = multer.diskStorage({
@@ -29,7 +33,7 @@ const upload = multer({
   limits: { fileSize: config.uploadMaxBytes, files: 1 },
   fileFilter: (req, file, cb) => {
     if (ALLOWED[file.mimetype]) return cb(null, true);
-    cb(new Error('Only PNG, JPG, GIF, or WEBP images are allowed.'));
+    cb(new Error('Only PNG, JPG, GIF, WEBP, BMP, or AVIF images are allowed.'));
   },
 });
 

@@ -47,7 +47,17 @@ function cleanQueryString(q) {
   return typeof q === 'string' ? q.trim().slice(0, MAX_QUERY_LEN) : '';
 }
 
+// Item categories for browse filters. 'other' is the default bucket.
+const CATEGORIES = ['limiteds', 'dominus', 'accessories', 'faces', 'gear', 'bundles', 'other'];
+
+function parseCategory(raw) {
+  const c = typeof raw === 'string' ? raw.toLowerCase().trim() : '';
+  return CATEGORIES.includes(c) ? c : null;
+}
+
 module.exports = {
+  CATEGORIES,
+  parseCategory,
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
   parsePagination,

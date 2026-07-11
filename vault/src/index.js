@@ -73,6 +73,23 @@ app.get('/api/stats', (req, res) => {
   res.json(s);
 });
 
+// Most-watched live items — the 🔥 trending strip on the home page.
+app.get('/api/trending', (req, res) => {
+  const rows = db.prepare(
+    `SELECT * FROM (
+      SELECT 'listing' AS kind, l.id, l.title, l.image_url, l.price_cents AS price_cents,
+        (SELECT COUNT(*) FROM favorites f WHERE f.kind = 'listing' AND f.item_id = l.id) AS watchers
+      FROM listings l WHERE l.status = 'active'
+      UNION ALL
+      SELECT 'auction' AS kind, a.id, a.title, a.image_url,
+        COALESCE(a.current_bid_cents, a.starting_bid_cents) AS price_cents,
+        (SELECT COUNT(*) FROM favorites f WHERE f.kind = 'auction' AND f.item_id = a.id) AS watchers
+      FROM auctions a WHERE a.status = 'live'
+    ) WHERE watchers > 0 ORDER BY watchers DESC, id DESC LIMIT 6`
+  ).all();
+  res.json({ trending: rows });
+});
+
 // Recent escrowed/completed trades — social proof for the home page.
 app.get('/api/recent-sales', (req, res) => {
   const rows = db.prepare(

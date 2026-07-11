@@ -262,6 +262,8 @@ CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
 // ============================================================
 
 ensureColumn('users', 'is_verified', 'is_verified INTEGER NOT NULL DEFAULT 0');       // admin-granted trust badge
+ensureColumn('listings', 'category', "category TEXT NOT NULL DEFAULT 'other'");        // item category for browse filters
+ensureColumn('auctions', 'category', "category TEXT NOT NULL DEFAULT 'other'");
 ensureColumn('auctions', 'buyout_cents', 'buyout_cents INTEGER');                     // optional Buy It Now price
 ensureColumn('auctions', 'ending_alert_sent', 'ending_alert_sent INTEGER NOT NULL DEFAULT 0'); // watchers alerted <1h left
 

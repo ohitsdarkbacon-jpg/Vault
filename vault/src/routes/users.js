@@ -85,8 +85,24 @@ router.get('/users/:username', (req, res) => {
     )
     .all(user.id);
 
+  // Achievement badges, computed from trading history (no schema needed).
+  const trade = db
+    .prepare(
+      `SELECT
+        (SELECT COUNT(*) FROM orders WHERE (buyer_id = ? OR seller_id = ?) AND status = 'completed') AS trades,
+        (SELECT COALESCE(MAX(amount_cents),0) FROM orders WHERE (buyer_id = ? OR seller_id = ?) AND status = 'completed') AS biggest`
+    )
+    .get(user.id, user.id, user.id, user.id);
+  const ageDays = (Date.now() - Date.parse(user.created_at + 'Z')) / 86400000;
+  const achievements = [];
+  if (trade.trades >= 1) achievements.push({ icon: '🤝', label: 'First Trade', desc: 'Completed a trade' });
+  if (stats.completed_sales >= 10) achievements.push({ icon: '💼', label: 'Power Seller', desc: '10+ completed sales' });
+  if (stats.avg_rating >= 4.5 && stats.review_count >= 5) achievements.push({ icon: '🌟', label: 'Top Rated', desc: '4.5★+ across 5+ reviews' });
+  if (trade.biggest >= 10000) achievements.push({ icon: '🐋', label: 'Big Fish', desc: 'Completed a $100+ trade' });
+  if (ageDays >= 30) achievements.push({ icon: '🏛', label: 'Vault Veteran', desc: 'Trading for 30+ days' });
+
   const { last_seen_at, ...pub } = user;
-  res.json({ user: { ...pub, ...stats, online, blocked_by_me }, listings, auctions, reviews, histogram });
+  res.json({ user: { ...pub, ...stats, online, blocked_by_me }, listings, auctions, reviews, histogram, achievements });
 });
 
 // ---------- My dashboard ----------

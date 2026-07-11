@@ -8,6 +8,7 @@ const { acceptedOfferFor, settleOffersForListing } = require('../lib/fulfillOrde
 const {
   parsePagination,
   parsePriceCents,
+  parseCategory,
   escapeLike,
   buildFtsMatchQuery,
   cleanQueryString,
@@ -52,6 +53,8 @@ router.get('/', (req, res) => {
   const params = [];
   if (minPrice != null) { conditions.push('l.price_cents >= ?'); params.push(minPrice); }
   if (maxPrice != null) { conditions.push('l.price_cents <= ?'); params.push(maxPrice); }
+  const category = parseCategory(req.query.category);
+  if (category) { conditions.push('l.category = ?'); params.push(category); }
 
   const sortKey = req.query.sort && LISTING_SORTS[req.query.sort] ? req.query.sort : (q ? 'relevance' : 'newest');
   const orderBy = LISTING_SORTS[sortKey] || LISTING_SORTS.newest;
@@ -134,14 +137,15 @@ router.post('/', requireAuth, (req, res) => {
 
   const info = db
     .prepare(
-      'INSERT INTO listings (seller_id, title, description, image_url, price_cents) VALUES (?, ?, ?, ?, ?)'
+      "INSERT INTO listings (seller_id, title, description, image_url, price_cents, category) VALUES (?, ?, ?, ?, ?, ?)"
     )
     .run(
       req.user.id,
       modTitle.clean,
       modDesc.clean || null,
       image_url || null,
-      price_cents || null
+      price_cents || null,
+      parseCategory(req.body?.category) || 'other'
     );
   const listing = db.prepare(`${listingQuery} WHERE l.id = ?`).get(info.lastInsertRowid);
   res.status(201).json({ listing });

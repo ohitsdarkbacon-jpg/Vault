@@ -6,6 +6,7 @@ const { moderateField } = require('../lib/moderation');
 const {
   parsePagination,
   parsePriceCents,
+  parseCategory,
   escapeLike,
   buildFtsMatchQuery,
   cleanQueryString,
@@ -54,6 +55,8 @@ router.get('/', (req, res) => {
   const params = [];
   if (minPrice != null) { conditions.push('COALESCE(a.current_bid_cents, a.starting_bid_cents) >= ?'); params.push(minPrice); }
   if (maxPrice != null) { conditions.push('COALESCE(a.current_bid_cents, a.starting_bid_cents) <= ?'); params.push(maxPrice); }
+  const category = parseCategory(req.query.category);
+  if (category) { conditions.push('a.category = ?'); params.push(category); }
 
   const sortKey = req.query.sort && AUCTION_SORTS[req.query.sort] ? req.query.sort : (q ? 'relevance' : 'ending_soon');
   const orderBy = AUCTION_SORTS[sortKey] || AUCTION_SORTS.ending_soon;
@@ -145,8 +148,8 @@ router.post('/', requireAuth, (req, res) => {
 
   const info = db
     .prepare(
-      `INSERT INTO auctions (seller_id, title, description, image_url, starting_bid_cents, min_increment_cents, ends_at, buyout_cents)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO auctions (seller_id, title, description, image_url, starting_bid_cents, min_increment_cents, ends_at, buyout_cents, category)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       req.user.id,
@@ -156,7 +159,8 @@ router.post('/', requireAuth, (req, res) => {
       starting_bid_cents,
       Number.isInteger(min_increment_cents) && min_increment_cents > 0 ? min_increment_cents : 100,
       endsAt,
-      buyout_cents || null
+      buyout_cents || null,
+      parseCategory(req.body?.category) || 'other'
     );
   const auction = db.prepare(`${auctionQuery} WHERE a.id = ?`).get(info.lastInsertRowid);
   res.status(201).json({ auction });

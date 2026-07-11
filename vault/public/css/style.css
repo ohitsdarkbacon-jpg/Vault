@@ -55,6 +55,14 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 /* Focus */
 :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 4px; }
 
+/* No native browser controls anywhere: number spinners + search cancel are
+   removed so every interactive element is site-styled. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
+
 /* ---------- Ambient animated background ---------- */
 .bg-fx { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
 .bg-fx::before {
@@ -102,6 +110,12 @@ header::after {
   opacity: 0.6;
 }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.28rem; letter-spacing: -0.02em; font-family: 'Space Grotesk', sans-serif; }
+.brand .logo {
+  width: 32px; height: 32px; border-radius: 9px;
+  filter: drop-shadow(0 0 12px rgba(139,92,246,0.45));
+  transition: transform .4s var(--ease-spring), filter .3s;
+}
+.brand:hover .logo { transform: rotate(-90deg); filter: drop-shadow(0 0 20px rgba(139,92,246,0.7)); }
 .brand .mark {
   width: 30px; height: 30px; border-radius: 8px;
   background: linear-gradient(135deg, var(--gold-2), var(--gold) 45%, #5B21B6);
@@ -748,6 +762,10 @@ table.data td.mono { font-family: 'JetBrains Mono', monospace; }
   background: rgba(139,92,246,0.04);
   box-shadow: 0 0 14px rgba(139,92,246,0.08);
 }
+.file-drop.drag-over {
+  border-color: var(--gold); background: rgba(139,92,246,0.12);
+  box-shadow: 0 0 24px rgba(139,92,246,0.25);
+}
 .file-drop.has-file {
   border-style: solid; border-color: rgba(139,92,246,0.4);
   background: rgba(139,92,246,0.05);
@@ -946,6 +964,40 @@ table.data td.mono { font-family: 'JetBrains Mono', monospace; }
   border: 1px solid var(--border-strong);
 }
 .private-profile h3 { color: var(--text); margin: 0 0 6px; }
+
+/* ---------- Category chips + thumb tags ---------- */
+.cat-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: -6px 0 16px; }
+.cat-chip {
+  border: 1px solid var(--border-strong); background: rgba(28,34,48,0.5); color: var(--muted);
+  padding: 6px 14px; border-radius: 999px; font-size: 0.78rem; font-weight: 500;
+  transition: all .18s var(--ease-out);
+}
+.cat-chip:hover { color: var(--text); border-color: var(--gold-dim); transform: translateY(-1px); }
+.cat-chip.active {
+  background: linear-gradient(160deg, var(--gold-2), var(--gold)); color: #FFFFFF;
+  border-color: transparent; font-weight: 600; box-shadow: 0 2px 14px rgba(139,92,246,0.3);
+}
+.card .thumb { position: relative; }
+.thumb-tag {
+  position: absolute; top: 9px; left: 9px;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; text-transform: uppercase;
+  letter-spacing: 0.07em; font-weight: 600; color: #fff;
+  padding: 3px 9px; border-radius: 20px;
+  background: rgba(10, 8, 20, 0.72); border: 1px solid rgba(139,92,246,0.45);
+  backdrop-filter: blur(6px);
+}
+
+/* ---------- Achievement badges ---------- */
+.ach-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 4px; }
+.ach-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 13px; border-radius: 999px; font-size: 0.78rem; font-weight: 600;
+  background: linear-gradient(160deg, rgba(139,92,246,0.16), rgba(139,92,246,0.05));
+  border: 1px solid rgba(139,92,246,0.35); color: var(--text);
+  cursor: help; transition: transform .2s var(--ease-spring), box-shadow .2s;
+  animation: card-in .4s var(--ease-out) both;
+}
+.ach-chip:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(139,92,246,0.25); }
 
 /* ---------- Reviews: histogram, role chips, replies ---------- */
 .rating-histogram {

@@ -56,6 +56,28 @@ function vbadge(isVerified) {
   return isVerified ? '<span class="verified-badge" title="Verified trader">✓</span>' : '';
 }
 
+const CATEGORY_LABELS = {
+  limiteds: 'Limiteds', dominus: 'Dominus', accessories: 'Accessories',
+  faces: 'Faces', gear: 'Gear', bundles: 'Bundles', other: 'Other',
+};
+function catTag(category) {
+  return category && category !== 'other'
+    ? `<span class="thumb-tag">${CATEGORY_LABELS[category] || category}</span>` : '';
+}
+// Category filter chips above the browse grids
+function renderCatChips(sel, state, reload) {
+  const el = $(sel);
+  el.innerHTML = ['', ...Object.keys(CATEGORY_LABELS)].map(c => `
+    <button type="button" class="cat-chip ${state.category === c ? 'active' : ''}" data-c="${c}">${c ? CATEGORY_LABELS[c] : 'All'}</button>
+  `).join('');
+  el.querySelectorAll('.cat-chip').forEach(b => b.onclick = () => {
+    state.category = b.dataset.c;
+    state.page = 1;
+    renderCatChips(sel, state, reload);
+    reload();
+  });
+}
+
 // Live countdowns: anything rendered with data-ends="<iso>" re-renders every
 // second without a refetch.
 setInterval(() => {
@@ -385,6 +407,27 @@ async function loadSiteStats() {
     <div class="stat"><b>${r.traders}</b><span>Traders</span></div>
   `;
 }
+async function loadTrending() {
+  const r = await api('/api/trending');
+  const rows = r.trending || [];
+  const section = $('#trending-section');
+  if (!rows.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  $('#trending-strip').innerHTML = rows.map(t => `
+    <div class="recent-card trend-card" data-kind="${t.kind}" data-id="${t.id}">
+      <div class="r-thumb" style="${t.image_url ? `background-image:url('${escapeHtml(t.image_url)}')` : ''}">${t.image_url ? '' : '📦'}</div>
+      <div style="min-width:0">
+        <div class="r-title">${escapeHtml(t.title)}</div>
+        <div class="r-sub">👁 ${t.watchers} watching</div>
+      </div>
+      <div class="r-price">${t.price_cents ? money(t.price_cents) : '—'}</div>
+    </div>
+  `).join('');
+  $('#trending-strip').querySelectorAll('.trend-card').forEach(c => c.onclick = () => {
+    if (c.dataset.kind === 'auction') openAuction(c.dataset.id); else openBuyModal(c.dataset.id);
+  });
+}
+
 async function loadRecentSales() {
   const r = await api('/api/recent-sales');
   const sales = r.sales || [];
@@ -444,7 +487,7 @@ function renderTicker() {
 // ============================================================
 // Auctions (browse)
 // ============================================================
-const auctionState = { q: '', minPrice: '', maxPrice: '', sort: 'ending_soon', page: 1, total: 0, totalPages: 1 };
+const auctionState = { q: '', minPrice: '', maxPrice: '', sort: 'ending_soon', category: '', page: 1, total: 0, totalPages: 1 };
 
 function buildSearchParams(state) {
   const params = new URLSearchParams();
@@ -452,6 +495,7 @@ function buildSearchParams(state) {
   if (state.minPrice) params.set('min_price', state.minPrice);
   if (state.maxPrice) params.set('max_price', state.maxPrice);
   if (state.sort) params.set('sort', state.sort);
+  if (state.category) params.set('category', state.category);
   params.set('page', state.page);
   return params;
 }
@@ -490,7 +534,7 @@ function auctionCardHtml(a) {
   const bid = a.current_bid_cents || a.starting_bid_cents;
   return `
     <div class="card" data-auction-id="${a.id}">
-      <div class="thumb" style="${a.image_url ? `background-image:url('${escapeHtml(a.image_url)}')` : ''}">${a.image_url ? '' : 'No image'}</div>
+      <div class="thumb" style="${a.image_url ? `background-image:url('${escapeHtml(a.image_url)}')` : ''}">${a.image_url ? '' : 'No image'}${catTag(a.category)}</div>
       <div class="card-body">
         <div class="badge"><span class="dot"></span> Live${a.buyout_cents ? ` · ⚡ ${money(a.buyout_cents)}` : ''}</div>
         <div class="card-title">${escapeHtml(a.title)}</div>
@@ -635,7 +679,8 @@ $('#auctions-min-price').addEventListener('input', (e) => { auctionState.minPric
 $('#auctions-max-price').addEventListener('input', (e) => { auctionState.maxPrice = e.target.value; runAuctionSearch(); });
 $('#auctions-sort').addEventListener('change', (e) => { auctionState.sort = e.target.value; auctionState.page = 1; loadAuctions(); });
 $('#auctions-clear').addEventListener('click', () => {
-  auctionState.q = ''; auctionState.minPrice = ''; auctionState.maxPrice = ''; auctionState.sort = 'ending_soon'; auctionState.page = 1;
+  auctionState.q = ''; auctionState.minPrice = ''; auctionState.maxPrice = ''; auctionState.sort = 'ending_soon'; auctionState.category = ''; auctionState.page = 1;
+  renderCatChips('#auctions-cats', auctionState, loadAuctions);
   $('#auctions-q').value = ''; $('#auctions-min-price').value = ''; $('#auctions-max-price').value = ''; $('#auctions-sort').value = 'ending_soon';
   loadAuctions();
 });
@@ -644,7 +689,7 @@ $('#auctions-load-more').addEventListener('click', () => { auctionState.page += 
 // ============================================================
 // Listings (browse)
 // ============================================================
-const listingState = { q: '', minPrice: '', maxPrice: '', sort: 'newest', page: 1, total: 0, totalPages: 1 };
+const listingState = { q: '', minPrice: '', maxPrice: '', sort: 'newest', category: '', page: 1, total: 0, totalPages: 1 };
 
 async function loadListings({ append = false } = {}) {
   if (!append) showSkeletons('#listings-grid');
@@ -669,7 +714,7 @@ function renderListingsMeta() {
 function listingCardHtml(l) {
   return `
     <div class="card" data-listing-id="${l.id}">
-      <div class="thumb" style="${l.image_url ? `background-image:url('${escapeHtml(l.image_url)}')` : ''}">${l.image_url ? '' : 'No image'}</div>
+      <div class="thumb" style="${l.image_url ? `background-image:url('${escapeHtml(l.image_url)}')` : ''}">${l.image_url ? '' : 'No image'}${catTag(l.category)}</div>
       <div class="card-body">
         <div class="card-title">${escapeHtml(l.title)}</div>
         <div class="card-meta">Seller: <a class="seller-link" href="#u/${encodeURIComponent(l.seller_name)}" onclick="event.stopPropagation()">${escapeHtml(l.seller_name)}</a> ${vbadge(l.seller_verified)}</div>
@@ -782,7 +827,8 @@ $('#listings-min-price').addEventListener('input', (e) => { listingState.minPric
 $('#listings-max-price').addEventListener('input', (e) => { listingState.maxPrice = e.target.value; runListingSearch(); });
 $('#listings-sort').addEventListener('change', (e) => { listingState.sort = e.target.value; listingState.page = 1; loadListings(); });
 $('#listings-clear').addEventListener('click', () => {
-  listingState.q = ''; listingState.minPrice = ''; listingState.maxPrice = ''; listingState.sort = 'newest'; listingState.page = 1;
+  listingState.q = ''; listingState.minPrice = ''; listingState.maxPrice = ''; listingState.sort = 'newest'; listingState.category = ''; listingState.page = 1;
+  renderCatChips('#listings-cats', listingState, loadListings);
   $('#listings-q').value = ''; $('#listings-min-price').value = ''; $('#listings-max-price').value = ''; $('#listings-sort').value = 'newest';
   loadListings();
 });
@@ -982,6 +1028,45 @@ function syncFileDrop() {
   $('#sell-file-clear').hidden = !file;
 }
 
+// Programmatically select a file (used by paste + drag-and-drop).
+function setSellImageFile(file) {
+  if (!file || !file.type.startsWith('image/')) return false;
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  $('#sell-image-file').files = dt.files;
+  syncFileDrop();
+  updateSellPreview();
+  toast(`Image "${file.name || 'from clipboard'}" attached.`, 'success');
+  return true;
+}
+
+// Paste a screenshot straight into the sell modal (Ctrl/Cmd+V)
+document.addEventListener('paste', (e) => {
+  if (!$('#sell-overlay').classList.contains('open')) return;
+  const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'));
+  if (!item) return;
+  e.preventDefault();
+  const file = item.getAsFile();
+  if (file) setSellImageFile(new File([file], file.name || `screenshot-${Date.now()}.png`, { type: file.type }));
+});
+
+// Drag & drop an image anywhere onto the sell modal
+{
+  const sellModal = $('#sell-overlay .modal');
+  ['dragover', 'dragenter'].forEach(ev => sellModal.addEventListener(ev, (e) => {
+    e.preventDefault();
+    $('#sell-file-drop').classList.add('drag-over');
+  }));
+  ['dragleave', 'drop'].forEach(ev => sellModal.addEventListener(ev, (e) => {
+    e.preventDefault();
+    $('#sell-file-drop').classList.remove('drag-over');
+  }));
+  sellModal.addEventListener('drop', (e) => {
+    const file = e.dataTransfer?.files?.[0];
+    if (file) setSellImageFile(file);
+  });
+}
+
 ['sell-title', 'sell-price', 'sell-start-bid'].forEach(id =>
   $('#' + id).addEventListener('input', updateSellPreview)
 );
@@ -1029,6 +1114,7 @@ function openSellModal(editListing) {
     $('#sell-desc').value = editListing.description || '';
     $('#sell-image').value = editListing.image_url || '';
     $('#sell-price').value = editListing.price_cents ? (editListing.price_cents / 100).toFixed(2) : '';
+    $('#sell-category').value = editListing.category || 'other';
     $('#sell-submit').textContent = 'Save changes';
     $('#sell-desc').dispatchEvent(new Event('input'));
   } else {
@@ -1077,7 +1163,7 @@ $('#sell-submit').onclick = async () => {
   } else if (sellType === 'fixed') {
     const price = parseFloat($('#sell-price').value);
     if (!price || price <= 0) { $('#sell-error').textContent = 'Enter a valid price.'; $('#sell-submit').classList.remove('loading'); return; }
-    r = await api('/api/listings', { method: 'POST', body: JSON.stringify({ title, description, image_url, price_cents: Math.round(price * 100) }) });
+    r = await api('/api/listings', { method: 'POST', body: JSON.stringify({ title, description, image_url, price_cents: Math.round(price * 100), category: $('#sell-category').value }) });
   } else {
     const start = parseFloat($('#sell-start-bid').value);
     const inc = parseFloat($('#sell-increment').value) || 1;
@@ -1089,6 +1175,7 @@ $('#sell-submit').onclick = async () => {
       min_increment_cents: Math.round(inc * 100),
       duration_minutes: parseInt($('#sell-duration').value, 10),
       buyout_cents: buyout > 0 ? Math.round(buyout * 100) : undefined,
+      category: $('#sell-category').value,
     }) });
   }
   $('#sell-submit').classList.remove('loading');
@@ -1763,6 +1850,7 @@ async function loadProfile(username) {
         </div>
       </div>
     </div>
+    ${(r.achievements || []).length ? `<div class="ach-chips">${r.achievements.map(a => `<span class="ach-chip" title="${escapeHtml(a.desc)}">${a.icon} ${escapeHtml(a.label)}</span>`).join('')}</div>` : ''}
     ${r.auctions.length ? `<h3 class="section-sub">Live auctions</h3><div class="grid" id="pf-auctions">${r.auctions.map(auctionCardHtml).join('')}</div>` : ''}
     ${r.listings.length ? `<h3 class="section-sub">Listings</h3><div class="grid" id="pf-listings">${r.listings.map(listingCardHtml).join('')}</div>` : ''}
     ${!r.auctions.length && !r.listings.length ? `<div class="empty-block" style="margin-top:22px">Nothing on the market right now.</div>` : ''}
@@ -2086,7 +2174,10 @@ async function renderAdminTab() {
   api('/api/config').then(c => { if (c.fee_bps) FEE = c; });
   await loadMe();
   loadSiteStats();
+  loadTrending();
   loadRecentSales();
+  renderCatChips('#auctions-cats', auctionState, loadAuctions);
+  renderCatChips('#listings-cats', listingState, loadListings);
   loadAuctions();
   loadListings();
   route();
