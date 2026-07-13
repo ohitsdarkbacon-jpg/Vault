@@ -65,6 +65,13 @@ app.get('/api/config', (req, res) => {
   res.json({ fee_bps: config.platformFeeBps, fee_mode: config.feeMode });
 });
 
+// Game categories — admin-managed rows, consumed by every category picker
+// and filter-chip row on the frontend.
+app.get('/api/categories', (req, res) => {
+  const rows = db.prepare("SELECT slug, label FROM categories ORDER BY CASE WHEN slug = 'other' THEN 1 ELSE 0 END, label").all();
+  res.json({ categories: rows });
+});
+
 app.get('/api/stats', (req, res) => {
   const s = db.prepare(`SELECT
     (SELECT COUNT(*) FROM auctions WHERE status = 'live') AS live_auctions,
