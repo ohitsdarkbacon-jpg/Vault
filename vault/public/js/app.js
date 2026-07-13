@@ -56,11 +56,18 @@ function vbadge(isVerified) {
   return isVerified ? '<span class="verified-badge" title="Verified trader">✓</span>' : '';
 }
 
-const CATEGORY_LABELS = {
-  'adopt-me': 'Adopt Me', 'blox-fruits': 'Blox Fruits', 'mm2': 'MM2',
-  'grow-a-garden': 'Grow a Garden', 'steal-a-brainrot': 'Steal a Brainrot',
-  'pet-sim-99': 'Pet Sim 99', 'da-hood': 'Da Hood', other: 'Other',
-};
+// Admin-managed — loaded from /api/categories at boot and after admin edits.
+let CATEGORY_LABELS = { other: 'Other' };
+async function loadCategories() {
+  const r = await api('/api/categories');
+  if (!r.categories) return;
+  CATEGORY_LABELS = Object.fromEntries(r.categories.map(c => [c.slug, c.label]));
+  const opts = r.categories.map(c => ({ value: c.slug, label: c.label }));
+  ['#sell-category', '#trade-category'].forEach(id => { const el = $(id); if (el) setSelectOptions(el, opts); });
+  renderCatChips('#auctions-cats', auctionState, loadAuctions);
+  renderCatChips('#listings-cats', listingState, loadListings);
+  if ($('#view-trading').classList.contains('active')) renderCatChips('#trades-cats', tradeState, loadTradePosts);
+}
 function catTag(category) {
   return category && category !== 'other'
     ? `<span class="thumb-tag">${CATEGORY_LABELS[category] || category}</span>` : '';
@@ -178,17 +185,27 @@ function initCustomSelects() {
       closeAllSelects();
       if (!wasOpen) sel.classList.add('open');
     });
-    sel.querySelectorAll('.cs-option').forEach(opt => {
-      opt.addEventListener('click', (e) => {
-        e.stopPropagation();
-        sel.dataset.value = opt.dataset.value;
-        sel.querySelector('.cs-label').textContent = opt.textContent;
-        sel.querySelectorAll('.cs-option').forEach(o => o.classList.toggle('active', o === opt));
-        sel.classList.remove('open');
-        sel.dispatchEvent(new Event('change', { bubbles: true }));
-      });
+    // Delegated so options can be rebuilt at runtime (admin-managed categories)
+    sel.querySelector('.cs-dropdown').addEventListener('click', (e) => {
+      const opt = e.target.closest('.cs-option');
+      if (!opt) return;
+      e.stopPropagation();
+      sel.dataset.value = opt.dataset.value;
+      sel.querySelector('.cs-label').textContent = opt.textContent;
+      sel.querySelectorAll('.cs-option').forEach(o => o.classList.toggle('active', o === opt));
+      sel.classList.remove('open');
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
     });
   });
+}
+
+// Replace a custom select's option list (label/active synced to current value).
+function setSelectOptions(sel, options) {
+  sel.querySelector('.cs-dropdown').innerHTML = options.map(o =>
+    `<div class="cs-option ${o.value === sel.dataset.value ? 'active' : ''}" data-value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</div>`
+  ).join('');
+  const active = options.find(o => o.value === sel.dataset.value) || options[options.length - 1];
+  if (active) { sel.dataset.value = active.value; sel.querySelector('.cs-label').textContent = active.label; }
 }
 function closeAllSelects() {
   document.querySelectorAll('.custom-select.open').forEach(s => s.classList.remove('open'));
@@ -1089,6 +1106,37 @@ $('#sell-desc').addEventListener('input', () => {
   el.classList.toggle('hot', len > 1900);
 });
 
+// ---------- Draft autosave (QoL) ----------
+// Half-typed listings/trades survive accidental closes, refreshes, and crashes.
+// Saved to localStorage on input, restored on reopen, cleared on submit.
+const SELL_DRAFT_FIELDS = ['sell-title', 'sell-desc', 'sell-image', 'sell-price', 'sell-start-bid', 'sell-increment', 'sell-buyout'];
+const TRADE_DRAFT_FIELDS = ['trade-offering', 'trade-wants', 'trade-notes', 'trade-image'];
+
+function saveDraft(key, fields, extra = {}) {
+  const data = { ...extra };
+  fields.forEach(id => { data[id] = $('#' + id).value; });
+  const hasContent = Object.values(data).some(v => v && String(v).trim());
+  if (hasContent) localStorage.setItem(key, JSON.stringify(data));
+  else localStorage.removeItem(key);
+}
+function restoreDraft(key, fields) {
+  let data;
+  try { data = JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return null; }
+  if (!data) return null;
+  fields.forEach(id => { if (data[id] != null) $('#' + id).value = data[id]; });
+  return data;
+}
+const saveSellDraft = debounce(() => {
+  if (editingListingId) return; // edits shouldn't clobber the new-listing draft
+  saveDraft('vault-sell-draft', SELL_DRAFT_FIELDS, { type: sellType, category: $('#sell-category').value, duration: $('#sell-duration').value });
+}, 400);
+const saveTradeDraft = debounce(() => saveDraft('vault-trade-draft', TRADE_DRAFT_FIELDS, { category: $('#trade-category').value }), 400);
+SELL_DRAFT_FIELDS.forEach(id => $('#' + id).addEventListener('input', saveSellDraft));
+TRADE_DRAFT_FIELDS.forEach(id => $('#' + id).addEventListener('input', saveTradeDraft));
+$('#sell-category').addEventListener('change', saveSellDraft);
+$('#sell-duration').addEventListener('change', saveSellDraft);
+$('#trade-category').addEventListener('change', saveTradeDraft);
+
 let editingListingId = null; // when set, the sell modal saves edits instead of posting
 
 function openSellModal(editListing) {
@@ -1122,6 +1170,19 @@ function openSellModal(editListing) {
   } else {
     modal.textContent = 'List an item';
     $('#sell-type').style.display = 'flex';
+    const draft = restoreDraft('vault-sell-draft', SELL_DRAFT_FIELDS);
+    if (draft) {
+      if (draft.type && draft.type !== sellType) {
+        sellType = draft.type;
+        $$('#sell-type .pill').forEach(p => p.classList.toggle('active', p.dataset.type === sellType));
+        $('#sell-price-field').style.display = sellType === 'fixed' ? 'block' : 'none';
+        $('#sell-auction-fields').style.display = sellType === 'auction' ? 'block' : 'none';
+      }
+      if (draft.category) $('#sell-category').value = draft.category;
+      if (draft.duration) $('#sell-duration').value = draft.duration;
+      $('#sell-desc').dispatchEvent(new Event('input'));
+      toast('Draft restored — pick up where you left off.', 'info');
+    }
     $('#sell-submit').textContent = sellType === 'fixed' ? 'Post listing' : 'Start auction';
   }
   syncFileDrop();
@@ -1183,6 +1244,7 @@ $('#sell-submit').onclick = async () => {
   $('#sell-submit').classList.remove('loading');
   if (r.error) { $('#sell-error').textContent = r.error; return; }
   closeModal('sell-overlay');
+  if (!editingListingId) localStorage.removeItem('vault-sell-draft');
   toast(editingListingId ? 'Listing updated.' : sellType === 'fixed' ? 'Listing posted!' : 'Auction started!', 'success');
   if (editingListingId) { editingListingId = null; renderDashTab(); }
   loadListings(); loadAuctions(); loadSiteStats();
@@ -1712,36 +1774,55 @@ async function openChat(orderId) {
   chatPollTimer = setInterval(() => pollChat(false), 4000);
 }
 
+// In-flight guard: the send handler polls immediately while the 4s interval
+// keeps polling — two concurrent polls read the same lastChatMessageId, fetch
+// the same new messages, and render them TWICE. Belt: only one poll at a
+// time. Suspenders: skip any message id we've already rendered.
+let chatPollBusy = false;
 async function pollChat(initial) {
-  if (!activeChatOrderId) return;
-  const r = await api(`/api/orders/${activeChatOrderId}/messages?after=${lastChatMessageId}`);
-  if (r.error) return;
-  const box = $('#chat-box');
-  if (initial) box.innerHTML = '';
-  const msgs = r.messages || [];
-  if (initial && !msgs.length) {
-    box.innerHTML = '<div class="chat-empty">No messages yet — say hi and agree on when to trade in Roblox. Keep everything in this chat so moderators can help if something goes wrong.</div>';
-    return;
+  if (!activeChatOrderId || chatPollBusy) return;
+  chatPollBusy = true;
+  try {
+    const r = await api(`/api/orders/${activeChatOrderId}/messages?after=${lastChatMessageId}`);
+    if (r.error) return;
+    const box = $('#chat-box');
+    if (initial) box.innerHTML = '';
+    const msgs = (r.messages || []).filter(m => m.id > lastChatMessageId);
+    if (initial && !msgs.length) {
+      box.innerHTML = '<div class="chat-empty">No messages yet — say hi and agree on when to trade in Roblox. Keep everything in this chat so moderators can help if something goes wrong.</div>';
+      return;
+    }
+    if (msgs.length && box.querySelector('.chat-empty')) box.innerHTML = '';
+    msgs.forEach(m => {
+      lastChatMessageId = Math.max(lastChatMessageId, m.id);
+      const el = document.createElement('div');
+      el.className = 'chat-msg ' + (m.sender_id === ME.id ? 'mine' : 'theirs');
+      el.innerHTML = `${escapeHtml(m.body)}<div class="m-meta">${escapeHtml(m.sender_name)} · ${timeAgo(m.created_at)}</div>`;
+      box.appendChild(el);
+    });
+    if (msgs.length) box.scrollTop = box.scrollHeight;
+  } finally {
+    chatPollBusy = false;
   }
-  if (msgs.length && box.querySelector('.chat-empty')) box.innerHTML = '';
-  msgs.forEach(m => {
-    lastChatMessageId = Math.max(lastChatMessageId, m.id);
-    const el = document.createElement('div');
-    el.className = 'chat-msg ' + (m.sender_id === ME.id ? 'mine' : 'theirs');
-    el.innerHTML = `${escapeHtml(m.body)}<div class="m-meta">${escapeHtml(m.sender_name)} · ${timeAgo(m.created_at)}</div>`;
-    box.appendChild(el);
-  });
-  if (msgs.length) box.scrollTop = box.scrollHeight;
 }
 
+let chatSending = false;
 async function sendChat() {
   const input = $('#chat-input');
   const body = input.value.trim();
-  if (!body || !activeChatOrderId) return;
+  if (!body || !activeChatOrderId || chatSending) return;
+  chatSending = true;
+  $('#chat-send').disabled = true;
   input.value = '';
-  const r = await api(`/api/orders/${activeChatOrderId}/messages`, { method: 'POST', body: JSON.stringify({ body }) });
-  if (r.error) { toast(r.error, 'error'); input.value = body; return; }
-  await pollChat(false);
+  try {
+    const r = await api(`/api/orders/${activeChatOrderId}/messages`, { method: 'POST', body: JSON.stringify({ body }) });
+    if (r.error) { toast(r.error, 'error'); input.value = body; return; }
+    await pollChat(false);
+  } finally {
+    chatSending = false;
+    $('#chat-send').disabled = false;
+    input.focus();
+  }
 }
 $('#chat-send').onclick = sendChat;
 $('#chat-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
@@ -1839,6 +1920,11 @@ $('#post-trade-btn').onclick = () => {
   if (!ME) return openModal('auth-overlay');
   ['trade-offering','trade-wants','trade-notes','trade-image'].forEach(id => $('#' + id).value = '');
   $('#trade-error').textContent = '';
+  const draft = restoreDraft('vault-trade-draft', TRADE_DRAFT_FIELDS);
+  if (draft) {
+    if (draft.category) $('#trade-category').value = draft.category;
+    toast('Draft restored — pick up where you left off.', 'info');
+  }
   openModal('trade-overlay');
 };
 $('#trade-submit').onclick = async () => {
@@ -1855,6 +1941,7 @@ $('#trade-submit').onclick = async () => {
   $('#trade-submit').classList.remove('loading');
   if (r.error) { $('#trade-error').textContent = r.error; return; }
   closeModal('trade-overlay');
+  localStorage.removeItem('vault-trade-draft');
   toast('Trade posted — traders will DM you with offers.', 'success');
   loadTradePosts();
 };
@@ -1972,6 +2059,7 @@ function renderDmMessages(msgs, initial) {
   }
   if (msgs.length && box.querySelector('.chat-empty')) box.innerHTML = '';
   msgs.forEach(m => {
+    if (m.id <= lastDmId) return; // already rendered (concurrent poll race)
     lastDmId = Math.max(lastDmId, m.id);
     const el = document.createElement('div');
     el.className = 'chat-msg ' + (m.sender_id === ME.id ? 'mine' : 'theirs');
@@ -1981,22 +2069,39 @@ function renderDmMessages(msgs, initial) {
   if (msgs.length) box.scrollTop = box.scrollHeight;
 }
 
+let dmPollBusy = false;
 async function pollDm() {
-  if (!activeDmPartner) return;
-  const r = await api(`/api/dm/with/${encodeURIComponent(activeDmPartner)}?after=${lastDmId}`);
-  if (r.error) return;
-  if ((r.messages || []).length) { renderDmMessages(r.messages, false); loadConversations(); }
+  if (!activeDmPartner || dmPollBusy) return;
+  dmPollBusy = true;
+  try {
+    const r = await api(`/api/dm/with/${encodeURIComponent(activeDmPartner)}?after=${lastDmId}`);
+    if (r.error) return;
+    const fresh = (r.messages || []).filter(m => m.id > lastDmId);
+    if (fresh.length) { renderDmMessages(fresh, false); loadConversations(); }
+  } finally {
+    dmPollBusy = false;
+  }
 }
 
+let dmSending = false;
 async function sendDm() {
   const input = $('#dm-input');
   const body = input.value.trim();
-  if (!body || !activeDmPartner) return;
+  if (!body || !activeDmPartner || dmSending) return;
+  dmSending = true;
+  const btn = $('#dm-send');
+  if (btn) btn.disabled = true;
   input.value = '';
-  const r = await api(`/api/dm/with/${encodeURIComponent(activeDmPartner)}`, { method: 'POST', body: JSON.stringify({ body }) });
-  if (r.error) { toast(r.error, 'error'); input.value = body; return; }
-  await pollDm();
-  loadConversations();
+  try {
+    const r = await api(`/api/dm/with/${encodeURIComponent(activeDmPartner)}`, { method: 'POST', body: JSON.stringify({ body }) });
+    if (r.error) { toast(r.error, 'error'); input.value = body; return; }
+    await pollDm();
+    loadConversations();
+  } finally {
+    dmSending = false;
+    if (btn) btn.disabled = false;
+    input.focus();
+  }
 }
 
 async function toggleBlock(username, btnEl) {
@@ -2239,10 +2344,47 @@ async function renderAdminTab() {
 
   if (adminTab === 'content') {
     c.innerHTML = `
+      <h3 class="section-sub" style="margin-top:0">Game categories</h3>
+      <div class="inline-note" style="margin-top:0">The Roblox market moves fast — add or remove games here and every picker, filter, and tag updates instantly. Items in a removed game move to <b>Other</b>.</div>
+      <div class="cat-chips" id="admin-cat-list" style="margin-bottom:10px"></div>
+      <div class="search-bar" style="margin-bottom:22px">
+        <input id="admin-cat-name" placeholder="Game name, e.g. Fisch" maxlength="40" style="flex:1;background:rgba(10,13,20,0.6);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:9px;font-size:0.88rem">
+        <button class="btn btn-gold" id="admin-cat-add">+ Add game</button>
+      </div>
+      <h3 class="section-sub">Live content</h3>
       <div class="search-bar" style="margin-bottom:14px"><div class="search-input-wrap" style="flex:1">
         <input type="search" id="admin-content-q" placeholder="Search live listings & auctions…" autocomplete="off" style="width:100%">
       </div></div>
       <div id="admin-content-list"></div>`;
+
+    const renderCats = async () => {
+      const rc = await api('/api/categories');
+      $('#admin-cat-list').innerHTML = (rc.categories || []).map(cat => `
+        <span class="cat-chip active" style="display:inline-flex;align-items:center;gap:7px">${escapeHtml(cat.label)}
+          ${cat.slug !== 'other' ? `<button data-del-cat="${escapeHtml(cat.slug)}" title="Remove" style="background:none;border:none;color:rgba(255,255,255,0.7);font-size:0.72rem;padding:0;cursor:pointer">✕</button>` : ''}
+        </span>`).join('');
+      $('#admin-cat-list').querySelectorAll('[data-del-cat]').forEach(b => b.onclick = async () => {
+        const slug = b.dataset.delCat;
+        if (!await vaultConfirm(`Every listing, auction, and trade post in "${CATEGORY_LABELS[slug] || slug}" moves to Other.`, { title: 'Remove this category?', okText: 'Remove', danger: true, icon: '🏷' })) return;
+        const r2 = await api(`/api/admin/categories/${encodeURIComponent(slug)}/delete`, { method: 'POST' });
+        if (r2.error) return toast(r2.error, 'error');
+        toast('Category removed.', 'success');
+        await loadCategories();
+        renderCats();
+      });
+    };
+    $('#admin-cat-add').onclick = async () => {
+      const label = $('#admin-cat-name').value.trim();
+      if (!label) return toast('Enter the game name.', 'error');
+      const r2 = await api('/api/admin/categories', { method: 'POST', body: JSON.stringify({ label }) });
+      if (r2.error) return toast(r2.error, 'error');
+      $('#admin-cat-name').value = '';
+      toast(`"${r2.label}" added — it's live in every picker now.`, 'success');
+      await loadCategories();
+      renderCats();
+    };
+    $('#admin-cat-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#admin-cat-add').click(); });
+    renderCats();
     const renderContent = async () => {
       const q = $('#admin-content-q').value.trim();
       const r = await api(`/api/admin/listings?q=${encodeURIComponent(q)}`);
@@ -2416,6 +2558,7 @@ async function renderAdminTab() {
   api('/api/config').then(c => { if (c.fee_bps) FEE = c; });
   await loadMe();
   loadSiteStats();
+  loadCategories();
   loadTrending();
   loadRecentSales();
   renderCatChips('#auctions-cats', auctionState, loadAuctions);

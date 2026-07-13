@@ -208,6 +208,43 @@ router.post('/users/:id/credit', (req, res) => {
   res.json({ ok: true, balance_cents: newBalance });
 });
 
+// ---------- Categories (admin-managed game list) ----------
+// The Roblox market shifts constantly — admins add/remove games here instead
+// of editing code. 'other' is the permanent fallback bucket.
+
+const MAX_CATEGORIES = 30;
+
+router.post('/categories', (req, res) => {
+  const label = String(req.body?.label || '').trim().slice(0, 40);
+  if (!label) return res.status(400).json({ error: 'Enter the game name.' });
+  const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+  if (!slug) return res.status(400).json({ error: 'That name has no usable characters.' });
+  if (db.prepare('SELECT 1 FROM categories WHERE slug = ?').get(slug)) {
+    return res.status(400).json({ error: 'That category already exists.' });
+  }
+  const count = db.prepare('SELECT COUNT(*) c FROM categories').get().c;
+  if (count >= MAX_CATEGORIES) return res.status(400).json({ error: `Max ${MAX_CATEGORIES} categories — remove one first.` });
+  db.prepare('INSERT INTO categories (slug, label) VALUES (?, ?)').run(slug, label);
+  res.status(201).json({ ok: true, slug, label });
+});
+
+router.post('/categories/:slug/delete', (req, res) => {
+  const slug = String(req.params.slug);
+  if (slug === 'other') return res.status(400).json({ error: "'Other' is the fallback bucket and can't be removed." });
+  if (!db.prepare('SELECT 1 FROM categories WHERE slug = ?').get(slug)) {
+    return res.status(404).json({ error: 'Category not found.' });
+  }
+  // Everything tagged with the dead category moves to 'other'.
+  const tx = db.transaction(() => {
+    db.prepare("UPDATE listings SET category = 'other' WHERE category = ?").run(slug);
+    db.prepare("UPDATE auctions SET category = 'other' WHERE category = ?").run(slug);
+    db.prepare("UPDATE trade_posts SET category = 'other' WHERE category = ?").run(slug);
+    db.prepare('DELETE FROM categories WHERE slug = ?').run(slug);
+  });
+  tx();
+  res.json({ ok: true });
+});
+
 // ---------- Middleman network ----------
 
 router.get('/middlemen', (req, res) => {

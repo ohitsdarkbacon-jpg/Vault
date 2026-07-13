@@ -265,13 +265,31 @@ ensureColumn('users', 'is_verified', 'is_verified INTEGER NOT NULL DEFAULT 0'); 
 ensureColumn('listings', 'category', "category TEXT NOT NULL DEFAULT 'other'");        // game category for browse filters
 ensureColumn('auctions', 'category', "category TEXT NOT NULL DEFAULT 'other'");
 
-// Categories switched from item types to game names — reset any value that
-// isn't in the current list (see lib/search.js) back to the default bucket.
+// Categories live in the DB so admins can add/remove games from the panel
+// as the Roblox market shifts — no code changes needed.
+db.exec(`
+CREATE TABLE IF NOT EXISTS categories (
+  slug TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`);
 {
-  const { CATEGORIES } = require('./lib/search');
-  const marks = CATEGORIES.map(() => '?').join(',');
-  db.prepare(`UPDATE listings SET category = 'other' WHERE category NOT IN (${marks})`).run(...CATEGORIES);
-  db.prepare(`UPDATE auctions SET category = 'other' WHERE category NOT IN (${marks})`).run(...CATEGORIES);
+  const seeded = db.prepare('SELECT COUNT(*) c FROM categories').get().c;
+  if (!seeded) {
+    const seed = db.prepare('INSERT INTO categories (slug, label) VALUES (?, ?)');
+    [
+      ['adopt-me', 'Adopt Me'], ['blox-fruits', 'Blox Fruits'], ['mm2', 'Murder Mystery 2'],
+      ['grow-a-garden', 'Grow a Garden'], ['steal-a-brainrot', 'Steal a Brainrot'],
+      ['pet-sim-99', 'Pet Simulator 99'], ['da-hood', 'Da Hood'], ['other', 'Other'],
+    ].forEach(([slug, label]) => seed.run(slug, label));
+  }
+  // Anything tagged with a category that no longer exists falls back to 'other'.
+  db.prepare("UPDATE listings SET category = 'other' WHERE category NOT IN (SELECT slug FROM categories)").run();
+  db.prepare("UPDATE auctions SET category = 'other' WHERE category NOT IN (SELECT slug FROM categories)").run();
+  try {
+    db.prepare("UPDATE trade_posts SET category = 'other' WHERE category NOT IN (SELECT slug FROM categories)").run();
+  } catch (_) { /* trade_posts is created later on fresh DBs — normalized on next boot */ }
 }
 ensureColumn('auctions', 'buyout_cents', 'buyout_cents INTEGER');                     // optional Buy It Now price
 ensureColumn('auctions', 'ending_alert_sent', 'ending_alert_sent INTEGER NOT NULL DEFAULT 0'); // watchers alerted <1h left

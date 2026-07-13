@@ -10,7 +10,7 @@ withdrawals, notifications, public profiles, and an admin panel.
 
 **Trading**
 - Fixed-price listings + timed auctions (bid history, min increments, anti-snipe: bids in the last 2 min extend the auction 2 min)
-- **Game categories** (Adopt Me, Blox Fruits, MM2, Grow a Garden, Steal a Brainrot, Pet Sim 99, Da Hood) with one-tap filter chips on both browse sections and tags on item cards — Vault is for real-money trades of in-game items, not Robux-purchasable limiteds
+- **Admin-managed game categories**: add/remove games from the admin Content tab as the Roblox market shifts — every picker, filter chip, and card tag updates instantly, and items in a removed game move to Other automatically (seeded with Adopt Me, Blox Fruits, MM2, Grow a Garden, Steal a Brainrot, Pet Sim 99, Da Hood). Vault is for real-money trades of in-game items, not Robux-purchasable limiteds
 - **🔥 Most watched** trending strip on the home page (ranked by watcher count)
 - **Profile achievements**: auto-earned badges — 🤝 First Trade, 💼 Power Seller, 🌟 Top Rated, 🐋 Big Fish ($100+ trade), 🏛 Vault Veteran
 - **Offers / negotiation**: buyers make offers below asking price; sellers accept, decline, or counter; an accepted offer becomes that buyer's checkout price on every payment rail. When the item sells, all other offers auto-expire with a notification
@@ -18,6 +18,7 @@ withdrawals, notifications, public profiles, and an admin panel.
 - **Edit listings** in place (title/description/image/price) — price cuts ping everyone watching with a 📉 price-drop notification
 - **⏰ Ending-soon alerts**: watchers and the high bidder get notified when an auction they care about enters its final hour
 - Live-updating countdowns, quick-bid chips (min / +1 step / +5 steps), share links with deep-linking (`#listing-N` / `#auction-N`)
+- **Draft autosave**: half-finished sell and trade forms survive accidental closes, refreshes, and crashes — restored automatically on reopen, cleared on post
 - Recently-traded strip on the home page for social proof
 - Item images are **required** on every listing/auction: upload, **paste a screenshot (Ctrl+V)**, or **drag & drop** straight into the sell modal — PNG/JPG/GIF/WEBP/BMP/AVIF up to 20 MB (SVG excluded as an XSS vector). Click any item image for a full-size lightbox
 - Full-text search (SQLite FTS5 with LIKE fallback), price filters, sorting, pagination
