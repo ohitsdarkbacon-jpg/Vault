@@ -62,7 +62,16 @@ function normTerm(term) {
   return String(term).toLowerCase().replace(/(.)\1+/g, '$1').replace(/[^a-z]/g, '');
 }
 
-const BLOCK_NORM = BLOCKLIST.map(normTerm).filter(Boolean);
+// Long terms are matched as substrings of the fully-normalized text, so
+// spacing/punctuation evasions ("f a g g o t") still line up. Short terms
+// can't be — after repeat-collapsing, "coon" becomes "con" and would block
+// "confirm"/"contact", "spic" would block "conspicuous", "paki" would block
+// "Pakistan". Those are matched per-token instead (exact word + a small
+// suffix set), same approach maskProfanity uses.
+const BLOCK_LONG = [];
+const BLOCK_SHORT = [];
+BLOCKLIST.map(normTerm).filter(Boolean).forEach((t) => (t.length >= 5 ? BLOCK_LONG : BLOCK_SHORT).push(t));
+const SHORT_SUFFIXES = ['', 's', 'z', 'a', 'as', 'er', 'ers'];
 
 /**
  * Check text for hard-blocked content.
@@ -71,8 +80,17 @@ const BLOCK_NORM = BLOCKLIST.map(normTerm).filter(Boolean);
 function findBlocked(text) {
   if (!enabled || !text) return { blocked: false };
   const norm = normalize(text);
-  for (const term of BLOCK_NORM) {
-    if (term && norm.includes(term)) return { blocked: true, term };
+  for (const term of BLOCK_LONG) {
+    if (norm.includes(term)) return { blocked: true, term };
+  }
+  const tokens = String(text).match(/[A-Za-z0-9@$!+]+/g) || [];
+  for (const token of tokens) {
+    const n = normalize(token);
+    for (const term of BLOCK_SHORT) {
+      if (n.startsWith(term) && SHORT_SUFFIXES.includes(n.slice(term.length))) {
+        return { blocked: true, term };
+      }
+    }
   }
   return { blocked: false };
 }

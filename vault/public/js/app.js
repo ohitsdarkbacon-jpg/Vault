@@ -18,6 +18,9 @@ let dmPollTimer = null;
 let ticketPollTimer = null;
 let activeTicketId = null;
 let lastTicketMsgId = 0;
+let tchatPollTimer = null;
+let activeTourneyId = null;
+let lastTchatMsgId = 0;
 let activeDmPartner = null;
 let lastDmId = 0;
 let lastChatMessageId = 0;
@@ -66,7 +69,7 @@ async function loadCategories() {
   if (!r.categories) return;
   CATEGORY_LABELS = Object.fromEntries(r.categories.map(c => [c.slug, c.label]));
   const opts = r.categories.map(c => ({ value: c.slug, label: c.label }));
-  ['#sell-category', '#trade-category'].forEach(id => { const el = $(id); if (el) setSelectOptions(el, opts); });
+  ['#sell-category', '#trade-category', '#tourney-category'].forEach(id => { const el = $(id); if (el) setSelectOptions(el, opts); });
   renderCatChips('#auctions-cats', auctionState, loadAuctions);
   renderCatChips('#listings-cats', listingState, loadListings);
   if ($('#view-trading').classList.contains('active')) renderCatChips('#trades-cats', tradeState, loadTradePosts);
@@ -116,6 +119,7 @@ function closeModal(id) {
   if (id === 'chat-overlay') { clearInterval(chatPollTimer); activeChatOrderId = null; }
   if (id === 'bid-overlay') clearInterval(bidPollTimer);
   if (id === 'ticket-overlay') { clearInterval(ticketPollTimer); activeTicketId = null; }
+  if (id === 'tchat-overlay') { clearInterval(tchatPollTimer); activeTourneyId = null; }
 }
 // ---------- Custom confirm / prompt dialogs (replace native popups) ----------
 let dialogResolve = null;
@@ -220,7 +224,7 @@ initCustomSelects();
 
 $$('[data-close]').forEach(btn => btn.addEventListener('click', () => closeModal(btn.dataset.close)));
 $$('.overlay').forEach(ov => ov.addEventListener('click', e => {
-  if (e.target === ov) { ov.classList.remove('open'); if (ov.id === 'chat-overlay') { clearInterval(chatPollTimer); activeChatOrderId = null; } if (ov.id === 'bid-overlay') clearInterval(bidPollTimer); if (ov.id === 'ticket-overlay') { clearInterval(ticketPollTimer); activeTicketId = null; } }
+  if (e.target === ov) closeModal(ov.id);
 }));
 
 // ---------- Mobile nav ----------
@@ -270,6 +274,7 @@ async function route() {
   }
   if (h === 'traders') { showView('traders'); loadTraders(); return; }
   if (h === 'trading') { showView('trading'); renderCatChips('#trades-cats', tradeState, loadTradePosts); loadTradePosts(); return; }
+  if (h === 'tournaments') { showView('tournaments'); loadTournaments(); return; }
   if (h === 'messages' || h.startsWith('messages/')) {
     if (!ME) { showView('home'); return openModal('auth-overlay'); }
     showView('messages');
@@ -2195,6 +2200,212 @@ $('#ticket-send').onclick = sendTicketMsg;
 $('#ticket-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendTicketMsg(); });
 
 // ============================================================
+// Tournaments
+// ============================================================
+function prizeBadge(t) {
+  if (t.prize_mode === 'mm_held') {
+    return `<span class="prize-badge held" title="${t.middleman_name ? 'Prize held by middleman ' + escapeHtml(t.middleman_name) : 'A middleman will be assigned to hold the prize'}">🛡 Guaranteed payout</span>`;
+  }
+  if (t.prize_mode === 'unheld') return '<span class="prize-badge unheld" title="The host holds the prize — payout is not guaranteed by Vault">⚠ Not held — no guarantee</span>';
+  return '<span class="prize-badge fun">🎉 Just for fun</span>';
+}
+
+async function loadTournaments() {
+  const grid = $('#tourney-grid');
+  const r = await api('/api/tournaments');
+  const ts = r.tournaments || [];
+  if (!ts.length) {
+    grid.innerHTML = '<div class="empty-block">No tournaments yet — host the first one and get people together!</div>';
+    return;
+  }
+  const statusBadge = (t) => t.status === 'open'
+    ? `<span class="status-badge status-active">Signups open</span>`
+    : t.status === 'ongoing' ? '<span class="status-badge status-paid">Ongoing</span>'
+    : t.status === 'completed' ? '<span class="status-badge status-completed">Finished</span>'
+    : '<span class="status-badge status-disputed">Cancelled</span>';
+  grid.innerHTML = ts.map(t => {
+    const mine = ME && t.host_id === ME.id;
+    const canJoin = ME && t.status === 'open' && !t.joined && t.player_count < t.player_limit;
+    const full = t.status === 'open' && t.player_count >= t.player_limit;
+    return `
+    <div class="tourney-card ${t.status}">
+      <div class="tc-top">
+        <div class="tc-title">${escapeHtml(t.title)} ${catTag(t.category)}</div>
+        ${statusBadge(t)}
+      </div>
+      <div class="tc-host">Hosted by <a href="#u/${encodeURIComponent(t.host_name)}">${escapeHtml(t.host_name)}</a>${vbadge(t.host_verified)}${t.middleman_name ? ` · Prize with <b>${escapeHtml(t.middleman_name)}</b> ⚖️` : ''}</div>
+      ${t.description ? `<div class="tc-desc">${escapeHtml(t.description)}</div>` : ''}
+      <div class="tc-prize">${t.prize ? `<span class="tc-prize-text">🏆 ${escapeHtml(t.prize)}</span>` : ''}${prizeBadge(t)}</div>
+      <div class="tc-meta">
+        <span>👥 ${t.player_count}/${t.player_limit} players</span>
+        ${t.status === 'open' ? `<span>⏳ Signups close in <b data-ends="${t.signups_close_at}"></b></span>` : ''}
+      </div>
+      <div class="tc-actions">
+        ${canJoin ? `<button class="btn btn-small btn-gold" data-tjoin="${t.id}">Sign up</button>` : ''}
+        ${full && !t.joined ? '<span class="sub" style="margin:0">Full</span>' : ''}
+        ${ME && t.joined && !mine && t.status === 'open' ? `<button class="btn btn-small" data-tleave="${t.id}">Leave</button>` : ''}
+        ${t.joined && t.status === 'open' ? '<span class="tc-in">✓ You\'re in — chat opens at the deadline</span>' : ''}
+        ${(t.joined || (ME && (ME.is_admin || t.middleman_id === ME.id))) && ['ongoing','completed'].includes(t.status) ? `<button class="btn btn-small btn-gold" data-tchat="${t.id}">💬 Group chat</button>` : ''}
+        ${mine && ['open','ongoing'].includes(t.status) ? `<button class="btn btn-small" data-tcancel="${t.id}" style="color:var(--danger)">Cancel</button>` : ''}
+        ${mine && t.status === 'ongoing' ? `<button class="btn btn-small" data-tcomplete="${t.id}">Mark finished</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  grid.querySelectorAll('[data-tjoin]').forEach(b => b.onclick = async () => {
+    if (!ME) return openModal('auth-overlay');
+    b.disabled = true;
+    const r2 = await api(`/api/tournaments/${b.dataset.tjoin}/join`, { method: 'POST' });
+    if (r2.error) { toast(r2.error, 'error'); b.disabled = false; return; }
+    toast("You're signed up — the group chat opens when signups close.", 'success');
+    loadTournaments();
+  });
+  grid.querySelectorAll('[data-tleave]').forEach(b => b.onclick = async () => {
+    const r2 = await api(`/api/tournaments/${b.dataset.tleave}/leave`, { method: 'POST' });
+    if (r2.error) return toast(r2.error, 'error');
+    toast('You left the tournament.', 'info');
+    loadTournaments();
+  });
+  grid.querySelectorAll('[data-tcancel]').forEach(b => b.onclick = async () => {
+    if (!await vaultConfirm('Everyone who signed up will be notified.', { title: 'Cancel this tournament?', okText: 'Cancel tournament', danger: true, icon: '🏆' })) return;
+    const r2 = await api(`/api/tournaments/${b.dataset.tcancel}/cancel`, { method: 'POST' });
+    if (r2.error) return toast(r2.error, 'error');
+    toast('Tournament cancelled.', 'info');
+    loadTournaments();
+  });
+  grid.querySelectorAll('[data-tcomplete]').forEach(b => b.onclick = async () => {
+    if (!await vaultConfirm('Players get a wrap-up notification and the chat goes read-only.', { title: 'Finish this tournament?', okText: 'Mark finished', icon: '🏆' })) return;
+    const r2 = await api(`/api/tournaments/${b.dataset.tcomplete}/complete`, { method: 'POST' });
+    if (r2.error) return toast(r2.error, 'error');
+    toast('Tournament finished — nice one! 🏆', 'success');
+    loadTournaments();
+  });
+  grid.querySelectorAll('[data-tchat]').forEach(b => b.onclick = () => openTourneyChat(parseInt(b.dataset.tchat, 10)));
+}
+
+// ---- Hosting ----
+$('#host-tourney-btn').addEventListener('click', () => {
+  if (!ME) return openModal('auth-overlay');
+  $('#tourney-error').textContent = '';
+  openModal('tourney-overlay');
+});
+$('#tourney-prize-mode').addEventListener('change', () => {
+  $('#tourney-prize-field').style.display = $('#tourney-prize-mode').value === 'none' ? 'none' : 'block';
+});
+$('#tourney-submit').addEventListener('click', async () => {
+  const err = $('#tourney-error');
+  err.textContent = '';
+  const btn = $('#tourney-submit');
+  btn.classList.add('loading');
+  const r = await api('/api/tournaments', {
+    method: 'POST',
+    body: JSON.stringify({
+      title: $('#tourney-title').value.trim(),
+      description: $('#tourney-desc').value.trim(),
+      category: $('#tourney-category').value,
+      prize_mode: $('#tourney-prize-mode').value,
+      prize: $('#tourney-prize').value.trim(),
+      player_limit: parseInt($('#tourney-limit').value, 10),
+      close_hours: parseInt($('#tourney-close').value, 10),
+    }),
+  });
+  btn.classList.remove('loading');
+  if (r.error) { err.textContent = r.error; return; }
+  closeModal('tourney-overlay');
+  $('#tourney-title').value = ''; $('#tourney-desc').value = ''; $('#tourney-prize').value = '';
+  toast('Tournament is live — signups are open!', 'success');
+  location.hash = 'tournaments';
+  loadTournaments();
+});
+
+// ---- Group chat ----
+let tchatPollBusy = false;
+async function openTourneyChat(id) {
+  activeTourneyId = id;
+  lastTchatMsgId = 0;
+  $('#tchat-box').innerHTML = '<div class="chat-empty">Loading…</div>';
+  openModal('tchat-overlay');
+  await pollTourneyChat(true);
+  clearInterval(tchatPollTimer);
+  tchatPollTimer = setInterval(() => pollTourneyChat(false), 4000);
+}
+
+async function pollTourneyChat(initial) {
+  if (!activeTourneyId || tchatPollBusy) return;
+  tchatPollBusy = true;
+  try {
+    const r = await api(`/api/tournaments/${activeTourneyId}/messages?after=${lastTchatMsgId}`);
+    if (r.error) { if (initial) $('#tchat-box').innerHTML = `<div class="chat-empty">${escapeHtml(r.error)}</div>`; return; }
+    if (initial) {
+      const t = r.tournament;
+      $('#tchat-title').textContent = t.title;
+      $('#tchat-sub').innerHTML = `Hosted by <b>${escapeHtml(t.host_name)}</b> · ${t.player_count} players${t.middleman_name ? ` · Prize with <b>${escapeHtml(t.middleman_name)}</b> ⚖️` : ''}${t.prize ? ` · 🏆 ${escapeHtml(t.prize)}` : ''}`;
+      $('#tchat-input-row').style.display = t.status === 'ongoing' ? 'flex' : 'none';
+      $('#tchat-box').innerHTML = '';
+    }
+    const box = $('#tchat-box');
+    const msgs = (r.messages || []).filter(m => m.id > lastTchatMsgId);
+    if (initial && !msgs.length) {
+      box.innerHTML = '<div class="chat-empty">The chat is open — say hi, agree on rules, and set up the bracket.</div>';
+      return;
+    }
+    if (msgs.length && box.querySelector('.chat-empty')) box.innerHTML = '';
+    msgs.forEach(m => {
+      lastTchatMsgId = Math.max(lastTchatMsgId, m.id);
+      const el = document.createElement('div');
+      el.className = 'chat-msg ' + (m.mine ? 'mine' : 'theirs') + (m.from_mm ? ' from-mm' : '');
+      const tag = m.from_host ? '👑 ' : m.from_mm ? '⚖️ ' : '';
+      el.innerHTML = `${escapeHtml(m.body)}<div class="m-meta">${tag}${escapeHtml(m.sender_name)} · ${timeAgo(m.created_at)}</div>`;
+      box.appendChild(el);
+    });
+    if (msgs.length) box.scrollTop = box.scrollHeight;
+  } finally {
+    tchatPollBusy = false;
+  }
+}
+
+let tchatSending = false;
+async function sendTchatMsg() {
+  const input = $('#tchat-input');
+  const body = input.value.trim();
+  if (!body || !activeTourneyId || tchatSending) return;
+  tchatSending = true;
+  $('#tchat-send').disabled = true;
+  input.value = '';
+  try {
+    const r = await api(`/api/tournaments/${activeTourneyId}/messages`, { method: 'POST', body: JSON.stringify({ body }) });
+    if (r.error) { toast(r.error, 'error'); input.value = body; return; }
+    await pollTourneyChat(false);
+  } finally {
+    tchatSending = false;
+    $('#tchat-send').disabled = false;
+    input.focus();
+  }
+}
+$('#tchat-send').onclick = sendTchatMsg;
+$('#tchat-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendTchatMsg(); });
+
+// ============================================================
+// Announcement banner (dismiss sticks per announcement id)
+// ============================================================
+async function loadAnnouncementBanner() {
+  const r = await api('/api/announcements/latest');
+  const a = r.announcement;
+  const banner = $('#announce-banner');
+  if (!a) { banner.hidden = true; return; }
+  const dismissed = parseInt(localStorage.getItem('vault-ann-dismissed') || '0', 10);
+  if (a.id <= dismissed) { banner.hidden = true; return; }
+  $('#announce-text').textContent = a.message;
+  banner.dataset.annId = a.id;
+  banner.hidden = false;
+}
+$('#announce-close').addEventListener('click', () => {
+  const banner = $('#announce-banner');
+  localStorage.setItem('vault-ann-dismissed', banner.dataset.annId || '0');
+  banner.hidden = true;
+});
+
+// ============================================================
 // Public profile
 // ============================================================
 async function loadProfile(username) {
@@ -2683,6 +2894,8 @@ $('#admin-announce').addEventListener('click', async () => {
   await loadMe();
   loadSiteStats();
   loadCategories();
+  loadAnnouncementBanner();
+  setInterval(loadAnnouncementBanner, 5 * 60000);
   loadTrending();
   loadRecentSales();
   renderCatChips('#auctions-cats', auctionState, loadAuctions);
