@@ -391,6 +391,18 @@ CREATE TABLE IF NOT EXISTS admin_log (
 CREATE INDEX IF NOT EXISTS idx_admin_log_created ON admin_log(created_at);
 `);
 
+// Uploaded item images live in the database, not on disk — hosts with
+// ephemeral filesystems (Railway/Render/Heroku) wipe local files on every
+// deploy, which used to break listing images while listings survived.
+db.exec(`
+CREATE TABLE IF NOT EXISTS images (
+  name TEXT PRIMARY KEY,
+  mime TEXT NOT NULL,
+  data BLOB NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`);
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS topups (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
