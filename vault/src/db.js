@@ -391,6 +391,49 @@ CREATE TABLE IF NOT EXISTS admin_log (
 CREATE INDEX IF NOT EXISTS idx_admin_log_created ON admin_log(created_at);
 `);
 
+// Announcement banners + tournaments (community events with optional
+// middleman-held prizes and a post-deadline group chat).
+db.exec(`
+CREATE TABLE IF NOT EXISTS announcements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  admin_id INTEGER NOT NULL REFERENCES users(id),
+  message TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS tournaments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  host_id INTEGER NOT NULL REFERENCES users(id),
+  title TEXT NOT NULL,
+  description TEXT,
+  category TEXT NOT NULL DEFAULT 'other',
+  prize TEXT,
+  prize_mode TEXT NOT NULL DEFAULT 'none' CHECK (prize_mode IN ('mm_held','unheld','none')),
+  middleman_id INTEGER REFERENCES users(id),
+  player_limit INTEGER NOT NULL DEFAULT 16,
+  signups_close_at TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open', -- open | ongoing | completed | cancelled
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_tournaments_status ON tournaments(status, signups_close_at);
+
+CREATE TABLE IF NOT EXISTS tournament_players (
+  tournament_id INTEGER NOT NULL REFERENCES tournaments(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (tournament_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS tournament_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tournament_id INTEGER NOT NULL REFERENCES tournaments(id),
+  sender_id INTEGER NOT NULL REFERENCES users(id),
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_tournament_messages ON tournament_messages(tournament_id, id);
+`);
+
 // Uploaded item images live in the database, not on disk — hosts with
 // ephemeral filesystems (Railway/Render/Heroku) wipe local files on every
 // deploy, which used to break listing images while listings survived.

@@ -1263,3 +1263,54 @@ table.data td.mono { font-family: 'JetBrains Mono', monospace; }
 .chat-msg.from-mm .m-meta { color: var(--gold-2); }
 .chat-msg .m-who { font-size: 0.7rem; font-weight: 650; color: var(--gold-2); margin-bottom: 3px; letter-spacing: 0.02em; }
 .chat-msg.mine .m-who { display: none; }
+
+/* ============================================================
+   v8 — announcement banner + tournaments
+   ============================================================ */
+
+/* ---------- Announcement banner ---------- */
+.announce-banner {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 22px;
+  background: linear-gradient(90deg, rgba(139,92,246,0.22), rgba(109,40,217,0.14) 60%, rgba(139,92,246,0.2));
+  border-bottom: 1px solid rgba(139,92,246,0.35);
+  font-size: 0.88rem; color: var(--text);
+  animation: fade-down .3s var(--ease-out);
+}
+.announce-banner[hidden] { display: none; }
+.ab-icon { flex-shrink: 0; }
+.ab-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ab-close {
+  flex-shrink: 0; background: none; border: none; color: var(--muted);
+  font-size: 0.9rem; padding: 4px 8px; border-radius: 6px; transition: color .15s, background .15s;
+}
+.ab-close:hover { color: var(--text); background: rgba(148,163,184,0.1); }
+
+/* ---------- Tournaments ---------- */
+.tourney-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.tourney-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;
+  transition: border-color .2s, transform .2s var(--ease-spring), box-shadow .2s;
+}
+.tourney-card:hover { border-color: var(--gold-dim); transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+.tourney-card.completed, .tourney-card.cancelled { opacity: 0.6; }
+.tc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.tc-title { font-family: 'Space Grotesk', sans-serif; font-weight: 650; font-size: 1.02rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tc-title .thumb-tag { position: static; }
+.tc-host { font-size: 0.82rem; color: var(--muted); }
+.tc-host a { color: var(--gold-2); }
+.tc-desc { font-size: 0.85rem; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+.tc-prize { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tc-prize-text { font-size: 0.88rem; font-weight: 600; }
+.prize-badge {
+  font-size: 0.72rem; font-weight: 650; padding: 3px 10px; border-radius: 20px;
+  letter-spacing: 0.02em; white-space: nowrap;
+}
+.prize-badge.held { background: rgba(61,220,151,0.12); color: var(--live); border: 1px solid rgba(61,220,151,0.35); }
+.prize-badge.unheld { background: rgba(255,183,77,0.1); color: #FFB74D; border: 1px solid rgba(255,183,77,0.35); }
+.prize-badge.fun { background: rgba(139,92,246,0.12); color: var(--gold-2); border: 1px solid rgba(139,92,246,0.3); }
+.tc-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.8rem; color: var(--muted); }
+.tc-meta b { color: var(--text); font-weight: 600; }
+.tc-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 4px; }
+.tc-in { font-size: 0.78rem; color: var(--live); font-weight: 600; }

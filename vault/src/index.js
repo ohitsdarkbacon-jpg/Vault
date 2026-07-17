@@ -20,6 +20,7 @@ const dmRoutes = require('./routes/dm');
 const offersRoutes = require('./routes/offers');
 const { router: topupsRouter } = require('./routes/topups');
 const { router: tradesRouter, startTicketRotator } = require('./routes/trades');
+const tournamentsRouter = require('./routes/tournaments');
 const { startAuctionCloser } = require('./jobs/auctionCloser');
 const { startAutoComplete } = require('./jobs/autoCompleteOrders');
 
@@ -98,6 +99,17 @@ app.get('/api/trending', (req, res) => {
   res.json({ trending: rows });
 });
 
+// Latest site-wide announcement (last 7 days) — the dismissible banner.
+// Public: signed-out visitors see it too.
+app.get('/api/announcements/latest', (req, res) => {
+  const a = db.prepare(
+    `SELECT id, message, created_at FROM announcements
+     WHERE julianday('now') - julianday(created_at) <= 7
+     ORDER BY id DESC LIMIT 1`
+  ).get();
+  res.json({ announcement: a || null });
+});
+
 // Recent escrowed/completed trades — social proof for the home page.
 app.get('/api/recent-sales', (req, res) => {
   const rows = db.prepare(
@@ -122,6 +134,7 @@ app.use('/api', dmRoutes);              // /api/traders, /api/dm/*, block/report
 app.use('/api', offersRoutes);          // /api/listings/:id/offers, /api/offers/:id/*, /api/my/offers
 app.use('/api', topupsRouter);          // /api/topup/* — add funds to balance
 app.use('/api', tradesRouter);          // /api/trades/*, /api/mm/* — in-game trading + middlemen
+app.use('/api', tournamentsRouter);     // /api/tournaments/* — community tournaments
 app.use('/api/uploads', uploadsRoutes); // image uploads for listings/auctions
 app.use('/api/admin', adminRoutes);
 app.use('/api', paymentsRoutes); // /api/auctions/:id/checkout/*, /api/listings/:id/checkout/*
@@ -152,6 +165,7 @@ app.use((err, req, res, next) => {
 startAuctionCloser();
 startAutoComplete();
 startTicketRotator(); // rotate middleman tickets that hit the 2-min window
+tournamentsRouter.startTournamentJob(); // flip tournaments live when signups close
 
 app.listen(config.port, () => {
   console.log(`Vault backend listening on http://localhost:${config.port}`);

@@ -384,7 +384,11 @@ router.post('/announce', (req, res) => {
   if (!message) return res.status(400).json({ error: 'Write the announcement first.' });
   const users = db.prepare('SELECT id FROM users WHERE is_banned = 0').all();
   const insert = db.prepare("INSERT INTO notifications (user_id, type, body, link) VALUES (?, 'admin', ?, NULL)");
-  const tx = db.transaction(() => users.forEach((u) => insert.run(u.id, `📣 ${message}`)));
+  const tx = db.transaction(() => {
+    users.forEach((u) => insert.run(u.id, `📣 ${message}`));
+    // Also stored for the site-wide dismissible banner.
+    db.prepare('INSERT INTO announcements (admin_id, message) VALUES (?, ?)').run(req.user.id, message);
+  });
   tx();
   logAdmin(req, 'announcement', message);
   res.json({ ok: true, recipients: users.length });

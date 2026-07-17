@@ -43,7 +43,15 @@ withdrawals, notifications, public profiles, and an admin panel.
 - **Ticket rooms**: every middleman ticket gets a private three-way group chat — requester, partner, and middleman all in one room (admins can read it too). Middleman messages get a distinct ⚖️ accent so instructions stand out. The room goes read-only when the ticket completes or is cancelled, keeping the history as a record.
 - **Optional middleman tips**: promise a gratitude tip when requesting a ticket — purely informational, nothing is held or charged by the platform. The middleman sees it with the assignment, and the requester gets a friendly reminder to send it when the ticket completes.
 
+**Tournaments (community events)**
+- **Anyone can host**: title, game, description, player limit (4–128), and a signup deadline (1h–3 days)
+- **Prize transparency**: every tournament states its prize situation up front — 🛡 **held by middleman** (an online middleman is auto-assigned at start to hold the prize → guaranteed payout), ⚠ **held by the host** (no guaranteed payout), or 🎉 **no prize, just for fun**
+- Players sign up (and can leave) until the deadline; capacity is enforced
+- **When the deadline hits, the tournament goes ongoing and everyone lands in a group chat together** — host messages get a 👑 tag, the prize middleman gets ⚖️. Chat goes read-only when the host marks it finished
+- Too few players at the deadline → auto-cancelled with notifications; hosts can cancel any time; 3 active tournaments max per host
+
 **Community & trust**
+- **Announcement banner**: admin announcements show as a dismissible site-wide banner (plus the usual notification) — dismissing one banner keeps it dismissed, the next announcement shows again
 - Per-order buyer↔seller chat (coordinate the in-game trade; admins can read it during disputes)
 - **Direct messages**: message any trader on the site — conversation inbox with unread badges, live polling, online status
 - **Trader directory** (`#traders`): browse/search every trader with ratings, sales, and online indicators
