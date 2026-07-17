@@ -127,8 +127,12 @@ app.use('/api/admin', adminRoutes);
 app.use('/api', paymentsRoutes); // /api/auctions/:id/checkout/*, /api/listings/:id/checkout/*
 app.use('/webhooks', webhooksRouter); // /webhooks/nowpayments (stripe handled above)
 
-// ---- Uploaded item images (may live outside public/ on a mounted volume) ----
+// ---- Uploaded item images ----
+// Served from the database (durable across redeploys); the static directory
+// remains as a fallback for anything not yet imported.
+app.get('/uploads/:name', uploadsRoutes.serveImage);
 app.use('/uploads', express.static(config.uploadDir));
+app.use('/uploads', (req, res) => res.status(404).json({ error: 'Image not found.' }));
 
 // ---- Static frontend ----
 app.use(express.static(path.join(__dirname, '..', 'public')));
