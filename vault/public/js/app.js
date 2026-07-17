@@ -15,6 +15,9 @@ let cryptoPollTimer = null;
 let chatPollTimer = null;
 let notifPollTimer = null;
 let dmPollTimer = null;
+let ticketPollTimer = null;
+let activeTicketId = null;
+let lastTicketMsgId = 0;
 let activeDmPartner = null;
 let lastDmId = 0;
 let lastChatMessageId = 0;
@@ -112,6 +115,7 @@ function closeModal(id) {
   $('#' + id).classList.remove('open');
   if (id === 'chat-overlay') { clearInterval(chatPollTimer); activeChatOrderId = null; }
   if (id === 'bid-overlay') clearInterval(bidPollTimer);
+  if (id === 'ticket-overlay') { clearInterval(ticketPollTimer); activeTicketId = null; }
 }
 // ---------- Custom confirm / prompt dialogs (replace native popups) ----------
 let dialogResolve = null;
@@ -216,7 +220,7 @@ initCustomSelects();
 
 $$('[data-close]').forEach(btn => btn.addEventListener('click', () => closeModal(btn.dataset.close)));
 $$('.overlay').forEach(ov => ov.addEventListener('click', e => {
-  if (e.target === ov) { ov.classList.remove('open'); if (ov.id === 'chat-overlay') { clearInterval(chatPollTimer); activeChatOrderId = null; } if (ov.id === 'bid-overlay') clearInterval(bidPollTimer); }
+  if (e.target === ov) { ov.classList.remove('open'); if (ov.id === 'chat-overlay') { clearInterval(chatPollTimer); activeChatOrderId = null; } if (ov.id === 'bid-overlay') clearInterval(bidPollTimer); if (ov.id === 'ticket-overlay') { clearInterval(ticketPollTimer); activeTicketId = null; } }
 }));
 
 // ---------- Mobile nav ----------
@@ -240,7 +244,17 @@ function showView(name) {
   const el = $('#view-' + name);
   (el || $('#view-home')).classList.add('active');
   if (name !== 'messages') { clearInterval(dmPollTimer); activeDmPartner = null; }
+  syncNavActive(name);
   window.scrollTo({ top: 0 });
+}
+
+function syncNavActive(view) {
+  const h = location.hash.replace(/^#/, '');
+  $$('#main-nav a, #mobile-nav a').forEach(a => {
+    const target = (a.getAttribute('href') || '').replace(/^#/, '');
+    const on = target && (view === 'home' ? (target === h) : (target === view || (view === 'messages' && target === 'messages')));
+    a.classList.toggle('active', !!on);
+  });
 }
 
 async function route() {
@@ -1552,14 +1566,12 @@ async function renderDashTab() {
         </div>
         ${badge(t.status)}
         <div class="order-actions">
+          ${['assigned','active','completed'].includes(t.status) && t.middleman_id ? `<button class="btn btn-small ${t.status === 'active' ? 'btn-gold' : ''}" data-tk-room="${t.id}">Ticket room</button>` : ''}
           ${iAmMM && t.status === 'assigned' ? `
-            <button class="btn btn-small btn-gold" data-tk-accept="${t.id}">✓ Accept</button>
+            <button class="btn btn-small btn-gold" data-tk-accept="${t.id}">Accept</button>
             <button class="btn btn-small" data-tk-decline="${t.id}" style="color:var(--danger)">Pass</button>` : ''}
           ${iAmMM && t.status === 'active' ? `
-            <button class="btn btn-small" data-tk-dm="${escapeHtml(t.requester_name)}">💬 ${escapeHtml(t.requester_name)}</button>
-            <button class="btn btn-small" data-tk-dm="${escapeHtml(t.partner_name)}">💬 ${escapeHtml(t.partner_name)}</button>
-            <button class="btn btn-small btn-gold" data-tk-complete="${t.id}">✅ Mark completed</button>` : ''}
-          ${isParty && t.status === 'active' && t.middleman_name ? `<button class="btn btn-small btn-gold" data-tk-dm="${escapeHtml(t.middleman_name)}">💬 Message middleman</button>` : ''}
+            <button class="btn btn-small btn-gold" data-tk-complete="${t.id}">Mark completed</button>` : ''}
           ${isParty && ['assigned','active','unavailable'].includes(t.status) ? `<button class="btn btn-small" data-tk-cancel="${t.id}" style="color:var(--danger)">Cancel</button>` : ''}
         </div>
       </div>`;
@@ -1589,14 +1601,14 @@ async function renderDashTab() {
     const act = (id, action) => async () => {
       const r2 = await api(`/api/mm/tickets/${id}/${action}`, { method: 'POST' });
       if (r2.error) return toast(r2.error, 'error');
-      toast(action === 'accept' ? 'Ticket accepted — DM both traders to coordinate.' : 'Done.', 'success');
+      toast(action === 'accept' ? 'Ticket accepted — the shared room is open, say hi to both traders.' : 'Done.', 'success');
       renderDashTab();
     };
     c.querySelectorAll('[data-tk-accept]').forEach(b => b.onclick = act(b.dataset.tkAccept, 'accept'));
     c.querySelectorAll('[data-tk-decline]').forEach(b => b.onclick = act(b.dataset.tkDecline, 'decline'));
     c.querySelectorAll('[data-tk-complete]').forEach(b => b.onclick = act(b.dataset.tkComplete, 'complete'));
     c.querySelectorAll('[data-tk-cancel]').forEach(b => b.onclick = act(b.dataset.tkCancel, 'cancel'));
-    c.querySelectorAll('[data-tk-dm]').forEach(b => b.onclick = () => { location.hash = 'messages/' + encodeURIComponent(b.dataset.tkDm); });
+    c.querySelectorAll('[data-tk-room]').forEach(b => b.onclick = () => openTicketRoom(b.dataset.tkRoom));
     c.querySelectorAll('[data-close-post]').forEach(b => b.onclick = async () => {
       const r2 = await api(`/api/trades/${b.dataset.closePost}/close`, { method: 'POST' });
       if (r2.error) return toast(r2.error, 'error');
@@ -2114,6 +2126,75 @@ async function toggleBlock(username, btnEl) {
 }
 
 // ============================================================
+// Middleman ticket room — one shared thread for both traders + the MM
+// ============================================================
+let ticketPollBusy = false;
+
+async function openTicketRoom(ticketId) {
+  activeTicketId = ticketId;
+  lastTicketMsgId = 0;
+  $('#ticket-box').innerHTML = '<div class="chat-empty">Loading…</div>';
+  openModal('ticket-overlay');
+  await pollTicketRoom(true);
+  clearInterval(ticketPollTimer);
+  ticketPollTimer = setInterval(() => pollTicketRoom(false), 4000);
+}
+
+async function pollTicketRoom(initial) {
+  if (!activeTicketId || ticketPollBusy) return;
+  ticketPollBusy = true;
+  try {
+    const r = await api(`/api/mm/tickets/${activeTicketId}/messages?after=${lastTicketMsgId}`);
+    if (r.error) { if (initial) $('#ticket-box').innerHTML = `<div class="chat-empty">${escapeHtml(r.error)}</div>`; return; }
+    if (initial) {
+      const t = r.ticket;
+      $('#ticket-title').textContent = `Ticket #${t.id} room`;
+      $('#ticket-sub').innerHTML = `${escapeHtml(t.requester_name)} + ${escapeHtml(t.partner_name)}${t.middleman_name ? ` · Middleman <b>${escapeHtml(t.middleman_name)}</b>` : ''} · <span class="status-badge status-${t.status === 'active' ? 'active' : t.status === 'completed' ? 'completed' : 'paid'}">${t.status}</span>`;
+      $('#ticket-input-row').style.display = ['assigned', 'active'].includes(t.status) ? 'flex' : 'none';
+      $('#ticket-box').innerHTML = '';
+    }
+    const box = $('#ticket-box');
+    const msgs = (r.messages || []).filter(m => m.id > lastTicketMsgId);
+    if (initial && !msgs.length) {
+      box.innerHTML = '<div class="chat-empty">The room is open — everyone in this ticket sees every message. Agree on a server link and trade order here.</div>';
+      return;
+    }
+    if (msgs.length && box.querySelector('.chat-empty')) box.innerHTML = '';
+    msgs.forEach(m => {
+      lastTicketMsgId = Math.max(lastTicketMsgId, m.id);
+      const el = document.createElement('div');
+      el.className = 'chat-msg ' + (m.mine ? 'mine' : 'theirs') + (m.from_mm ? ' from-mm' : '');
+      el.innerHTML = `${escapeHtml(m.body)}<div class="m-meta">${m.from_mm ? '⚖️ ' : ''}${escapeHtml(m.sender_name)} · ${timeAgo(m.created_at)}</div>`;
+      box.appendChild(el);
+    });
+    if (msgs.length) box.scrollTop = box.scrollHeight;
+  } finally {
+    ticketPollBusy = false;
+  }
+}
+
+let ticketSending = false;
+async function sendTicketMsg() {
+  const input = $('#ticket-input');
+  const body = input.value.trim();
+  if (!body || !activeTicketId || ticketSending) return;
+  ticketSending = true;
+  $('#ticket-send').disabled = true;
+  input.value = '';
+  try {
+    const r = await api(`/api/mm/tickets/${activeTicketId}/messages`, { method: 'POST', body: JSON.stringify({ body }) });
+    if (r.error) { toast(r.error, 'error'); input.value = body; return; }
+    await pollTicketRoom(false);
+  } finally {
+    ticketSending = false;
+    $('#ticket-send').disabled = false;
+    input.focus();
+  }
+}
+$('#ticket-send').onclick = sendTicketMsg;
+$('#ticket-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendTicketMsg(); });
+
+// ============================================================
 // Public profile
 // ============================================================
 async function loadProfile(username) {
@@ -2250,6 +2331,9 @@ async function loadAdmin() {
     <div class="stat-card"><div class="val ${r.open_reports ? 'gold' : ''}">${r.open_reports}</div><div class="lbl">Open reports</div></div>
     <div class="stat-card"><div class="val">${money(r.escrow_held_cents)}</div><div class="lbl">Held in escrow</div></div>
     <div class="stat-card"><div class="val gold">${money(r.fees_earned_cents)}</div><div class="lbl">Fees earned</div></div>
+    <div class="stat-card"><div class="val">${r.new_users_7d || 0}</div><div class="lbl">New users · 7d</div></div>
+    <div class="stat-card"><div class="val">${r.trades_7d || 0}</div><div class="lbl">Sales · 7d</div></div>
+    <div class="stat-card"><div class="val gold">${money(r.volume_7d_cents || 0)}</div><div class="lbl">Volume · 7d</div></div>
   `;
   $('#tc-reports').textContent = r.open_reports || '';
   api('/api/admin/middlemen').then(m => { $('#tc-mm').textContent = (m.pending || []).length || ''; });
@@ -2548,7 +2632,47 @@ async function renderAdminTab() {
     renderUsers();
     return;
   }
+
+  if (adminTab === 'log') {
+    const r = await api('/api/admin/log');
+    const rows = r.log || [];
+    if (!rows.length) { c.innerHTML = '<div class="empty-block">No admin actions recorded yet.</div>'; return; }
+    const label = (a) => ({
+      dispute_resolved: 'Dispute resolved', payout_sent: 'Payout sent', withdrawal_paid: 'Withdrawal marked paid',
+      withdrawal_rejected: 'Withdrawal rejected', user_banned: 'User banned', user_unbanned: 'User unbanned',
+      credit_adjusted: 'Balance adjusted', user_verified: 'User verified', user_unverified: 'Badge removed',
+      category_added: 'Category added', category_removed: 'Category removed', middleman_approve: 'Middleman approved',
+      middleman_reject: 'Middleman rejected', middleman_revoke: 'Middleman revoked', report_resolved: 'Report resolved',
+      listing_removed: 'Listing removed', auction_removed: 'Auction removed', announcement: 'Announcement sent',
+    })[a] || a;
+    c.innerHTML = `
+      <div class="inline-note" style="margin-top:0">Every admin action is recorded here — the most recent 200 entries.</div>
+      <div class="table-wrap"><table class="data">
+        <tr><th>When</th><th>Admin</th><th>Action</th><th>Detail</th></tr>
+        ${rows.map(l => `<tr>
+          <td style="white-space:nowrap">${timeAgo(l.created_at)}</td>
+          <td><a href="#u/${encodeURIComponent(l.admin_name)}" style="color:var(--gold)">${escapeHtml(l.admin_name)}</a></td>
+          <td style="white-space:nowrap">${escapeHtml(label(l.action))}</td>
+          <td style="max-width:420px;overflow-wrap:anywhere;color:var(--text-dim)">${escapeHtml(l.detail || '')}</td>
+        </tr>`).join('')}
+      </table></div>`;
+    return;
+  }
 }
+
+$('#admin-announce').addEventListener('click', async () => {
+  const msg = await vaultPrompt('Sent as a notification to every member of the site — keep it short.', {
+    title: 'Site-wide announcement', okText: 'Next', placeholder: 'e.g. Middleman applications are open this weekend!', icon: '📣',
+  });
+  if (msg === null) return;
+  const text = msg.trim();
+  if (!text) return toast('Announcement can\'t be empty.', 'error');
+  if (!await vaultConfirm(`“${text}” — this notifies every user and can't be recalled.`, { title: 'Send to everyone?', okText: '📣 Send announcement', icon: '📣' })) return;
+  const r = await api('/api/admin/announce', { method: 'POST', body: JSON.stringify({ message: text }) });
+  if (r.error) return toast(r.error, 'error');
+  toast(`Announcement sent to ${r.recipients} users.`, 'success');
+  if (adminTab === 'log') renderAdminTab();
+});
 
 // ============================================================
 // Init

@@ -27,14 +27,16 @@
           <stop offset="0" stop-color="#A78BFA"/><stop offset="1" stop-color="#6D28D9"/>
         </linearGradient>
       </defs>
-      <rect width="64" height="64" rx="16" fill="url(#logo-grad)"/>
-      <circle cx="32" cy="32" r="18.5" fill="none" stroke="rgba(255,255,255,0.94)" stroke-width="3.4"/>
-      <circle cx="32" cy="32" r="14.5" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.2"/>
-      <g class="logo-spokes" stroke="rgba(255,255,255,0.94)" stroke-width="3.2" stroke-linecap="round">
-        <line x1="41.0" y1="32.0" x2="46.5" y2="32.0"/><line x1="36.5" y1="39.8" x2="39.2" y2="44.6"/><line x1="27.5" y1="39.8" x2="24.8" y2="44.6"/><line x1="23.0" y1="32.0" x2="17.5" y2="32.0"/><line x1="27.5" y1="24.2" x2="24.7" y2="19.4"/><line x1="36.5" y1="24.2" x2="39.2" y2="19.4"/>
+      <g id="logo-shape">
+        <rect width="64" height="64" rx="16" fill="url(#logo-grad)"/>
+        <circle cx="32" cy="32" r="18.5" fill="none" stroke="rgba(255,255,255,0.94)" stroke-width="3.4"/>
+        <circle cx="32" cy="32" r="14.5" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.2"/>
+        <g class="logo-spokes" stroke="rgba(255,255,255,0.94)" stroke-width="3.2" stroke-linecap="round">
+          <line x1="41.0" y1="32.0" x2="46.5" y2="32.0"/><line x1="36.5" y1="39.8" x2="39.2" y2="44.6"/><line x1="27.5" y1="39.8" x2="24.8" y2="44.6"/><line x1="23.0" y1="32.0" x2="17.5" y2="32.0"/><line x1="27.5" y1="24.2" x2="24.7" y2="19.4"/><line x1="36.5" y1="24.2" x2="39.2" y2="19.4"/>
+        </g>
+        <circle cx="32" cy="32" r="5" fill="rgba(255,255,255,0.96)"/>
+        <circle cx="32" cy="32" r="2" fill="#6D28D9"/>
       </g>
-      <circle cx="32" cy="32" r="5" fill="rgba(255,255,255,0.96)"/>
-      <circle cx="32" cy="32" r="2" fill="#6D28D9"/>
     </svg>
     Vault</a>
   <nav id="main-nav">
@@ -52,9 +54,9 @@
       <div class="dropdown-list" id="notif-list"></div>
     </div>
     <div class="dropdown" id="user-dropdown" style="width:220px">
-      <div class="menu-item" data-go="dashboard">📦 Dashboard</div>
-      <div class="menu-item" id="menu-profile">👤 My profile</div>
-      <div class="menu-item" id="menu-admin" style="display:none" data-go="admin">🛡 Admin</div>
+      <div class="menu-item" data-go="dashboard">Dashboard</div>
+      <div class="menu-item" id="menu-profile">My profile</div>
+      <div class="menu-item" id="menu-admin" style="display:none" data-go="admin">Admin panel</div>
       <div class="menu-item danger" id="menu-logout">Sign out</div>
     </div>
   </div>
@@ -85,7 +87,7 @@
 </section>
 
 <section class="section" id="trending-section" style="display:none;padding-top:0;padding-bottom:10px">
-  <div class="section-head"><div><span class="eyebrow">Hot right now</span><h2 style="font-size:1.2rem">🔥 Most watched</h2></div></div>
+  <div class="section-head"><div><span class="eyebrow">Hot right now</span><h2 style="font-size:1.2rem">Most watched</h2></div></div>
   <div class="recent-strip" id="trending-strip"></div>
 </section>
 
@@ -163,6 +165,17 @@
   <div class="load-more-wrap" id="listings-load-more-wrap" style="display:none;">
     <button class="btn" id="listings-load-more">Load more</button>
   </div>
+</section>
+
+<section class="section" id="discord-section" style="padding-bottom:26px">
+  <a class="discord-banner" href="https://discord.gg/xGV7NkDzZp" target="_blank" rel="noopener">
+    <svg class="dc-mark" viewBox="0 0 127.14 96.36" width="42" height="32" aria-hidden="true"><path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53s-5.05 12.69-11.44 12.69Zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53s-5.04 12.69-11.43 12.69Z"/></svg>
+    <div class="dc-copy">
+      <b>Join the Vault Discord</b>
+      <span>Announcements, giveaways, middleman pings, and instant support from the team.</span>
+    </div>
+    <span class="dc-cta">Join server →</span>
+  </a>
 </section>
 
 <section class="section" id="how-it-works">
@@ -256,7 +269,10 @@
 <!-- ================= ADMIN VIEW ================= -->
 <div class="view" id="view-admin">
   <div class="page">
-    <div class="page-head"><div><h2>Admin</h2><div class="sub">Moderation, disputes &amp; payouts</div></div></div>
+    <div class="page-head">
+      <div><h2>Admin</h2><div class="sub">Moderation, disputes &amp; payouts</div></div>
+      <button class="btn" id="admin-announce">📣 Announce</button>
+    </div>
     <div class="stat-cards" id="admin-stats"></div>
     <div class="tabs" id="admin-tabs">
       <button class="tab active" data-tab="disputes">Disputes</button>
@@ -265,14 +281,45 @@
       <button class="tab" data-tab="middlemen">Middlemen <span class="count" id="tc-mm"></span></button>
       <button class="tab" data-tab="reports">Reports <span class="count" id="tc-reports"></span></button>
       <button class="tab" data-tab="users">Users</button>
+      <button class="tab" data-tab="log">Log</button>
     </div>
     <div id="admin-content"></div>
   </div>
 </div>
 
 <footer>
-  <span>Vault — escrow-protected trading. Not affiliated with Roblox Corporation.</span>
-  <span><span id="fee-pct-2">6%</span> buyer fee at checkout — sellers keep 100% of their price.</span>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <div class="brand" style="font-size:1.1rem"><svg class="logo" style="width:26px;height:26px" viewBox="0 0 64 64" aria-hidden="true"><use href="#logo-shape"/></svg> Vault</div>
+      <p>Escrow-protected trading for Roblox in-game items. Funds release only when the buyer confirms delivery.</p>
+      <a class="btn btn-small footer-discord" href="https://discord.gg/xGV7NkDzZp" target="_blank" rel="noopener">
+        <svg viewBox="0 0 127.14 96.36" width="16" height="12" aria-hidden="true"><path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53s-5.05 12.69-11.44 12.69Zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53s-5.04 12.69-11.43 12.69Z"/></svg>
+        Join our Discord
+      </a>
+    </div>
+    <div class="footer-col">
+      <h4>Marketplace</h4>
+      <a href="#auctions" data-scroll>Live auctions</a>
+      <a href="#listings" data-scroll>Fixed price</a>
+      <a href="#trading">In-game trading</a>
+    </div>
+    <div class="footer-col">
+      <h4>Community</h4>
+      <a href="#traders">Trader directory</a>
+      <a href="#messages">Messages</a>
+      <a href="https://discord.gg/xGV7NkDzZp" target="_blank" rel="noopener">Discord server</a>
+    </div>
+    <div class="footer-col">
+      <h4>Trust &amp; safety</h4>
+      <a href="#how-it-works" data-scroll>How escrow works</a>
+      <span class="footer-note"><span id="fee-pct-2">6%</span> buyer fee — sellers keep 100%</span>
+      <span class="footer-note">Disputes handled by moderators</span>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 Vault. Not affiliated with Roblox Corporation.</span>
+    <span>Escrow · Middlemen · Moderated</span>
+  </div>
 </footer>
 
 <div class="toast-stack" id="toast-stack"></div>
@@ -489,6 +536,20 @@
     <div class="chat-input-row">
       <input id="chat-input" placeholder="Message… (e.g. server link, trade time)" maxlength="1000">
       <button class="btn btn-gold" id="chat-send">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- Middleman ticket room (3-way chat) -->
+<div class="overlay" id="ticket-overlay">
+  <div class="modal modal-wrap" style="max-width:540px">
+    <button class="modal-close" data-close="ticket-overlay">✕</button>
+    <h3 id="ticket-title">Ticket room</h3>
+    <div class="sub" id="ticket-sub"></div>
+    <div class="chat-box" id="ticket-box"><div class="chat-empty">Loading…</div></div>
+    <div class="chat-input-row" id="ticket-input-row">
+      <input id="ticket-input" placeholder="Message the room…" maxlength="1000" autocomplete="off">
+      <button class="btn btn-gold" id="ticket-send">Send</button>
     </div>
   </div>
 </div>

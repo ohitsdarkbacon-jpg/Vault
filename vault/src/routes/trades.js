@@ -196,7 +196,7 @@ router.post('/mm/tickets/:id/accept', requireAuth, (req, res) => {
   }
   db.prepare("UPDATE mm_tickets SET status = 'active', updated_at = datetime('now') WHERE id = ?").run(t.id);
   for (const uid of [t.requester_id, t.partner_id]) {
-    notify(uid, 'mm', `⚖️ ${req.user.username} accepted your middleman ticket #${t.id} — they'll DM you both to coordinate the trade.`, `#messages/${req.user.username}`);
+    notify(uid, 'mm', `⚖️ ${req.user.username} accepted your middleman ticket #${t.id} — open the ticket room in your dashboard to coordinate all together.`, '#dashboard');
   }
   res.json({ ok: true });
 });
@@ -236,6 +236,53 @@ router.post('/mm/tickets/:id/cancel', requireAuth, (req, res) => {
   db.prepare("UPDATE mm_tickets SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?").run(t.id);
   if (t.middleman_id) notify(t.middleman_id, 'mm', `Ticket #${t.id} was cancelled by the traders.`, '#dashboard');
   res.json({ ok: true });
+});
+
+// ============ Ticket room (shared 3-way chat) ============
+// One room per ticket: both traders + the middleman coordinate in a single
+// thread instead of split DMs. Admins can read it if a trade goes bad.
+
+function canAccessTicketRoom(user, t) {
+  return [t.requester_id, t.partner_id, t.middleman_id].includes(user.id) || user.is_admin;
+}
+
+router.get('/mm/tickets/:id/messages', requireAuth, (req, res) => {
+  const t = db.prepare('SELECT * FROM mm_tickets WHERE id = ?').get(req.params.id);
+  if (!t || !canAccessTicketRoom(req.user, t)) return res.status(404).json({ error: 'Ticket not found.' });
+  const after = parseInt(req.query.after, 10) || 0;
+  const messages = db
+    .prepare(
+      `SELECT m.id, m.sender_id, m.body, m.created_at, u.username AS sender_name,
+        (m.sender_id = ?) AS mine, (m.sender_id = ?) AS from_mm
+       FROM mm_messages m JOIN users u ON u.id = m.sender_id
+       WHERE m.ticket_id = ? AND m.id > ? ORDER BY m.id ASC LIMIT 200`
+    )
+    .all(req.user.id, t.middleman_id || 0, t.id, after);
+  res.json({
+    messages,
+    ticket: {
+      id: t.id, status: t.status,
+      requester_name: db.prepare('SELECT username FROM users WHERE id = ?').get(t.requester_id)?.username,
+      partner_name: db.prepare('SELECT username FROM users WHERE id = ?').get(t.partner_id)?.username,
+      middleman_name: t.middleman_id ? db.prepare('SELECT username FROM users WHERE id = ?').get(t.middleman_id)?.username : null,
+    },
+  });
+});
+
+router.post('/mm/tickets/:id/messages', requireAuth, (req, res) => {
+  const t = db.prepare('SELECT * FROM mm_tickets WHERE id = ?').get(req.params.id);
+  if (!t || !canAccessTicketRoom(req.user, t)) return res.status(404).json({ error: 'Ticket not found.' });
+  if (!['assigned', 'active'].includes(t.status)) {
+    return res.status(400).json({ error: `This ticket is ${t.status} — the room is read-only now.` });
+  }
+  const body = String(req.body?.body || '').trim().slice(0, 1000);
+  if (!body) return res.status(400).json({ error: 'Message is empty.' });
+  const mod = moderateField(body, 'message');
+  if (!mod.ok) return res.status(400).json({ error: mod.error });
+  const info = db
+    .prepare('INSERT INTO mm_messages (ticket_id, sender_id, body) VALUES (?, ?, ?)')
+    .run(t.id, req.user.id, mod.clean);
+  res.status(201).json({ ok: true, id: info.lastInsertRowid });
 });
 
 // ============ 2-minute rotation job ============

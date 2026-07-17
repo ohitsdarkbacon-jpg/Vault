@@ -39,7 +39,8 @@ withdrawals, notifications, public profiles, and an admin panel.
 **In-game trading (item-for-item, no money)**
 - **Trade board** (`#trading`): post what you HAVE ⇄ what you WANT (e.g. Shadow Dragon for Strawberry Elephant), tagged by game, searchable; interested traders DM you
 - **Middleman network**: anyone can apply, admins approve/reject/revoke from the panel
-- **Middleman tickets** (optional — you can always trade directly in game): once two traders match, either party requests a ticket (the partner auto-fills when you're on their post). A random **online** middleman is auto-assigned; if they don't respond within **2 minutes** the ticket rotates to the next online middleman, and if nobody's left it goes unavailable with a notification. Middlemen accept/pass from their dashboard, coordinate via DMs, and mark the trade completed.
+- **Middleman tickets** (optional — you can always trade directly in game): once two traders match, either party requests a ticket (the partner auto-fills when you're on their post). A random **online** middleman is auto-assigned; if they don't respond within **2 minutes** the ticket rotates to the next online middleman, and if nobody's left it goes unavailable with a notification. Middlemen accept/pass from their dashboard and mark the trade completed.
+- **Ticket rooms**: every middleman ticket gets a private three-way group chat — requester, partner, and middleman all in one room (admins can read it too). Middleman messages get a distinct ⚖️ accent so instructions stand out. The room goes read-only when the ticket completes or is cancelled, keeping the history as a record.
 - **Optional middleman tips**: promise a gratitude tip when requesting a ticket — purely informational, nothing is held or charged by the platform. The middleman sees it with the assignment, and the requester gets a friendly reminder to send it when the ticket completes.
 
 **Community & trust**
@@ -52,9 +53,13 @@ withdrawals, notifications, public profiles, and an admin panel.
 - **Two-way reviews**: after a completed order, the buyer rates the seller AND the seller rates the buyer (1–5★ + comment, moderated). Profiles show a star-breakdown histogram, per-review role chips ("bought from them" / "sold to them"), and the reviewed party can post one public reply
 - Public profiles: rating, completed sales, member since, bio, live inventory
 - In-app notifications: outbid, auction won/sold, item sold, delivered, completed, disputed, refunded, new message, DMs, withdrawal, moderation
+- **Discord community**: a banner on the home page and a footer link invite traders into the [Vault Discord](https://discord.gg/xGV7NkDzZp) for announcements, giveaways, and middleman pings
+- Professional dark-violet visual system: multi-column footer with sitemap + trust notes, active-state navigation, and a consistent component library (no native browser controls anywhere)
 
 **Admin panel** (`#admin`, for users in `ADMIN_DISCORD_IDS`)
-- Live stats incl. money held in escrow + fees earned + open reports
+- Live stats incl. money held in escrow + fees earned + open reports, plus **7-day growth cards** (new users, sales, volume)
+- **📣 Site-wide announcements**: one click sends a notification to every member (with a confirm step so you don't fat-finger it)
+- **Audit log tab**: every admin action — bans, payouts, credit adjustments, category changes, takedowns, announcements — is recorded with who did it, when, and the details
 - Dispute resolution, withdrawal queue, user search + ban/unban
 - **Reports tab**: review user reports and mark them resolved
 - **✔ Verified trader badges**: grant/revoke a trust badge shown next to the user's name site-wide

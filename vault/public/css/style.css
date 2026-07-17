@@ -17,7 +17,7 @@
   --gold: #8B5CF6;
   --gold-2: #A78BFA;
   --gold-dim: #6D28D9;
-  --gold-glow: rgba(245, 190, 11, 0.28);
+  --gold-glow: rgba(139, 92, 246, 0.28);
   --live: #3DDC97;
   --live-glow: rgba(61, 220, 151, 0.35);
   --danger: #FF5C63;
@@ -134,6 +134,9 @@ nav a::after {
 }
 nav a:hover { color: var(--text); background: rgba(148,163,184,0.06); }
 nav a:hover::after { transform: scaleX(1); }
+nav a.active { color: var(--text); background: rgba(139,92,246,0.1); }
+nav a.active::after { transform: scaleX(1); }
+.mobile-nav a.active { color: var(--gold-2); }
 .auth-area { display: flex; align-items: center; gap: 12px; margin-left: auto; }
 .nav-toggle { display: none; background: none; border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 6px 10px; font-size: 1.1rem; }
 
@@ -409,7 +412,35 @@ nav a:hover::after { transform: scaleX(1); }
 .toast.success { border-left-color: var(--live); }
 @keyframes toast-in { from { opacity: 0; transform: translateX(60px) scale(0.95); } to { opacity: 1; transform: none; } }
 
-footer { border-top: 1px solid var(--border); padding: 28px; color: var(--muted); font-size: 0.8rem; display: flex; justify-content: space-between; max-width: 1200px; margin: 0 auto; flex-wrap: wrap; gap: 8px; }
+footer {
+  border-top: 1px solid var(--border);
+  background: linear-gradient(180deg, transparent, rgba(139,92,246,0.04));
+  color: var(--muted); font-size: 0.84rem;
+  padding: 46px 28px 0; margin-top: 30px;
+}
+.footer-grid {
+  max-width: 1200px; margin: 0 auto;
+  display: grid; grid-template-columns: 1.6fr 1fr 1fr 1.2fr; gap: 36px;
+  padding-bottom: 34px;
+}
+.footer-brand p { margin: 12px 0 16px; line-height: 1.55; max-width: 300px; }
+.footer-brand .brand { color: var(--text); }
+.footer-discord { display: inline-flex; align-items: center; gap: 8px; color: var(--text); }
+.footer-discord svg { color: #8A9BFF; }
+.footer-col { display: flex; flex-direction: column; gap: 9px; }
+.footer-col h4 {
+  margin: 0 0 4px; font-size: 0.72rem; font-weight: 650; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--text); font-family: 'Inter', sans-serif;
+}
+.footer-col a { color: var(--muted); width: fit-content; transition: color .18s; }
+.footer-col a:hover { color: var(--gold-2); }
+.footer-note { color: var(--muted); opacity: 0.75; font-size: 0.8rem; }
+.footer-bottom {
+  max-width: 1200px; margin: 0 auto;
+  display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  border-top: 1px solid var(--border); padding: 18px 0 26px;
+  font-size: 0.76rem; opacity: 0.8;
+}
 
 @media (max-width: 640px) {
   nav { display: none; }
@@ -417,7 +448,8 @@ footer { border-top: 1px solid var(--border); padding: 28px; color: var(--muted)
   header { padding: 12px 18px; }
   .hero { padding: 52px 18px 32px; }
   .section { padding: 16px 18px 48px; }
-  footer { flex-direction: column; gap: 8px; }
+  .footer-grid { grid-template-columns: 1fr 1fr; gap: 26px; }
+  .footer-bottom { flex-direction: column; gap: 4px; }
   .field-row { flex-direction: column; gap: 0; }
   .toast-stack { left: 12px; right: 12px; max-width: none; }
 }
@@ -622,7 +654,7 @@ footer { border-top: 1px solid var(--border); padding: 28px; color: var(--muted)
 .chat-msg { max-width: 78%; padding: 10px 13px; border-radius: 14px; font-size: 0.86rem; line-height: 1.45; word-wrap: break-word; animation: msg-in .28s var(--ease-spring) both; }
 @keyframes msg-in { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: none; } }
 .chat-msg .m-meta { font-size: 0.68rem; color: var(--muted); margin-top: 4px; }
-.chat-msg.mine { align-self: flex-end; background: linear-gradient(160deg, rgba(139,92,246,0.24), rgba(134,105,13,0.35)); border: 1px solid rgba(139,92,246,0.2); border-bottom-right-radius: 4px; }
+.chat-msg.mine { align-self: flex-end; background: linear-gradient(160deg, rgba(139,92,246,0.24), rgba(109,40,217,0.32)); border: 1px solid rgba(139,92,246,0.2); border-bottom-right-radius: 4px; }
 .chat-msg.theirs { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
 .chat-input-row { display: flex; gap: 8px; }
 .chat-input-row input { flex: 1; background: rgba(9,12,18,0.65); border: 1px solid var(--border); color: var(--text); padding: 11px 13px; border-radius: 9px; font-size: 0.9rem; transition: border-color .2s, box-shadow .2s; }
@@ -1181,3 +1213,53 @@ table.data td.mono { font-family: 'JetBrains Mono', monospace; }
   .order-actions { width: 100%; }
   .dropdown { position: fixed; top: 64px; right: 12px; left: 12px; width: auto; }
 }
+
+/* ============================================================
+   v7 — Discord banner, ticket rooms, pro polish
+   ============================================================ */
+
+/* ---------- Discord banner ---------- */
+.discord-banner {
+  display: flex; align-items: center; gap: 18px;
+  max-width: 1200px; margin: 0 auto;
+  padding: 20px 26px; border-radius: var(--radius);
+  background: linear-gradient(120deg, rgba(88,101,242,0.22), rgba(88,101,242,0.08) 45%, rgba(139,92,246,0.1));
+  border: 1px solid rgba(88,101,242,0.35);
+  position: relative; overflow: hidden;
+  transition: border-color .2s, transform .25s var(--ease-spring), box-shadow .25s;
+}
+.discord-banner::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(600px 120px at 12% 50%, rgba(88,101,242,0.22), transparent 70%);
+  pointer-events: none;
+}
+.discord-banner:hover {
+  border-color: rgba(120,132,255,0.6);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 34px rgba(88,101,242,0.22);
+}
+.dc-mark { color: #8A9BFF; flex-shrink: 0; filter: drop-shadow(0 0 12px rgba(88,101,242,0.5)); }
+.dc-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.dc-copy b { font-family: 'Space Grotesk', sans-serif; font-size: 1.02rem; color: var(--text); }
+.dc-copy span { color: var(--muted); font-size: 0.85rem; line-height: 1.4; }
+.dc-cta {
+  margin-left: auto; flex-shrink: 0;
+  padding: 10px 18px; border-radius: 10px; font-weight: 650; font-size: 0.88rem;
+  background: #5865F2; color: #fff;
+  box-shadow: 0 4px 18px rgba(88,101,242,0.4), inset 0 1px 0 rgba(255,255,255,0.25);
+  transition: background .18s, box-shadow .18s;
+}
+.discord-banner:hover .dc-cta { background: #6B76F5; box-shadow: 0 6px 24px rgba(88,101,242,0.55), inset 0 1px 0 rgba(255,255,255,0.25); }
+@media (max-width: 640px) {
+  .discord-banner { flex-wrap: wrap; padding: 18px; }
+  .dc-cta { margin-left: 0; width: 100%; text-align: center; }
+}
+
+/* ---------- Ticket room (middleman group chat) ---------- */
+.chat-msg.from-mm {
+  align-self: flex-start; background: rgba(139,92,246,0.1);
+  border: 1px solid rgba(139,92,246,0.35); border-bottom-left-radius: 4px;
+}
+.chat-msg.from-mm .m-meta { color: var(--gold-2); }
+.chat-msg .m-who { font-size: 0.7rem; font-weight: 650; color: var(--gold-2); margin-bottom: 3px; letter-spacing: 0.02em; }
+.chat-msg.mine .m-who { display: none; }
