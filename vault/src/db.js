@@ -366,6 +366,31 @@ CREATE INDEX IF NOT EXISTS idx_mm_tickets_mm ON mm_tickets(middleman_id, status)
 ensureColumn('mm_tickets', 'tip_cents', 'tip_cents INTEGER NOT NULL DEFAULT 0');
 ensureColumn('mm_tickets', 'tip_settled', 'tip_settled INTEGER NOT NULL DEFAULT 0');
 
+// Ticket room: a shared chat for both traders + the middleman, so
+// coordination isn't split across separate 1:1 DM threads.
+db.exec(`
+CREATE TABLE IF NOT EXISTS mm_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ticket_id INTEGER NOT NULL REFERENCES mm_tickets(id),
+  sender_id INTEGER NOT NULL REFERENCES users(id),
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_mm_messages_ticket ON mm_messages(ticket_id, id);
+`);
+
+// Admin audit log — every admin action is recorded and reviewable.
+db.exec(`
+CREATE TABLE IF NOT EXISTS admin_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  admin_id INTEGER NOT NULL REFERENCES users(id),
+  action TEXT NOT NULL,
+  detail TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_admin_log_created ON admin_log(created_at);
+`);
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS topups (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -15,6 +15,15 @@ function requireAdmin(req, res, next) {
 }
 router.use(requireAuth, requireAdmin);
 
+// Every admin action lands in the audit log — reviewable in the Log tab.
+function logAdmin(req, action, detail = null) {
+  try {
+    db.prepare('INSERT INTO admin_log (admin_id, action, detail) VALUES (?, ?, ?)').run(req.user.id, action, detail);
+  } catch (err) {
+    console.error('[admin_log] failed:', err.message);
+  }
+}
+
 // ---------- Overview stats ----------
 
 router.get('/overview', (req, res) => {
@@ -29,7 +38,10 @@ router.get('/overview', (req, res) => {
         (SELECT COUNT(*) FROM reports WHERE status = 'open') AS open_reports,
         (SELECT COALESCE(SUM(amount_cents),0) FROM orders WHERE status IN ('paid','delivered','disputed') AND escrow_released = 0) AS escrow_held_cents,
         (SELECT COALESCE(SUM(fee_cents),0) FROM orders WHERE status = 'completed') AS fees_earned_cents,
-        (SELECT COUNT(*) FROM orders WHERE status = 'completed') AS completed_orders`
+        (SELECT COUNT(*) FROM orders WHERE status = 'completed') AS completed_orders,
+        (SELECT COUNT(*) FROM users WHERE julianday(created_at) >= julianday('now','-7 days')) AS new_users_7d,
+        (SELECT COUNT(*) FROM orders WHERE status IN ('paid','delivered','completed') AND julianday(created_at) >= julianday('now','-7 days')) AS trades_7d,
+        (SELECT COALESCE(SUM(amount_cents),0) FROM orders WHERE status IN ('paid','delivered','completed') AND julianday(created_at) >= julianday('now','-7 days')) AS volume_7d_cents`
     )
     .get();
   res.json(stats);
@@ -66,6 +78,7 @@ router.post('/disputes/:orderId/resolve', (req, res) => {
   else return res.status(400).json({ error: 'Action must be refund_buyer or release_seller.' });
 
   if (!ok) return res.status(400).json({ error: 'Could not resolve this dispute.' });
+  logAdmin(req, 'dispute_resolved', `order #${order.id} → ${action}${note ? ` (${note})` : ''}`);
   res.json({ ok: true });
 });
 
@@ -94,6 +107,7 @@ router.post('/withdrawals/:id/send-crypto', async (req, res) => {
 
   const result = await executePayout(w, { markedAuto: false });
   if (!result.ok) return res.status(502).json({ error: `NOWPayments payout failed: ${result.error}` });
+  logAdmin(req, 'payout_sent', `withdrawal #${w.id} via NOWPayments ($${(w.amount_cents / 100).toFixed(2)})`);
   res.json({ ok: true, status: result.status });
 });
 
@@ -122,6 +136,7 @@ router.post('/withdrawals/:id', (req, res) => {
       ? `Your $${(w.amount_cents / 100).toFixed(2)} withdrawal was sent.${note ? ' Note: ' + note : ''}`
       : `Your $${(w.amount_cents / 100).toFixed(2)} withdrawal was rejected and refunded to your balance.${note ? ' Note: ' + note : ''}`
   );
+  logAdmin(req, `withdrawal_${action}`, `withdrawal #${w.id} ($${(w.amount_cents / 100).toFixed(2)})${note ? ` — ${note}` : ''}`);
   res.json({ ok: true });
 });
 
@@ -155,6 +170,7 @@ router.post('/users/:id/verify', (req, res) => {
   const next = target.is_verified ? 0 : 1;
   db.prepare('UPDATE users SET is_verified = ? WHERE id = ?').run(next, target.id);
   if (next) notify(target.id, 'admin', "You're now a ✔ Verified trader — the badge shows next to your name across Vault.");
+  logAdmin(req, next ? 'user_verified' : 'user_unverified', target.username);
   res.json({ ok: true, verified: !!next });
 });
 
@@ -166,11 +182,14 @@ router.post('/users/:id/ban', (req, res) => {
   // Pull their active inventory off the market
   db.prepare("UPDATE listings SET status = 'removed' WHERE seller_id = ? AND status = 'active'").run(target.id);
   db.prepare("UPDATE auctions SET status = 'cancelled' WHERE seller_id = ? AND status = 'live' AND current_bid_cents IS NULL").run(target.id);
+  logAdmin(req, 'user_banned', target.username);
   res.json({ ok: true });
 });
 
 router.post('/users/:id/unban', (req, res) => {
+  const target = db.prepare('SELECT username FROM users WHERE id = ?').get(req.params.id);
   db.prepare('UPDATE users SET is_banned = 0 WHERE id = ?').run(req.params.id);
+  logAdmin(req, 'user_unbanned', target ? target.username : `#${req.params.id}`);
   res.json({ ok: true });
 });
 
@@ -205,6 +224,7 @@ router.post('/users/:id/credit', (req, res) => {
     `$${(Math.abs(amount) / 100).toFixed(2)} was ${verb} your balance by an admin.${note ? ' Note: ' + note : ''}`
   );
   console.log(`[admin] ${req.user.username} adjusted user ${target.id} credit by ${amount}c -> ${newBalance}c`);
+  logAdmin(req, 'credit_adjusted', `${target.username}: ${amount > 0 ? '+' : ''}$${(amount / 100).toFixed(2)}${note ? ` — ${note}` : ''}`);
   res.json({ ok: true, balance_cents: newBalance });
 });
 
@@ -225,6 +245,7 @@ router.post('/categories', (req, res) => {
   const count = db.prepare('SELECT COUNT(*) c FROM categories').get().c;
   if (count >= MAX_CATEGORIES) return res.status(400).json({ error: `Max ${MAX_CATEGORIES} categories — remove one first.` });
   db.prepare('INSERT INTO categories (slug, label) VALUES (?, ?)').run(slug, label);
+  logAdmin(req, 'category_added', label);
   res.status(201).json({ ok: true, slug, label });
 });
 
@@ -242,6 +263,7 @@ router.post('/categories/:slug/delete', (req, res) => {
     db.prepare('DELETE FROM categories WHERE slug = ?').run(slug);
   });
   tx();
+  logAdmin(req, 'category_removed', slug);
   res.json({ ok: true });
 });
 
@@ -282,6 +304,7 @@ router.post('/middlemen/:userId', (req, res) => {
   } else {
     return res.status(400).json({ error: 'Action must be approve, reject, or revoke.' });
   }
+  logAdmin(req, `middleman_${action}`, target.username);
   res.json({ ok: true });
 });
 
@@ -304,6 +327,7 @@ router.post('/reports/:id/resolve', (req, res) => {
   const report = db.prepare('SELECT * FROM reports WHERE id = ?').get(req.params.id);
   if (!report || report.status !== 'open') return res.status(404).json({ error: 'Report not found.' });
   db.prepare("UPDATE reports SET status = 'resolved' WHERE id = ?").run(report.id);
+  logAdmin(req, 'report_resolved', `report #${report.id}`);
   res.json({ ok: true });
 });
 
@@ -336,6 +360,7 @@ router.post('/listings/:id/remove', (req, res) => {
   if (!l) return res.status(404).json({ error: 'Listing not found.' });
   db.prepare("UPDATE listings SET status = 'removed' WHERE id = ?").run(l.id);
   notify(l.seller_id, 'admin', `Your listing "${l.title}" was removed by a moderator.`);
+  logAdmin(req, 'listing_removed', `"${l.title}" (#${l.id})`);
   res.json({ ok: true });
 });
 
@@ -348,7 +373,32 @@ router.post('/auctions/:id/remove', (req, res) => {
   if (a.current_bidder_id) {
     notify(a.current_bidder_id, 'admin', `The auction "${a.title}" you bid on was removed by a moderator.`);
   }
+  logAdmin(req, 'auction_removed', `"${a.title}" (#${a.id})`);
   res.json({ ok: true });
+});
+
+// ---------- Site-wide announcements ----------
+// One notification to every user. Use sparingly.
+router.post('/announce', (req, res) => {
+  const message = String(req.body?.message || '').trim().slice(0, 300);
+  if (!message) return res.status(400).json({ error: 'Write the announcement first.' });
+  const users = db.prepare('SELECT id FROM users WHERE is_banned = 0').all();
+  const insert = db.prepare("INSERT INTO notifications (user_id, type, body, link) VALUES (?, 'admin', ?, NULL)");
+  const tx = db.transaction(() => users.forEach((u) => insert.run(u.id, `📣 ${message}`)));
+  tx();
+  logAdmin(req, 'announcement', message);
+  res.json({ ok: true, recipients: users.length });
+});
+
+// ---------- Audit log ----------
+router.get('/log', (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT l.*, u.username AS admin_name FROM admin_log l
+       JOIN users u ON u.id = l.admin_id ORDER BY l.id DESC LIMIT 200`
+    )
+    .all();
+  res.json({ log: rows });
 });
 
 module.exports = router;
