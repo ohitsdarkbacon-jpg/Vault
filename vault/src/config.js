@@ -35,7 +35,7 @@ module.exports = {
   // Vault Pro subscription: 30 days per purchase. Pro buyers pay the reduced
   // fee (PRO_FEE_BPS) at checkout instead of PLATFORM_FEE_BPS.
   proPriceCents: parseInt(process.env.PRO_PRICE_CENTS || '499', 10),   // $4.99 / 30 days
-  proFeeBps: parseInt(process.env.PRO_FEE_BPS || '300', 10),           // 3.00% buyer fee for Pro
+  proFeeBps: parseInt(process.env.PRO_FEE_BPS || '100', 10),           // 1.00% buyer fee for Pro
   proDays: parseInt(process.env.PRO_DAYS || '30', 10),
 
   // Content moderation on user-authored text (listings, auctions, chat, bios).
