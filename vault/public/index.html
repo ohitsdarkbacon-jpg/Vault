@@ -57,6 +57,7 @@
     <div class="dropdown" id="user-dropdown" style="width:220px">
       <div class="menu-item" data-go="dashboard">Dashboard</div>
       <div class="menu-item" id="menu-profile">My profile</div>
+      <div class="menu-item" id="menu-pro">⭐ Vault Pro</div>
       <div class="menu-item" id="menu-admin" style="display:none" data-go="admin">Admin panel</div>
       <div class="menu-item danger" id="menu-logout">Sign out</div>
     </div>
@@ -654,6 +655,35 @@
     <div class="field"><label>Image URL (optional)</label><input id="trade-image" placeholder="https://… or /uploads/…"></div>
     <div class="error-text" id="trade-error"></div>
     <div class="modal-actions"><button class="btn btn-gold" id="trade-submit" style="flex:1">Post trade</button></div>
+  </div>
+</div>
+
+<!-- Vault Pro modal -->
+<div class="overlay" id="pro-overlay">
+  <div class="modal modal-wrap pro-modal">
+    <button class="modal-close" data-close="pro-overlay">✕</button>
+    <div class="pro-head">
+      <div class="pro-star">⭐</div>
+      <h3>Vault Pro</h3>
+      <div class="sub" id="pro-tagline">Half the buyer fee, featured listings, and more — <b id="pro-price">$4.99</b> / 30 days.</div>
+    </div>
+    <div class="pro-perks">
+      <div class="pro-perk"><span class="pp-ico">◈</span><div><b>Half the buyer fee</b><span id="pro-fee-line">3% instead of 6% on everything you buy — heavy buyers earn it back fast.</span></div></div>
+      <div class="pro-perk"><span class="pp-ico">✨</span><div><b>Featured listings</b><span>Your items get the Pro glow and a badge buyers notice.</span></div></div>
+      <div class="pro-perk"><span class="pp-ico">⭐</span><div><b>Pro badge everywhere</b><span>Next to your name on listings, your profile, the directory, and tournaments.</span></div></div>
+      <div class="pro-perk"><span class="pp-ico">📈</span><div><b>Bigger limits</b><span>25 open trade posts (up from 10) and 6 active tournaments (up from 3).</span></div></div>
+    </div>
+    <div class="pro-status" id="pro-status" hidden></div>
+    <div class="error-text" id="pro-error"></div>
+    <div class="pay-options" id="pro-buy-row">
+      <button class="btn btn-gold" id="pro-crypto">◈ Subscribe with crypto</button>
+      <button class="btn" id="pro-balance">Pay from balance</button>
+    </div>
+    <label class="pro-renew-row" id="pro-renew-row" hidden>
+      <button type="button" class="toggle" id="pro-renew-toggle" role="switch" aria-checked="false"><span class="knob"></span></button>
+      Auto-renew from my site balance each month
+    </label>
+    <small class="sub" style="display:block;margin-top:12px;margin-bottom:0">30 days per purchase — renew whenever, unused days stack. Crypto via NOWPayments; balance top-ups work too.</small>
   </div>
 </div>
 

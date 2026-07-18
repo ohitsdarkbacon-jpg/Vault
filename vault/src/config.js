@@ -32,6 +32,12 @@ module.exports = {
   autoPayoutMaxCents: parseInt(process.env.AUTO_PAYOUT_MAX_CENTS || '20000', 10),        // per withdrawal ($200)
   autoPayoutDailyCapCents: parseInt(process.env.AUTO_PAYOUT_DAILY_CAP_CENTS || '50000', 10), // per user / 24h ($500)
 
+  // Vault Pro subscription: 30 days per purchase. Pro buyers pay the reduced
+  // fee (PRO_FEE_BPS) at checkout instead of PLATFORM_FEE_BPS.
+  proPriceCents: parseInt(process.env.PRO_PRICE_CENTS || '499', 10),   // $4.99 / 30 days
+  proFeeBps: parseInt(process.env.PRO_FEE_BPS || '300', 10),           // 3.00% buyer fee for Pro
+  proDays: parseInt(process.env.PRO_DAYS || '30', 10),
+
   // Content moderation on user-authored text (listings, auctions, chat, bios).
   // On by default; set MODERATION=0 to disable. Extend the word lists with
   // MOD_BLOCKLIST / MOD_MASKLIST (comma-separated). See lib/moderation.js.

@@ -19,7 +19,8 @@ const MAX_DESCRIPTION_LEN = 2000;
 const MAX_DURATION_MINUTES = 30 * 24 * 60; // 30 days
 
 const auctionQuery = `
-  SELECT a.*, u.username AS seller_name, u.is_verified AS seller_verified, b.username AS current_bidder_name
+  SELECT a.*, u.username AS seller_name, u.is_verified AS seller_verified, b.username AS current_bidder_name,
+    (u.pro_until IS NOT NULL AND julianday(u.pro_until) > julianday('now')) AS seller_pro
   FROM auctions a
   JOIN users u ON u.id = a.seller_id
   LEFT JOIN users b ON b.id = a.current_bidder_id
@@ -71,7 +72,8 @@ router.get('/', (req, res) => {
       const orderClause = sortKey === 'relevance' ? 'rank ASC' : orderBy;
       rows = db
         .prepare(
-          `SELECT a.*, u.username AS seller_name, u.is_verified AS seller_verified, b.username AS current_bidder_name, bm25(auctions_fts) AS rank
+          `SELECT a.*, u.username AS seller_name, u.is_verified AS seller_verified, b.username AS current_bidder_name,
+            (u.pro_until IS NOT NULL AND julianday(u.pro_until) > julianday('now')) AS seller_pro, bm25(auctions_fts) AS rank
            FROM auctions_fts
            JOIN auctions a ON a.id = auctions_fts.rowid
            JOIN users u ON u.id = a.seller_id

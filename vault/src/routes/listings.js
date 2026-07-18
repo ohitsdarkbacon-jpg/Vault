@@ -20,7 +20,8 @@ const MAX_TITLE_LEN = 140;
 const MAX_DESCRIPTION_LEN = 2000;
 
 const listingQuery = `
-  SELECT l.*, u.username AS seller_name, u.is_verified AS seller_verified
+  SELECT l.*, u.username AS seller_name, u.is_verified AS seller_verified,
+    (u.pro_until IS NOT NULL AND julianday(u.pro_until) > julianday('now')) AS seller_pro
   FROM listings l JOIN users u ON u.id = l.seller_id
 `;
 
@@ -69,7 +70,8 @@ router.get('/', (req, res) => {
       const orderClause = sortKey === 'relevance' ? 'rank ASC' : orderBy;
       rows = db
         .prepare(
-          `SELECT l.*, u.username AS seller_name, u.is_verified AS seller_verified, bm25(listings_fts) AS rank
+          `SELECT l.*, u.username AS seller_name, u.is_verified AS seller_verified,
+            (u.pro_until IS NOT NULL AND julianday(u.pro_until) > julianday('now')) AS seller_pro, bm25(listings_fts) AS rank
            FROM listings_fts
            JOIN listings l ON l.id = listings_fts.rowid
            JOIN users u ON u.id = l.seller_id
@@ -185,7 +187,7 @@ router.post('/:id/buy-with-credit', requireAuth, (req, res) => {
   // An accepted offer overrides the sticker price for this buyer.
   const offer = acceptedOfferFor(listing.id, req.user.id);
   const baseCents = offer ? offer.amount_cents : listing.price_cents;
-  const { amountCents, feeCents, sellerProceedsCents } = computeOrderAmounts(baseCents);
+  const { amountCents, feeCents, sellerProceedsCents } = computeOrderAmounts(baseCents, req.user);
   if (req.user.site_credit_cents < amountCents) {
     return res.status(400).json({ error: `Insufficient site credit — total is ${(amountCents / 100).toFixed(2)} USD including the buyer fee.` });
   }

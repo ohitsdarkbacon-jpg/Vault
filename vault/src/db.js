@@ -391,6 +391,24 @@ CREATE TABLE IF NOT EXISTS admin_log (
 CREATE INDEX IF NOT EXISTS idx_admin_log_created ON admin_log(created_at);
 `);
 
+// Vault Pro subscriptions — pro_until is the paid-through timestamp
+// (extended 30 days per purchase); purchases mirror the topups flow.
+ensureColumn('users', 'pro_until', 'pro_until TEXT');
+ensureColumn('users', 'pro_auto_renew', 'pro_auto_renew INTEGER NOT NULL DEFAULT 0');
+db.exec(`
+CREATE TABLE IF NOT EXISTS pro_purchases (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  amount_cents INTEGER NOT NULL,
+  method TEXT NOT NULL CHECK (method IN ('crypto','balance')),
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | paid | failed
+  nowpayments_payment_id TEXT,
+  pay_currency TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`);
+
 // Announcement banners + tournaments (community events with optional
 // middleman-held prizes and a post-deadline group chat).
 db.exec(`

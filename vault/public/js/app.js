@@ -1,6 +1,6 @@
 let ME = null;
 let FEE = { fee_bps: 600, fee_mode: 'added' };
-function feeOnTop(baseCents) { return FEE.fee_mode === 'added' ? Math.round(baseCents * FEE.fee_bps / 10000) : 0; }
+function feeOnTop(baseCents) { return FEE.fee_mode === 'added' ? Math.round(baseCents * myFeeBps() / 10000) : 0; }
 function buyerTotal(baseCents) { return baseCents + feeOnTop(baseCents); }
 let AUCTIONS = [];
 let LISTINGS = [];
@@ -60,6 +60,14 @@ function timeLeft(iso) {
 // Verified-trader badge, shown next to usernames site-wide.
 function vbadge(isVerified) {
   return isVerified ? '<span class="verified-badge" title="Verified trader">✓</span>' : '';
+}
+// Vault Pro subscriber badge.
+function probadge(isPro) {
+  return isPro ? '<span class="pro-badge" title="Vault Pro subscriber">PRO</span>' : '';
+}
+// The buyer fee rate that applies to the signed-in user (Pro pays less).
+function myFeeBps() {
+  return ME && ME.pro && ME.pro.active ? (FEE.pro_fee_bps ?? FEE.fee_bps) : FEE.fee_bps;
 }
 
 // Admin-managed — loaded from /api/categories at boot and after admin edits.
@@ -346,6 +354,7 @@ function renderAuth() {
 $('#do-login').onclick = () => { window.location.href = '/auth/discord/login'; };
 $('#menu-logout').onclick = async () => { await api('/auth/logout', { method: 'POST' }); location.hash = ''; location.reload(); };
 $('#menu-profile').onclick = () => { closeDropdowns(); if (ME) location.hash = 'u/' + encodeURIComponent(ME.username); };
+$('#menu-pro').onclick = () => { closeDropdowns(); openProModal(); };
 
 function toggleDropdown(id) {
   const el = $('#' + id);
@@ -571,12 +580,12 @@ function auctionCardHtml(a) {
   const t = timeLeft(a.ends_at);
   const bid = a.current_bid_cents || a.starting_bid_cents;
   return `
-    <div class="card" data-auction-id="${a.id}">
+    <div class="card ${a.seller_pro ? 'pro-featured' : ''}" data-auction-id="${a.id}">
       <div class="thumb" style="${a.image_url ? `background-image:url('${escapeHtml(a.image_url)}')` : ''}">${a.image_url ? '' : 'No image'}${catTag(a.category)}</div>
       <div class="card-body">
         <div class="badge"><span class="dot"></span> Live${a.buyout_cents ? ` · ⚡ ${money(a.buyout_cents)}` : ''}</div>
         <div class="card-title">${escapeHtml(a.title)}</div>
-        <div class="card-meta">Seller: <a class="seller-link" href="#u/${encodeURIComponent(a.seller_name)}" onclick="event.stopPropagation()">${escapeHtml(a.seller_name)}</a> ${vbadge(a.seller_verified)}${a.current_bidder_name ? ' · High bidder: ' + escapeHtml(a.current_bidder_name) : ''}</div>
+        <div class="card-meta">Seller: <a class="seller-link" href="#u/${encodeURIComponent(a.seller_name)}" onclick="event.stopPropagation()">${escapeHtml(a.seller_name)}</a> ${vbadge(a.seller_verified)}${probadge(a.seller_pro)}${a.current_bidder_name ? ' · High bidder: ' + escapeHtml(a.current_bidder_name) : ''}</div>
         <div class="card-foot">
           <span class="price">${money(bid)}</span>
           <span class="timer ${t.urgent ? 'urgent' : ''}" data-ends="${escapeHtml(a.ends_at)}">${t.text}</span>
@@ -751,11 +760,11 @@ function renderListingsMeta() {
 
 function listingCardHtml(l) {
   return `
-    <div class="card" data-listing-id="${l.id}">
+    <div class="card ${l.seller_pro ? 'pro-featured' : ''}" data-listing-id="${l.id}">
       <div class="thumb" style="${l.image_url ? `background-image:url('${escapeHtml(l.image_url)}')` : ''}">${l.image_url ? '' : 'No image'}${catTag(l.category)}</div>
       <div class="card-body">
         <div class="card-title">${escapeHtml(l.title)}</div>
-        <div class="card-meta">Seller: <a class="seller-link" href="#u/${encodeURIComponent(l.seller_name)}" onclick="event.stopPropagation()">${escapeHtml(l.seller_name)}</a> ${vbadge(l.seller_verified)}</div>
+        <div class="card-meta">Seller: <a class="seller-link" href="#u/${encodeURIComponent(l.seller_name)}" onclick="event.stopPropagation()">${escapeHtml(l.seller_name)}</a> ${vbadge(l.seller_verified)}${probadge(l.seller_pro)}</div>
         <div class="card-foot"><span class="price">${l.price_cents ? money(l.price_cents) : 'Auction only'}</span></div>
         <button class="btn btn-gold btn-full" data-buy="${l.id}" ${l.price_cents ? '' : 'disabled'}>Buy now</button>
       </div>
@@ -793,7 +802,7 @@ async function openBuyModal(id, itemOverride) {
   // An accepted offer replaces the sticker price for this buyer.
   const base = offer && offer.status === 'accepted' ? offer.amount_cents : l.price_cents;
   const total = buyerTotal(base);
-  $('#buy-sub').innerHTML = `<b>${money(total)}</b>${total !== base ? ` <span style="color:var(--muted)">(${money(base)} + ${(FEE.fee_bps / 100).toFixed(0)}% buyer fee)</span>` : ''}${l.watch_count ? ` · 👁 ${l.watch_count} watching` : ''} · Seller: <a class="seller-link" href="#u/${encodeURIComponent(l.seller_name)}">${escapeHtml(l.seller_name)}</a> ${vbadge(l.seller_verified)}`;
+  $('#buy-sub').innerHTML = `<b>${money(total)}</b>${total !== base ? ` <span style="color:var(--muted)">(${money(base)} + ${(myFeeBps() / 100).toFixed(0)}% buyer fee${ME && ME.pro && ME.pro.active ? ' ⭐' : ''})</span>` : ''}${l.watch_count ? ` · 👁 ${l.watch_count} watching` : ''} · Seller: <a class="seller-link" href="#u/${encodeURIComponent(l.seller_name)}">${escapeHtml(l.seller_name)}</a> ${vbadge(l.seller_verified)}${probadge(l.seller_pro)}`;
   $('#buy-desc').textContent = l.description || '';
   $('#buy-error').textContent = '';
   syncFavStar($('#buy-fav'), 'listing', l.id);
@@ -883,6 +892,8 @@ $('#currency-choices').addEventListener('click', async (e) => {
   let r;
   if (kind === 'topup') {
     r = await api('/api/topup/crypto', { method: 'POST', body: JSON.stringify({ amount_cents: amountCents, pay_currency: currency }) });
+  } else if (kind === 'pro') {
+    r = await api('/api/pro/subscribe', { method: 'POST', body: JSON.stringify({ method: 'crypto', pay_currency: currency }) });
   } else {
     const url = kind === 'auction' ? `/api/auctions/${id}/checkout/crypto` : `/api/listings/${id}/checkout/crypto`;
     r = await api(url, { method: 'POST', body: JSON.stringify({ pay_currency: currency }) });
@@ -891,6 +902,7 @@ $('#currency-choices').addEventListener('click', async (e) => {
   closeModal('currency-overlay');
   closeModal('buy-overlay');
   closeModal('topup-overlay');
+  closeModal('pro-overlay');
   showCryptoPayment(r);
 });
 
@@ -907,6 +919,7 @@ function setCryptoStep(n) {
 // (payment.topup_id) — same modal, different poll endpoint + success copy.
 function showCryptoPayment(payment) {
   const isTopup = !!payment.topup_id;
+  const isPro = !!payment.pro_purchase_id;
   $('#crypto-amount').textContent = `${payment.pay_amount} ${String(payment.pay_currency).toUpperCase()}`;
   $('#crypto-address').textContent = payment.pay_address;
   $('#crypto-status').textContent = 'Waiting for your transaction…';
@@ -941,6 +954,13 @@ function showCryptoPayment(payment) {
 
   clearInterval(cryptoPollTimer);
   cryptoPollTimer = setInterval(async () => {
+    if (isPro) {
+      const r = await api(`/api/pro/purchases/${payment.pro_purchase_id}`);
+      if (r.status === 'paid') { succeed('⭐ Welcome to Vault Pro — your reduced fee is live!'); loadListings(); loadAuctions(); return; }
+      if (r.status === 'failed') return fail('✕ Payment failed or expired. No funds were taken — you can retry from the ⭐ Vault Pro menu.');
+      renderLive(r.payment);
+      return;
+    }
     if (isTopup) {
       const r = await api(`/api/topup/${payment.topup_id}`);
       if (r.status === 'paid') return succeed(`✓ ${money(r.amount_cents)} added to your balance. Happy trading!`);
@@ -1983,7 +2003,7 @@ async function loadTraders() {
       <div class="trader-top">
         ${traderAvatar(t.username, t.avatar_url)}
         <div>
-          <div class="trader-name">${escapeHtml(t.username)} ${vbadge(t.is_verified)} <span class="online-dot ${t.online ? '' : 'off'}" title="${t.online ? 'Online' : 'Offline'}"></span></div>
+          <div class="trader-name">${escapeHtml(t.username)} ${vbadge(t.is_verified)}${probadge(t.pro)} <span class="online-dot ${t.online ? '' : 'off'}" title="${t.online ? 'Online' : 'Offline'}"></span></div>
           <div class="trader-sub">${t.avg_rating ? `★ ${t.avg_rating} (${t.review_count})` : 'No reviews yet'} · ${t.completed_sales} sale${t.completed_sales === 1 ? '' : 's'}${t.items_live ? ` · ${t.items_live} on market` : ''}</div>
         </div>
       </div>
@@ -2233,7 +2253,7 @@ async function loadTournaments() {
         <div class="tc-title">${escapeHtml(t.title)} ${catTag(t.category)}</div>
         ${statusBadge(t)}
       </div>
-      <div class="tc-host">Hosted by <a href="#u/${encodeURIComponent(t.host_name)}">${escapeHtml(t.host_name)}</a>${vbadge(t.host_verified)}${t.middleman_name ? ` · Prize with <b>${escapeHtml(t.middleman_name)}</b> ⚖️` : ''}</div>
+      <div class="tc-host">Hosted by <a href="#u/${encodeURIComponent(t.host_name)}">${escapeHtml(t.host_name)}</a>${vbadge(t.host_verified)}${probadge(t.host_pro)}${t.middleman_name ? ` · Prize with <b>${escapeHtml(t.middleman_name)}</b> ⚖️` : ''}</div>
       ${t.description ? `<div class="tc-desc">${escapeHtml(t.description)}</div>` : ''}
       <div class="tc-prize">${t.prize ? `<span class="tc-prize-text">🏆 ${escapeHtml(t.prize)}</span>` : ''}${prizeBadge(t)}</div>
       <div class="tc-meta">
@@ -2406,6 +2426,64 @@ $('#announce-close').addEventListener('click', () => {
 });
 
 // ============================================================
+// Vault Pro
+// ============================================================
+async function openProModal() {
+  if (!ME) return openModal('auth-overlay');
+  $('#pro-error').textContent = '';
+  const r = await api('/api/pro');
+  if (r.error) return toast(r.error, 'error');
+  $('#pro-price').textContent = money(r.price_cents);
+  $('#pro-fee-line').textContent = `${(r.pro_fee_bps / 100).toFixed(0)}% instead of ${(r.fee_bps / 100).toFixed(0)}% on everything you buy — heavy buyers earn it back fast.`;
+  const status = $('#pro-status');
+  if (r.active) {
+    status.hidden = false;
+    status.innerHTML = `⭐ <b>You're Pro!</b> Active until <b>${new Date(r.until).toLocaleDateString()}</b> — subscribing again adds ${r.days} more days.`;
+    $('#pro-renew-row').hidden = false;
+    const tgl = $('#pro-renew-toggle');
+    tgl.classList.toggle('on', r.auto_renew);
+    tgl.setAttribute('aria-checked', String(r.auto_renew));
+  } else {
+    status.hidden = true;
+    $('#pro-renew-row').hidden = true;
+  }
+  openModal('pro-overlay');
+}
+
+$('#pro-crypto').onclick = () => {
+  pendingCryptoContext = { kind: 'pro' };
+  openModal('currency-overlay');
+};
+$('#pro-balance').onclick = async () => {
+  const btn = $('#pro-balance');
+  btn.classList.add('loading');
+  const r = await api('/api/pro/subscribe', { method: 'POST', body: JSON.stringify({ method: 'balance' }) });
+  btn.classList.remove('loading');
+  if (r.error) { $('#pro-error').textContent = r.error; return; }
+  closeModal('pro-overlay');
+  toast('⭐ Welcome to Vault Pro — your reduced fee is live!', 'success');
+  await loadMe();
+  loadListings(); loadAuctions();
+};
+$('#pro-renew-toggle').onclick = async () => {
+  const tgl = $('#pro-renew-toggle');
+  const enable = !tgl.classList.contains('on');
+  const r = await api('/api/pro/auto-renew', { method: 'POST', body: JSON.stringify({ enabled: enable }) });
+  if (r.error) return toast(r.error, 'error');
+  tgl.classList.toggle('on', r.auto_renew);
+  tgl.setAttribute('aria-checked', String(r.auto_renew));
+  toast(r.auto_renew ? 'Auto-renew is on — renews from your site balance.' : 'Auto-renew turned off.', 'info');
+};
+
+// One-time promo popup after signing in (per browser, until they've seen it).
+function maybeShowProPromo() {
+  if (!ME || (ME.pro && ME.pro.active)) return;
+  if (localStorage.getItem('vault-pro-promo-v1')) return;
+  localStorage.setItem('vault-pro-promo-v1', '1');
+  setTimeout(openProModal, 800); // let the page settle first
+}
+
+// ============================================================
 // Public profile
 // ============================================================
 async function loadProfile(username) {
@@ -2431,7 +2509,7 @@ async function loadProfile(username) {
     <div class="profile-head">
       ${u.avatar_url ? `<img src="${escapeHtml(u.avatar_url)}" alt="">` : `<div class="profile-avatar-fallback">${escapeHtml(u.username[0].toUpperCase())}</div>`}
       <div>
-        <h2>${escapeHtml(u.username)} ${vbadge(u.is_verified)} <span class="online-dot ${u.online ? '' : 'off'}" title="${u.online ? 'Online' : 'Offline'}"></span> ${u.is_banned ? '<span class="status-badge status-disputed">Banned</span>' : ''} ${isMe && ME.profile_hidden ? '<span class="status-badge">🔒 Hidden</span>' : ''}</h2>
+        <h2>${escapeHtml(u.username)} ${vbadge(u.is_verified)}${probadge(u.pro)} <span class="online-dot ${u.online ? '' : 'off'}" title="${u.online ? 'Online' : 'Offline'}"></span> ${u.is_banned ? '<span class="status-badge status-disputed">Banned</span>' : ''} ${isMe && ME.profile_hidden ? '<span class="status-badge">🔒 Hidden</span>' : ''}</h2>
         <div class="profile-meta">
           <span>${stars}</span>
           <span>·</span><span>${u.completed_sales} completed sale${u.completed_sales === 1 ? '' : 's'}</span>
@@ -2896,6 +2974,7 @@ $('#admin-announce').addEventListener('click', async () => {
   loadCategories();
   loadAnnouncementBanner();
   setInterval(loadAnnouncementBanner, 5 * 60000);
+  maybeShowProPromo();
   loadTrending();
   loadRecentSales();
   renderCatChips('#auctions-cats', auctionState, loadAuctions);

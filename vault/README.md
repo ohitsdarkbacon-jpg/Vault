@@ -43,6 +43,15 @@ withdrawals, notifications, public profiles, and an admin panel.
 - **Ticket rooms**: every middleman ticket gets a private three-way group chat — requester, partner, and middleman all in one room (admins can read it too). Middleman messages get a distinct ⚖️ accent so instructions stand out. The room goes read-only when the ticket completes or is cancelled, keeping the history as a record.
 - **Optional middleman tips**: promise a gratitude tip when requesting a ticket — purely informational, nothing is held or charged by the platform. The middleman sees it with the assignment, and the requester gets a friendly reminder to send it when the ticket completes.
 
+**⭐ Vault Pro (subscription)**
+- $4.99 / 30 days (`PRO_PRICE_CENTS`), paid with **crypto via NOWPayments** or straight from site balance; renewing early stacks unused days
+- **Half the buyer fee**: Pro buyers pay 3% (`PRO_FEE_BPS`) instead of 6% at every checkout — card, crypto, and credit
+- **Featured listings**: Pro sellers' cards get an amber glow + PRO badge next to their name site-wide (listings, auctions, profile, directory, tournaments)
+- **Bigger limits**: 25 open trade posts (vs 10) and 6 active tournaments (vs 3)
+- **Optional auto-renew** from site balance (hourly job); if the balance can't cover it, Pro lapses gracefully with a notification and auto-renew switches off
+- One-time promo popup after signing in (dismiss once, never nags again); subscribe any time from the ⭐ Vault Pro menu entry
+- Trust is never paywalled: escrow, disputes, middlemen, and the ✓ verified badge stay free/admin-granted for everyone
+
 **Tournaments (community events)**
 - **Anyone can host**: title, game, description, player limit (4–128), and a signup deadline (1h–3 days)
 - **Prize transparency**: every tournament states its prize situation up front — 🛡 **held by middleman** (an online middleman is auto-assigned at start to hold the prize → guaranteed payout), ⚠ **held by the host** (no guaranteed payout), or 🎉 **no prize, just for fun**
