@@ -45,7 +45,7 @@ withdrawals, notifications, public profiles, and an admin panel.
 
 **⭐ Vault Pro (subscription)**
 - $4.99 / 30 days (`PRO_PRICE_CENTS`), paid with **crypto via NOWPayments** or straight from site balance; renewing early stacks unused days
-- **Half the buyer fee**: Pro buyers pay 3% (`PRO_FEE_BPS`) instead of 6% at every checkout — card, crypto, and credit
+- **Slashed buyer fee**: Pro buyers pay 1% (`PRO_FEE_BPS`) instead of 6% at every checkout — card, crypto, and credit
 - **Featured listings**: Pro sellers' cards get an amber glow + PRO badge next to their name site-wide (listings, auctions, profile, directory, tournaments)
 - **Bigger limits**: 25 open trade posts (vs 10) and 6 active tournaments (vs 3)
 - **Optional auto-renew** from site balance (hourly job); if the balance can't cover it, Pro lapses gracefully with a notification and auto-renew switches off
