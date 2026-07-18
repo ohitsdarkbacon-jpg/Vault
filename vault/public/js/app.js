@@ -448,11 +448,31 @@ async function loadSiteStats() {
   const r = await api('/api/stats');
   if (r.error) return;
   $('#hero-stats').innerHTML = `
-    <div class="stat"><b>${r.live_auctions}</b><span>Live auctions</span></div>
-    <div class="stat"><b>${r.active_listings}</b><span>Listings</span></div>
-    <div class="stat"><b>${r.completed_trades}</b><span>Trades settled</span></div>
-    <div class="stat"><b>${r.traders}</b><span>Traders</span></div>
+    <div class="stat"><b data-count="${r.live_auctions}">0</b><span>Live auctions</span></div>
+    <div class="stat"><b data-count="${r.active_listings}">0</b><span>Listings</span></div>
+    <div class="stat"><b data-count="${r.completed_trades}">0</b><span>Trades settled</span></div>
+    <div class="stat"><b data-count="${r.traders}">0</b><span>Traders</span></div>
   `;
+  countUp('#hero-stats [data-count]');
+}
+
+// Roll numbers up from 0 — the hero stats tick alive instead of popping in.
+function countUp(sel) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    $$(sel).forEach(el => { el.textContent = el.dataset.count; });
+    return;
+  }
+  $$(sel).forEach(el => {
+    const target = parseInt(el.dataset.count, 10) || 0;
+    if (!target) { el.textContent = '0'; return; }
+    const t0 = performance.now(), dur = 900;
+    const tick = (t) => {
+      const p = Math.min((t - t0) / dur, 1);
+      el.textContent = String(Math.round(target * (1 - Math.pow(1 - p, 3)))); // ease-out cubic
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
 }
 async function loadTrending() {
   const r = await api('/api/trending');
@@ -2870,13 +2890,14 @@ async function renderAdminTab() {
       $('#admin-users-table').innerHTML = `<div class="table-wrap"><table class="data">
         <tr><th>User</th><th>Balance</th><th>Joined</th><th>Status</th><th></th></tr>
         ${us.map(u => `<tr>
-          <td><a href="#u/${encodeURIComponent(u.username)}" style="color:var(--gold)">${escapeHtml(u.username)}</a> ${vbadge(u.is_verified)}${u.is_admin ? ' 🛡' : ''}</td>
+          <td><a href="#u/${encodeURIComponent(u.username)}" style="color:var(--gold)">${escapeHtml(u.username)}</a> ${vbadge(u.is_verified)}${probadge(u.is_pro)}${u.is_admin ? ' 🛡' : ''}</td>
           <td class="mono">${money(u.site_credit_cents)}</td>
           <td>${timeAgo(u.created_at)}</td>
           <td>${u.is_banned ? '<span class="status-badge status-disputed">Banned</span>' : '<span class="status-badge status-active">Active</span>'}</td>
           <td style="white-space:nowrap">
             <button class="btn btn-small btn-gold" data-credit="${u.id}" data-name="${escapeHtml(u.username)}">＋ Credit</button>
             <button class="btn btn-small" data-verify="${u.id}">${u.is_verified ? 'Unverify' : '✓ Verify'}</button>
+            ${u.is_pro ? `<button class="btn btn-small" data-prorevoke="${u.id}" data-name="${escapeHtml(u.username)}" style="color:var(--danger)">Revoke Pro</button>` : ''}
             ${u.is_admin ? '' : (u.is_banned
               ? `<button class="btn btn-small" data-unban="${u.id}">Unban</button>`
               : `<button class="btn btn-small" data-ban="${u.id}" style="color:var(--danger)">Ban</button>`)}
@@ -2905,6 +2926,13 @@ async function renderAdminTab() {
         toast(r2.verified ? 'Verified badge granted.' : 'Verified badge removed.', 'success');
         renderUsers();
       });
+      $('#admin-users-table').querySelectorAll('[data-prorevoke]').forEach(b => b.onclick = async () => {
+        if (!await vaultConfirm(`${b.dataset.name} loses their Pro perks immediately — no refund is issued automatically.`, { title: 'Revoke Vault Pro?', okText: 'Revoke Pro', danger: true, icon: '⭐' })) return;
+        const r2 = await api(`/api/admin/users/${b.dataset.prorevoke}/pro-revoke`, { method: 'POST' });
+        if (r2.error) return toast(r2.error, 'error');
+        toast('Pro subscription revoked.', 'success');
+        renderUsers();
+      });
       $('#admin-users-table').querySelectorAll('[data-ban]').forEach(b => b.onclick = async () => {
         if (!await vaultConfirm('Their active listings are pulled off the market and they lose access immediately.', { title: 'Ban this user?', okText: 'Ban user', danger: true, icon: '🔨' })) return;
         const r2 = await api(`/api/admin/users/${b.dataset.ban}/ban`, { method: 'POST' });
@@ -2923,9 +2951,24 @@ async function renderAdminTab() {
   }
 
   if (adminTab === 'log') {
-    const r = await api('/api/admin/log');
+    const [r, ra] = await Promise.all([api('/api/admin/log'), api('/api/admin/announcements')]);
+    const anns = ra.announcements || [];
+    const annBlock = `
+      <h3 class="section-sub" style="margin-top:0">Announcements</h3>
+      ${anns.length ? `<div class="order-list" style="margin-bottom:22px">${anns.map(a => `
+        <div class="order-card">
+          <div class="order-main">
+            <div class="order-title">📣 ${escapeHtml(a.message)}</div>
+            <div class="order-sub">${escapeHtml(a.admin_name)} · ${timeAgo(a.created_at)}</div>
+          </div>
+          <div class="order-actions"><button class="btn btn-small" data-del-ann="${a.id}" style="color:var(--danger)">Delete</button></div>
+        </div>`).join('')}</div>`
+        : '<div class="inline-note" style="margin-bottom:22px">No announcements yet — the 📣 button up top sends one to every member.</div>'}
+      <h3 class="section-sub">Audit log</h3>`;
     const rows = r.log || [];
-    if (!rows.length) { c.innerHTML = '<div class="empty-block">No admin actions recorded yet.</div>'; return; }
+    if (!rows.length) {
+      c.innerHTML = annBlock + '<div class="empty-block">No admin actions recorded yet.</div>';
+    }
     const label = (a) => ({
       dispute_resolved: 'Dispute resolved', payout_sent: 'Payout sent', withdrawal_paid: 'Withdrawal marked paid',
       withdrawal_rejected: 'Withdrawal rejected', user_banned: 'User banned', user_unbanned: 'User unbanned',
@@ -2933,18 +2976,29 @@ async function renderAdminTab() {
       category_added: 'Category added', category_removed: 'Category removed', middleman_approve: 'Middleman approved',
       middleman_reject: 'Middleman rejected', middleman_revoke: 'Middleman revoked', report_resolved: 'Report resolved',
       listing_removed: 'Listing removed', auction_removed: 'Auction removed', announcement: 'Announcement sent',
+      announcement_deleted: 'Announcement deleted', pro_revoked: 'Pro revoked',
     })[a] || a;
-    c.innerHTML = `
-      <div class="inline-note" style="margin-top:0">Every admin action is recorded here — the most recent 200 entries.</div>
-      <div class="table-wrap"><table class="data">
-        <tr><th>When</th><th>Admin</th><th>Action</th><th>Detail</th></tr>
-        ${rows.map(l => `<tr>
-          <td style="white-space:nowrap">${timeAgo(l.created_at)}</td>
-          <td><a href="#u/${encodeURIComponent(l.admin_name)}" style="color:var(--gold)">${escapeHtml(l.admin_name)}</a></td>
-          <td style="white-space:nowrap">${escapeHtml(label(l.action))}</td>
-          <td style="max-width:420px;overflow-wrap:anywhere;color:var(--text-dim)">${escapeHtml(l.detail || '')}</td>
-        </tr>`).join('')}
-      </table></div>`;
+    if (rows.length) {
+      c.innerHTML = annBlock + `
+        <div class="inline-note" style="margin-top:0">Every admin action is recorded here — the most recent 200 entries.</div>
+        <div class="table-wrap"><table class="data">
+          <tr><th>When</th><th>Admin</th><th>Action</th><th>Detail</th></tr>
+          ${rows.map(l => `<tr>
+            <td style="white-space:nowrap">${timeAgo(l.created_at)}</td>
+            <td><a href="#u/${encodeURIComponent(l.admin_name)}" style="color:var(--gold)">${escapeHtml(l.admin_name)}</a></td>
+            <td style="white-space:nowrap">${escapeHtml(label(l.action))}</td>
+            <td style="max-width:420px;overflow-wrap:anywhere;color:var(--text-dim)">${escapeHtml(l.detail || '')}</td>
+          </tr>`).join('')}
+        </table></div>`;
+    }
+    c.querySelectorAll('[data-del-ann]').forEach(b => b.onclick = async () => {
+      if (!await vaultConfirm('The banner disappears for everyone and unread 📣 notifications are withdrawn.', { title: 'Delete this announcement?', okText: 'Delete announcement', danger: true, icon: '📣' })) return;
+      const r2 = await api(`/api/admin/announcements/${b.dataset.delAnn}`, { method: 'DELETE' });
+      if (r2.error) return toast(r2.error, 'error');
+      toast('Announcement deleted.', 'success');
+      loadAnnouncementBanner();
+      renderAdminTab();
+    });
     return;
   }
 }
@@ -2956,12 +3010,41 @@ $('#admin-announce').addEventListener('click', async () => {
   if (msg === null) return;
   const text = msg.trim();
   if (!text) return toast('Announcement can\'t be empty.', 'error');
-  if (!await vaultConfirm(`“${text}” — this notifies every user and can't be recalled.`, { title: 'Send to everyone?', okText: '📣 Send announcement', icon: '📣' })) return;
+  if (!await vaultConfirm(`“${text}” — this notifies every user (you can delete it later from the Log tab).`, { title: 'Send to everyone?', okText: '📣 Send announcement', icon: '📣' })) return;
   const r = await api('/api/admin/announce', { method: 'POST', body: JSON.stringify({ message: text }) });
   if (r.error) return toast(r.error, 'error');
   toast(`Announcement sent to ${r.recipients} users.`, 'success');
   if (adminTab === 'log') renderAdminTab();
 });
+
+// ============================================================
+// Ambience: header depth, card spotlight, scroll reveals
+// ============================================================
+
+// Header casts a shadow once the page scrolls under it.
+window.addEventListener('scroll', () => {
+  document.querySelector('header').classList.toggle('scrolled', window.scrollY > 8);
+}, { passive: true });
+
+// Cursor spotlight: cards glow where the mouse is (drives the --mx/--my
+// custom props the ::before radial gradient reads).
+document.addEventListener('mousemove', (e) => {
+  const card = e.target.closest?.('.card, .tourney-card');
+  if (!card) return;
+  const r = card.getBoundingClientRect();
+  card.style.setProperty('--mx', `${e.clientX - r.left}px`);
+  card.style.setProperty('--my', `${e.clientY - r.top}px`);
+}, { passive: true });
+
+// Scroll reveals for the static home sections.
+(function initReveals() {
+  const targets = $$('.section-head, .discord-banner, #how-it-works .card, .footer-grid');
+  if (!('IntersectionObserver' in window)) return;
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((en) => { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
+  }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+  targets.forEach((el) => { el.classList.add('reveal'); io.observe(el); });
+})();
 
 // ============================================================
 // Init

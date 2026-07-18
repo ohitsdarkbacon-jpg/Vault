@@ -148,14 +148,16 @@ router.get('/users', (req, res) => {
   if (q) {
     rows = db
       .prepare(
-        `SELECT id, provider_id, username, site_credit_cents, is_banned, is_admin, is_verified, created_at
+        `SELECT id, provider_id, username, site_credit_cents, is_banned, is_admin, is_verified, created_at,
+           (pro_until IS NOT NULL AND julianday(pro_until) > julianday('now')) AS is_pro
          FROM users WHERE username LIKE ? ORDER BY created_at DESC LIMIT 50`
       )
       .all(`%${q.replace(/[%_]/g, '')}%`);
   } else {
     rows = db
       .prepare(
-        `SELECT id, provider_id, username, site_credit_cents, is_banned, is_admin, is_verified, created_at
+        `SELECT id, provider_id, username, site_credit_cents, is_banned, is_admin, is_verified, created_at,
+           (pro_until IS NOT NULL AND julianday(pro_until) > julianday('now')) AS is_pro
          FROM users ORDER BY created_at DESC LIMIT 50`
       )
       .all();
@@ -172,6 +174,19 @@ router.post('/users/:id/verify', (req, res) => {
   if (next) notify(target.id, 'admin', "You're now a ✔ Verified trader — the badge shows next to your name across Vault.");
   logAdmin(req, next ? 'user_verified' : 'user_unverified', target.username);
   res.json({ ok: true, verified: !!next });
+});
+
+// Revoke a Vault Pro subscription immediately (no refund is issued here —
+// grant site credit separately if one is owed). Also stops auto-renew.
+router.post('/users/:id/pro-revoke', (req, res) => {
+  const target = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+  if (!target) return res.status(404).json({ error: 'User not found.' });
+  const active = target.pro_until && Date.parse(target.pro_until) > Date.now();
+  if (!active) return res.status(400).json({ error: 'This user is not a Pro subscriber.' });
+  db.prepare('UPDATE users SET pro_until = NULL, pro_auto_renew = 0 WHERE id = ?').run(target.id);
+  notify(target.id, 'admin', 'Your ⭐ Vault Pro subscription was revoked by the moderators. Contact support if you believe this is a mistake.');
+  logAdmin(req, 'pro_revoked', target.username);
+  res.json({ ok: true });
 });
 
 router.post('/users/:id/ban', (req, res) => {
@@ -392,6 +407,32 @@ router.post('/announce', (req, res) => {
   tx();
   logAdmin(req, 'announcement', message);
   res.json({ ok: true, recipients: users.length });
+});
+
+// Recent announcements with delete — deleting one takes the banner down for
+// everyone and clears the unread 📣 notifications it created.
+router.get('/announcements', (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT a.id, a.message, a.created_at, u.username AS admin_name
+       FROM announcements a JOIN users u ON u.id = a.admin_id
+       ORDER BY a.id DESC LIMIT 20`
+    )
+    .all();
+  res.json({ announcements: rows });
+});
+
+router.delete('/announcements/:id', (req, res) => {
+  const a = db.prepare('SELECT * FROM announcements WHERE id = ?').get(req.params.id);
+  if (!a) return res.status(404).json({ error: 'Announcement not found.' });
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM announcements WHERE id = ?').run(a.id);
+    // Pull the unread copies out of people's notification bells too.
+    db.prepare("DELETE FROM notifications WHERE type = 'admin' AND body = ? AND is_read = 0").run(`📣 ${a.message}`);
+  });
+  tx();
+  logAdmin(req, 'announcement_deleted', a.message);
+  res.json({ ok: true });
 });
 
 // ---------- Audit log ----------
