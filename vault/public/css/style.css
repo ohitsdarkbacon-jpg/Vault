@@ -1459,25 +1459,24 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
   100% { transform: translateX(14%)  skewY(-4deg) scaleY(0.9); }
 }
 
-/* Streaks: bright shooting bands that sweep the screen on a loop. */
-.bg-fx .streak {
-  position: absolute; display: block; top: 12vh; left: 0;
-  width: 46vw; height: 3px; border-radius: 3px;
-  filter: blur(2.5px); pointer-events: none; will-change: transform, opacity;
-  background: linear-gradient(90deg, transparent, rgba(196,181,253,0.85) 45%, rgba(139,92,246,0.9) 60%, transparent);
-  box-shadow: 0 0 18px rgba(167,139,250,0.7);
-  transform: rotate(-14deg);
-  animation: streak-fly 7s linear infinite;
-  opacity: 0;
+/* Wavy aurora ribbons: real curved bands (SVG paths) with horizontal
+   gradients, softly blurred, drifting side to side and breathing. */
+.aurora-svg {
+  position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
+  opacity: 0.5; mix-blend-mode: screen; /* glow into the dark, don't fog over it */
 }
-.bg-fx .streak.s2 { top: 40vh; height: 2px; width: 34vw; animation-duration: 10s; animation-delay: 3s; }
-.bg-fx .streak.s3 { top: 66vh; height: 2px; width: 40vw; animation-duration: 12.5s; animation-delay: 6s; }
-@keyframes streak-fly {
-  0%   { transform: translateX(-60vw) rotate(-14deg); opacity: 0; }
-  8%   { opacity: 0.9; }
-  45%  { opacity: 0.75; }
-  60%  { transform: translateX(160vw) rotate(-14deg); opacity: 0; }
-  100% { transform: translateX(160vw) rotate(-14deg); opacity: 0; }
+.aurora-svg .ribbon {
+  filter: blur(13px);
+  will-change: transform;
+  transform-origin: 50% 50%;
+  animation: ribbon-drift 12s ease-in-out infinite alternate;
+}
+.aurora-svg .r2 { animation-duration: 16s; animation-direction: alternate-reverse; filter: blur(16px); opacity: 0.85; }
+.aurora-svg .r3 { animation-duration: 21s; filter: blur(18px); opacity: 0.7; }
+@keyframes ribbon-drift {
+  0%   { transform: translateX(-70px) scaleY(0.94) skewY(-0.8deg); }
+  50%  { transform: translateX(20px)  scaleY(1.1)  skewY(0.6deg); }
+  100% { transform: translateX(80px)  scaleY(0.92) skewY(-0.5deg); }
 }
 
 /* ---------- Game pulse: ranked horizontal bar chart ---------- */

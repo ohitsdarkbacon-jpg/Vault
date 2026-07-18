@@ -17,7 +17,37 @@
 <body>
 
 <!-- Ambient animated background -->
-<div class="bg-fx" aria-hidden="true"><b class="wave"></b><b class="wave w2"></b><b class="wave w3"></b><u class="streak"></u><u class="streak s2"></u><u class="streak s3"></u><i></i><i></i><i></i><span class="bg-grid"></span></div>
+<div class="bg-fx" aria-hidden="true">
+  <b class="wave"></b><b class="wave w2"></b><b class="wave w3"></b>
+  <svg class="aurora-svg" viewBox="0 0 1440 900" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="ar1" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#6D28D9" stop-opacity="0"/>
+        <stop offset="0.25" stop-color="#A78BFA" stop-opacity="0.55"/>
+        <stop offset="0.5" stop-color="#C4B5FD" stop-opacity="0.7"/>
+        <stop offset="0.75" stop-color="#8B5CF6" stop-opacity="0.45"/>
+        <stop offset="1" stop-color="#6D28D9" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="ar2" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#5865F2" stop-opacity="0"/>
+        <stop offset="0.3" stop-color="#8B5CF6" stop-opacity="0.4"/>
+        <stop offset="0.55" stop-color="#A78BFA" stop-opacity="0.55"/>
+        <stop offset="0.8" stop-color="#6EA8FE" stop-opacity="0.3"/>
+        <stop offset="1" stop-color="#5865F2" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="ar3" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#7C3AED" stop-opacity="0"/>
+        <stop offset="0.35" stop-color="#C4B5FD" stop-opacity="0.4"/>
+        <stop offset="0.65" stop-color="#8B5CF6" stop-opacity="0.42"/>
+        <stop offset="1" stop-color="#7C3AED" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path class="ribbon r1" fill="url(#ar1)" d="M-100,150 C160,80 340,230 560,170 C780,110 940,250 1160,190 C1320,145 1440,190 1560,160 L1560,320 C1400,360 1260,270 1060,320 C860,370 700,250 500,300 C300,350 120,280 -100,330 Z"/>
+    <path class="ribbon r2" fill="url(#ar2)" d="M-100,420 C180,360 380,480 600,430 C820,380 1020,500 1240,440 C1380,405 1460,440 1560,420 L1560,560 C1420,600 1240,510 1040,555 C840,600 660,490 460,535 C260,580 80,520 -100,570 Z"/>
+    <path class="ribbon r3" fill="url(#ar3)" d="M-100,700 C200,650 400,760 640,715 C880,670 1080,780 1300,730 C1400,708 1480,730 1560,715 L1560,830 C1400,865 1220,790 1020,825 C820,860 620,775 420,810 C220,845 60,800 -100,840 Z"/>
+  </svg>
+  <i></i><i></i><i></i><span class="bg-grid"></span>
+</div>
 
 <header>
   <a class="brand" href="#home">
