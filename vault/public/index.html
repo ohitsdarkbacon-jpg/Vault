@@ -17,7 +17,7 @@
 <body>
 
 <!-- Ambient animated background -->
-<div class="bg-fx" aria-hidden="true"><i></i><i></i><i></i><span class="bg-grid"></span></div>
+<div class="bg-fx" aria-hidden="true"><b class="wave"></b><b class="wave w2"></b><b class="wave w3"></b><i></i><i></i><i></i><span class="bg-grid"></span></div>
 
 <header>
   <a class="brand" href="#home">
@@ -101,6 +101,11 @@
   <div class="recent-strip" id="trending-strip"></div>
 </section>
 
+<section class="section" id="game-pulse-section" style="display:none;padding-top:0;padding-bottom:10px">
+  <div class="section-head"><div><span class="eyebrow">Game pulse</span><h2 style="font-size:1.2rem">Where the money moves</h2></div></div>
+  <div class="pulse-grid" id="game-pulse"></div>
+</section>
+
 <section class="section" id="recent-trades-section" style="display:none;padding-top:0;padding-bottom:34px">
   <div class="section-head"><div><span class="eyebrow">Live activity</span><h2 style="font-size:1.2rem">Recently traded</h2></div></div>
   <div class="recent-strip" id="recent-strip"></div>
@@ -175,6 +180,15 @@
   <div class="load-more-wrap" id="listings-load-more-wrap" style="display:none;">
     <button class="btn" id="listings-load-more">Load more</button>
   </div>
+</section>
+
+<section class="section" id="looking-for" style="padding-top:0">
+  <div class="section-head">
+    <div><span class="eyebrow">Want to buy</span><h2>Looking for</h2></div>
+    <button class="btn btn-gold" id="post-wanted-btn">+ Post a request</button>
+  </div>
+  <div class="cat-chips" id="wanted-cats"></div>
+  <div class="wanted-grid" id="wanted-grid"><div class="empty-block">Nobody's hunting anything yet — post the first request.</div></div>
 </section>
 
 <section class="section" id="discord-section" style="padding-bottom:26px">
@@ -655,6 +669,46 @@
     <div class="field"><label>Image URL (optional)</label><input id="trade-image" placeholder="https://… or /uploads/…"></div>
     <div class="error-text" id="trade-error"></div>
     <div class="modal-actions"><button class="btn btn-gold" id="trade-submit" style="flex:1">Post trade</button></div>
+  </div>
+</div>
+
+<!-- Looking For (want-to-buy) modal -->
+<div class="overlay" id="wanted-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="wanted-overlay">✕</button>
+    <h3>Post a request</h3>
+    <div class="sub">Say what you're hunting — sellers who have it will DM you.</div>
+    <div class="field"><label>I'm looking for</label><input id="wanted-item" placeholder="Neon Crow, any potion age" maxlength="140"></div>
+    <div class="field">
+      <label>Game</label>
+      <div class="custom-select" id="wanted-category" data-value="other">
+        <div class="cs-trigger"><span class="cs-label">Other</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="cs-dropdown"><!-- populated from /api/categories -->
+          <div class="cs-option active" data-value="other">Other</div>
+        </div>
+      </div>
+    </div>
+    <div class="field"><label>Budget (USD, optional)</label><input id="wanted-budget" type="number" min="1" max="10000" step="0.01" placeholder="e.g. 40.00"></div>
+    <div class="field"><label>Notes (optional)</label><input id="wanted-notes" placeholder="e.g. FR only, can pay in crypto" maxlength="300"></div>
+    <div class="error-text" id="wanted-error"></div>
+    <div class="modal-actions"><button class="btn btn-gold" id="wanted-submit" style="flex:1">Post request</button></div>
+  </div>
+</div>
+
+<!-- Section chat dock -->
+<div class="chat-dock" id="chat-dock" hidden>
+  <button class="dock-toggle" id="dock-toggle">💬 <span id="dock-label">Marketplace chat</span></button>
+  <div class="dock-panel" id="dock-panel" hidden>
+    <div class="dock-head">
+      <b id="dock-title">Marketplace chat</b>
+      <span class="dock-sub">everyone · 5s slowmode</span>
+      <button class="dock-close" id="dock-close">✕</button>
+    </div>
+    <div class="dock-box" id="dock-box"><div class="chat-empty">Loading…</div></div>
+    <div class="dock-input-row">
+      <input id="dock-input" placeholder="Say something…" maxlength="300" autocomplete="off">
+      <button class="btn btn-gold btn-small" id="dock-send">Send</button>
+    </div>
   </div>
 </div>
 

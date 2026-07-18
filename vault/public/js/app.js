@@ -77,9 +77,10 @@ async function loadCategories() {
   if (!r.categories) return;
   CATEGORY_LABELS = Object.fromEntries(r.categories.map(c => [c.slug, c.label]));
   const opts = r.categories.map(c => ({ value: c.slug, label: c.label }));
-  ['#sell-category', '#trade-category', '#tourney-category'].forEach(id => { const el = $(id); if (el) setSelectOptions(el, opts); });
+  ['#sell-category', '#trade-category', '#tourney-category', '#wanted-category'].forEach(id => { const el = $(id); if (el) setSelectOptions(el, opts); });
   renderCatChips('#auctions-cats', auctionState, loadAuctions);
   renderCatChips('#listings-cats', listingState, loadListings);
+  renderCatChips('#wanted-cats', wantedState, loadWanted);
   if ($('#view-trading').classList.contains('active')) renderCatChips('#trades-cats', tradeState, loadTradePosts);
 }
 function catTag(category) {
@@ -257,6 +258,7 @@ function showView(name) {
   (el || $('#view-home')).classList.add('active');
   if (name !== 'messages') { clearInterval(dmPollTimer); activeDmPartner = null; }
   syncNavActive(name);
+  if (typeof updateDock === 'function') updateDock(name);
   window.scrollTo({ top: 0 });
 }
 
@@ -3018,6 +3020,203 @@ $('#admin-announce').addEventListener('click', async () => {
 });
 
 // ============================================================
+// Looking For (want-to-buy board)
+// ============================================================
+const wantedState = { category: '' };
+
+async function loadWanted() {
+  const grid = $('#wanted-grid');
+  const params = new URLSearchParams();
+  if (wantedState.category) params.set('category', wantedState.category);
+  const r = await api('/api/wanted?' + params);
+  const rows = r.wanted || [];
+  if (!rows.length) {
+    grid.innerHTML = '<div class="empty-block">Nobody\'s hunting anything here yet — post the first request.</div>';
+    return;
+  }
+  grid.innerHTML = rows.map(w => `
+    <div class="wanted-card">
+      <div class="wc-item">🔎 ${escapeHtml(w.item)} ${catTag(w.category)}</div>
+      ${w.budget_cents ? `<div class="wc-budget">Paying up to ${money(w.budget_cents)}</div>` : ''}
+      ${w.notes ? `<div class="wc-notes">${escapeHtml(w.notes)}</div>` : ''}
+      <div class="wc-foot">
+        <span><a href="#u/${encodeURIComponent(w.username)}">${escapeHtml(w.username)}</a>${vbadge(w.is_verified)}${probadge(w.pro)} · ${timeAgo(w.created_at)}</span>
+        ${ME && ME.id === w.user_id
+          ? `<button class="btn btn-small" data-wclose="${w.id}">Close</button>`
+          : `<button class="btn btn-small btn-gold" data-wdm="${escapeHtml(w.username)}">I have this</button>`}
+      </div>
+    </div>`).join('');
+  grid.querySelectorAll('[data-wdm]').forEach(b => b.onclick = () => {
+    if (!ME) return openModal('auth-overlay');
+    location.hash = 'messages/' + encodeURIComponent(b.dataset.wdm);
+  });
+  grid.querySelectorAll('[data-wclose]').forEach(b => b.onclick = async () => {
+    const r2 = await api(`/api/wanted/${b.dataset.wclose}/close`, { method: 'POST' });
+    if (r2.error) return toast(r2.error, 'error');
+    toast('Request closed — happy hunting.', 'success');
+    loadWanted();
+  });
+}
+
+$('#post-wanted-btn').addEventListener('click', () => {
+  if (!ME) return openModal('auth-overlay');
+  $('#wanted-error').textContent = '';
+  openModal('wanted-overlay');
+});
+$('#wanted-submit').addEventListener('click', async () => {
+  const err = $('#wanted-error');
+  err.textContent = '';
+  const budgetRaw = $('#wanted-budget').value.trim();
+  const r = await api('/api/wanted', {
+    method: 'POST',
+    body: JSON.stringify({
+      item: $('#wanted-item').value.trim(),
+      category: $('#wanted-category').value,
+      budget_cents: budgetRaw ? Math.round(parseFloat(budgetRaw) * 100) : null,
+      notes: $('#wanted-notes').value.trim(),
+    }),
+  });
+  if (r.error) { err.textContent = r.error; return; }
+  closeModal('wanted-overlay');
+  $('#wanted-item').value = ''; $('#wanted-budget').value = ''; $('#wanted-notes').value = '';
+  toast('Request posted — sellers who have it will DM you.', 'success');
+  loadWanted();
+});
+
+// ============================================================
+// Game pulse — volume + demand per game
+// ============================================================
+async function loadGameStats() {
+  const r = await api('/api/game-stats');
+  const games = (r.games || []).filter(g => g.volume_30d_cents || g.items_live || g.looking_count);
+  const sec = $('#game-pulse-section');
+  if (!games.length) { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  const max = Math.max(...games.map(g => g.volume_30d_cents), 1);
+  $('#game-pulse').innerHTML = games.slice(0, 8).map(g => `
+    <div class="pulse-card">
+      <div class="pg-name"><span>${escapeHtml(g.label)}</span><span class="pg-vol">${money(g.volume_30d_cents)}</span></div>
+      <div class="pulse-bar"><i style="width:${Math.max(4, Math.round(g.volume_30d_cents / max * 100))}%"></i></div>
+      <div class="pg-meta"><span><b>${g.items_live}</b> live</span><span><b>${g.looking_count}</b> looking</span><span>30-day volume</span></div>
+    </div>`).join('');
+}
+
+// ============================================================
+// Section chat rooms (slowmode 5s, everyone welcome)
+// ============================================================
+const ROOM_BY_VIEW = { home: 'marketplace', trading: 'trading', tournaments: 'tournaments' };
+const ROOM_LABELS = { marketplace: 'Marketplace chat', trading: 'Trading chat', tournaments: 'Tournament chat' };
+let dockRoom = null;
+let dockOpen = false;
+let dockPollTimer = null;
+let dockPollBusy = false;
+let lastDockMsgId = 0;
+let dockSlowTimer = null;
+
+function updateDock(view) {
+  const room = ROOM_BY_VIEW[view] || null;
+  const dock = $('#chat-dock');
+  if (!room) {
+    dock.hidden = true;
+    closeDockPanel();
+    dockRoom = null;
+    return;
+  }
+  dock.hidden = false;
+  if (room !== dockRoom) {
+    dockRoom = room;
+    $('#dock-label').textContent = ROOM_LABELS[room];
+    $('#dock-title').textContent = ROOM_LABELS[room];
+    if (dockOpen) { lastDockMsgId = 0; $('#dock-box').innerHTML = '<div class="chat-empty">Loading…</div>'; pollDock(true); }
+  }
+}
+
+function closeDockPanel() {
+  dockOpen = false;
+  $('#dock-panel').hidden = true;
+  clearInterval(dockPollTimer);
+}
+
+$('#dock-toggle').onclick = async () => {
+  if (dockOpen) return closeDockPanel();
+  dockOpen = true;
+  $('#dock-panel').hidden = false;
+  lastDockMsgId = 0;
+  $('#dock-box').innerHTML = '<div class="chat-empty">Loading…</div>';
+  await pollDock(true);
+  clearInterval(dockPollTimer);
+  dockPollTimer = setInterval(() => pollDock(false), 4000);
+  $('#dock-input').focus();
+};
+$('#dock-close').onclick = closeDockPanel;
+
+async function pollDock(initial) {
+  if (!dockRoom || dockPollBusy || !dockOpen) return;
+  dockPollBusy = true;
+  try {
+    const r = await api(`/api/rooms/${dockRoom}/messages?after=${lastDockMsgId}`);
+    if (r.error) { if (initial) $('#dock-box').innerHTML = `<div class="chat-empty">${escapeHtml(r.error)}</div>`; return; }
+    const box = $('#dock-box');
+    if (initial) box.innerHTML = '';
+    const msgs = (r.messages || []).filter(m => m.id > lastDockMsgId);
+    if (initial && !msgs.length) {
+      box.innerHTML = '<div class="chat-empty">Quiet in here — say hi!</div>';
+      return;
+    }
+    if (msgs.length && box.querySelector('.chat-empty')) box.innerHTML = '';
+    msgs.forEach(m => {
+      lastDockMsgId = Math.max(lastDockMsgId, m.id);
+      const el = document.createElement('div');
+      el.className = 'dock-msg' + (m.mine ? ' mine' : '');
+      el.innerHTML = `<span class="dm-who">${escapeHtml(m.sender_name)}</span>${vbadge(m.is_verified)}${probadge(m.pro)} ${escapeHtml(m.body)}<span class="dm-time">${timeAgo(m.created_at)}</span>`;
+      box.appendChild(el);
+    });
+    if (msgs.length) box.scrollTop = box.scrollHeight;
+  } finally {
+    dockPollBusy = false;
+  }
+}
+
+function startSlowmode(seconds) {
+  const btn = $('#dock-send');
+  clearInterval(dockSlowTimer);
+  let left = seconds;
+  btn.disabled = true;
+  btn.textContent = `${left}s`;
+  dockSlowTimer = setInterval(() => {
+    left -= 1;
+    if (left <= 0) { clearInterval(dockSlowTimer); btn.disabled = false; btn.textContent = 'Send'; return; }
+    btn.textContent = `${left}s`;
+  }, 1000);
+}
+
+let dockSending = false;
+async function sendDockMsg() {
+  if (!ME) return openModal('auth-overlay');
+  const input = $('#dock-input');
+  const body = input.value.trim();
+  if (!body || !dockRoom || dockSending || $('#dock-send').disabled) return;
+  dockSending = true;
+  input.value = '';
+  try {
+    const r = await api(`/api/rooms/${dockRoom}/messages`, { method: 'POST', body: JSON.stringify({ body }) });
+    if (r.error) {
+      toast(r.error, 'error');
+      input.value = body;
+      if (r.retry_in) startSlowmode(r.retry_in);
+      return;
+    }
+    await pollDock(false);
+    startSlowmode(r.slowmode_seconds || 5);
+  } finally {
+    dockSending = false;
+    input.focus();
+  }
+}
+$('#dock-send').onclick = sendDockMsg;
+$('#dock-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendDockMsg(); });
+
+// ============================================================
 // Ambience: header depth, card spotlight, scroll reveals
 // ============================================================
 
@@ -3062,8 +3261,11 @@ document.addEventListener('mousemove', (e) => {
   loadRecentSales();
   renderCatChips('#auctions-cats', auctionState, loadAuctions);
   renderCatChips('#listings-cats', listingState, loadListings);
+  renderCatChips('#wanted-cats', wantedState, loadWanted);
   loadAuctions();
   loadListings();
+  loadWanted();
+  loadGameStats();
   route();
 
   if (params.get('checkout') === 'success') {
