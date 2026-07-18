@@ -405,6 +405,22 @@ CREATE TABLE IF NOT EXISTS wanted_posts (
 );
 CREATE INDEX IF NOT EXISTS idx_wanted_status ON wanted_posts(status, created_at);
 
+CREATE TABLE IF NOT EXISTS wfl_posts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  body TEXT NOT NULL,
+  image_url TEXT,
+  category TEXT NOT NULL DEFAULT 'other',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS wfl_votes (
+  post_id INTEGER NOT NULL REFERENCES wfl_posts(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  vote TEXT NOT NULL CHECK (vote IN ('w','f','l')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (post_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS room_messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   room TEXT NOT NULL,

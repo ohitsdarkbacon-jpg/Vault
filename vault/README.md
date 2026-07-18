@@ -61,7 +61,8 @@ withdrawals, notifications, public profiles, and an admin panel.
 
 **Community & trust**
 - **🔎 Looking For board** on the marketplace: post what you want to buy (item, game, optional budget + notes) and sellers hit "I have this" to DM you. 10 open requests per user (25 for Pro), close them any time
-- **📊 Game pulse**: a home-page strip ranking games by 30-day traded volume, with live-item counts and how many people are hunting items from each game
+- **📊 Game pulse**: a ranked bar chart on the home page — 30-day traded volume per game with animated bars, live-item counts, and how many people are hunting items from each game
+- **⚖️ Traders center** (`#traders-center`): post a trade you made (text + optional screenshot) and the community votes **W** (win), **F** (fair), or **L** (loss) — live counts, a color meter, and a "Community says" verdict. One vote per user (switch or un-vote any time), you can't rate your own trade, 10 posts/day, owner/admin delete
 - **💬 Section chat rooms**: public rooms for Marketplace, Trading, and Tournaments in a floating dock — anyone can read, members can talk. **5-second slowmode** per user, plus bot protection: brand-new accounts wait 5 minutes, identical repeat messages are rejected, and a burst ceiling (10 messages/minute) stops perfectly-paced spam. All messages run through the moderation filter
 - **Announcement banner**: admin announcements show as a dismissible site-wide banner (plus the usual notification) — dismissing one banner keeps it dismissed, the next announcement shows again
 - Per-order buyer↔seller chat (coordinate the in-game trade; admins can read it during disputes)

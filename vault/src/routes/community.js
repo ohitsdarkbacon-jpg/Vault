@@ -74,6 +74,81 @@ router.post('/wanted/:id/close', requireAuth, (req, res) => {
 });
 
 // ============================================================
+// Traders Center — post your trade, the community calls W / F / L.
+// ============================================================
+
+const MAX_WFL_LEN = 500;
+const WFL_DAILY_CAP = 10;
+
+router.get('/wfl', (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT p.*, u.username, u.is_verified,
+        (u.pro_until IS NOT NULL AND julianday(u.pro_until) > julianday('now')) AS pro,
+        (SELECT COUNT(*) FROM wfl_votes v WHERE v.post_id = p.id AND v.vote = 'w') AS w_count,
+        (SELECT COUNT(*) FROM wfl_votes v WHERE v.post_id = p.id AND v.vote = 'f') AS f_count,
+        (SELECT COUNT(*) FROM wfl_votes v WHERE v.post_id = p.id AND v.vote = 'l') AS l_count,
+        (SELECT vote FROM wfl_votes v WHERE v.post_id = p.id AND v.user_id = ?) AS my_vote
+       FROM wfl_posts p JOIN users u ON u.id = p.user_id
+       ORDER BY p.id DESC LIMIT 40`
+    )
+    .all(req.user ? req.user.id : 0);
+  res.json({ posts: rows });
+});
+
+router.post('/wfl', requireAuth, (req, res) => {
+  const body = String(req.body?.body || '').trim();
+  if (!body) return res.status(400).json({ error: 'Describe the trade first.' });
+  if (body.length > MAX_WFL_LEN) return res.status(400).json({ error: `Keep it under ${MAX_WFL_LEN} characters.` });
+  const image_url = req.body?.image_url ? String(req.body.image_url) : null;
+  if (image_url && !(image_url.startsWith('/uploads/') || /^https?:\/\//.test(image_url))) {
+    return res.status(400).json({ error: 'Image URL must be a valid http(s) link.' });
+  }
+  const today = db
+    .prepare("SELECT COUNT(*) c FROM wfl_posts WHERE user_id = ? AND julianday(created_at) >= julianday('now','-1 day')")
+    .get(req.user.id).c;
+  if (today >= WFL_DAILY_CAP) return res.status(400).json({ error: `Easy — ${WFL_DAILY_CAP} trade posts per day max.` });
+  const mod = moderateField(body, 'post');
+  if (!mod.ok) return res.status(400).json({ error: mod.error });
+  const info = db
+    .prepare('INSERT INTO wfl_posts (user_id, body, image_url, category) VALUES (?, ?, ?, ?)')
+    .run(req.user.id, mod.clean, image_url, parseCategory(req.body?.category) || 'other');
+  res.status(201).json({ ok: true, id: info.lastInsertRowid });
+});
+
+// Vote W / F / L. Voting the same letter again clears your vote; you can't
+// rate your own trade.
+router.post('/wfl/:id/vote', requireAuth, (req, res) => {
+  const p = db.prepare('SELECT * FROM wfl_posts WHERE id = ?').get(req.params.id);
+  if (!p) return res.status(404).json({ error: 'Post not found.' });
+  if (p.user_id === req.user.id) return res.status(400).json({ error: 'You can\'t rate your own trade — let the people speak.' });
+  const vote = String(req.body?.vote || '').toLowerCase();
+  if (!['w', 'f', 'l'].includes(vote)) return res.status(400).json({ error: 'Vote must be W, F, or L.' });
+  const existing = db.prepare('SELECT vote FROM wfl_votes WHERE post_id = ? AND user_id = ?').get(p.id, req.user.id);
+  if (existing && existing.vote === vote) {
+    db.prepare('DELETE FROM wfl_votes WHERE post_id = ? AND user_id = ?').run(p.id, req.user.id);
+    return res.json({ ok: true, my_vote: null });
+  }
+  db.prepare(
+    `INSERT INTO wfl_votes (post_id, user_id, vote) VALUES (?, ?, ?)
+     ON CONFLICT(post_id, user_id) DO UPDATE SET vote = excluded.vote, created_at = datetime('now')`
+  ).run(p.id, req.user.id, vote);
+  res.json({ ok: true, my_vote: vote });
+});
+
+router.delete('/wfl/:id', requireAuth, (req, res) => {
+  const p = db.prepare('SELECT * FROM wfl_posts WHERE id = ?').get(req.params.id);
+  if (!p) return res.status(404).json({ error: 'Post not found.' });
+  if (p.user_id !== req.user.id && !req.user.is_admin) return res.status(403).json({ error: 'Not your post.' });
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM wfl_votes WHERE post_id = ?').run(p.id);
+    db.prepare('DELETE FROM wfl_posts WHERE id = ?').run(p.id);
+  });
+  tx();
+  res.json({ ok: true });
+});
+
+// ============================================================
 // Game pulse — which games move the most money and demand.
 // ============================================================
 

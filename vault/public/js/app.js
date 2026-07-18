@@ -77,7 +77,7 @@ async function loadCategories() {
   if (!r.categories) return;
   CATEGORY_LABELS = Object.fromEntries(r.categories.map(c => [c.slug, c.label]));
   const opts = r.categories.map(c => ({ value: c.slug, label: c.label }));
-  ['#sell-category', '#trade-category', '#tourney-category', '#wanted-category'].forEach(id => { const el = $(id); if (el) setSelectOptions(el, opts); });
+  ['#sell-category', '#trade-category', '#tourney-category', '#wanted-category', '#wfl-category'].forEach(id => { const el = $(id); if (el) setSelectOptions(el, opts); });
   renderCatChips('#auctions-cats', auctionState, loadAuctions);
   renderCatChips('#listings-cats', listingState, loadListings);
   renderCatChips('#wanted-cats', wantedState, loadWanted);
@@ -285,6 +285,7 @@ async function route() {
   if (h === 'traders') { showView('traders'); loadTraders(); return; }
   if (h === 'trading') { showView('trading'); renderCatChips('#trades-cats', tradeState, loadTradePosts); loadTradePosts(); return; }
   if (h === 'tournaments') { showView('tournaments'); loadTournaments(); return; }
+  if (h === 'traders-center') { showView('wfl'); loadWfl(); return; }
   if (h === 'messages' || h.startsWith('messages/')) {
     if (!ME) { showView('home'); return openModal('auth-overlay'); }
     showView('messages');
@@ -3086,6 +3087,8 @@ $('#wanted-submit').addEventListener('click', async () => {
 // ============================================================
 // Game pulse — volume + demand per game
 // ============================================================
+// A ranked horizontal bar chart: one measure (volume), one hue, value
+// labels at the bar ends, live/looking as muted sub-text per row.
 async function loadGameStats() {
   const r = await api('/api/game-stats');
   const games = (r.games || []).filter(g => g.volume_30d_cents || g.items_live || g.looking_count);
@@ -3094,12 +3097,109 @@ async function loadGameStats() {
   sec.style.display = '';
   const max = Math.max(...games.map(g => g.volume_30d_cents), 1);
   $('#game-pulse').innerHTML = games.slice(0, 8).map(g => `
-    <div class="pulse-card">
-      <div class="pg-name"><span>${escapeHtml(g.label)}</span><span class="pg-vol">${money(g.volume_30d_cents)}</span></div>
-      <div class="pulse-bar"><i style="width:${Math.max(4, Math.round(g.volume_30d_cents / max * 100))}%"></i></div>
-      <div class="pg-meta"><span><b>${g.items_live}</b> live</span><span><b>${g.looking_count}</b> looking</span><span>30-day volume</span></div>
+    <div class="pc-row" title="${escapeHtml(g.label)}: ${money(g.volume_30d_cents)} traded in 30 days · ${g.items_live} live · ${g.looking_count} looking">
+      <div class="pc-label">
+        <span class="pc-name">${escapeHtml(g.label)}</span>
+        <span class="pc-meta">${g.items_live} live · ${g.looking_count} looking</span>
+      </div>
+      <div class="pc-track"><i class="pc-fill" data-w="${Math.max(1.5, g.volume_30d_cents / max * 100)}"></i></div>
+      <div class="pc-value">${money(g.volume_30d_cents)}</div>
     </div>`).join('');
+  // Bars grow in on the next frame so the width transition runs.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    $$('#game-pulse .pc-fill').forEach(el => { el.style.width = el.dataset.w + '%'; });
+  }));
 }
+
+// ============================================================
+// Traders Center — W / F / L
+// ============================================================
+async function loadWfl() {
+  const grid = $('#wfl-grid');
+  const r = await api('/api/wfl');
+  const posts = r.posts || [];
+  if (!posts.length) {
+    grid.innerHTML = '<div class="empty-block">No trades posted yet — drop yours and find out if it was a W.</div>';
+    return;
+  }
+  grid.innerHTML = posts.map(p => {
+    const total = p.w_count + p.f_count + p.l_count;
+    const pct = (n) => total ? Math.round(n / total * 100) : 0;
+    const verdict = !total ? '' : p.w_count >= p.f_count && p.w_count >= p.l_count
+      ? '<span class="wfl-verdict w">Community says W</span>'
+      : p.l_count >= p.f_count ? '<span class="wfl-verdict l">Community says L</span>'
+      : '<span class="wfl-verdict f">Community says fair</span>';
+    const mine = ME && p.user_id === ME.id;
+    return `
+    <div class="wfl-card">
+      <div class="wfl-top">
+        <span><a href="#u/${encodeURIComponent(p.username)}">${escapeHtml(p.username)}</a>${vbadge(p.is_verified)}${probadge(p.pro)} · ${timeAgo(p.created_at)} ${catTag(p.category)}</span>
+        ${mine || (ME && ME.is_admin) ? `<button class="btn btn-small" data-wfl-del="${p.id}" style="color:var(--danger)">Delete</button>` : ''}
+      </div>
+      <div class="wfl-body">${escapeHtml(p.body)}</div>
+      ${p.image_url ? `<div class="wfl-img" style="background-image:url('${escapeHtml(p.image_url)}')" data-lightbox="${escapeHtml(p.image_url)}"></div>` : ''}
+      <div class="wfl-votes" data-wfl="${p.id}" data-mine="${mine ? 1 : 0}">
+        <button class="wfl-btn w ${p.my_vote === 'w' ? 'active' : ''}" data-v="w">W <b>${p.w_count}</b></button>
+        <button class="wfl-btn f ${p.my_vote === 'f' ? 'active' : ''}" data-v="f">F <b>${p.f_count}</b></button>
+        <button class="wfl-btn l ${p.my_vote === 'l' ? 'active' : ''}" data-v="l">L <b>${p.l_count}</b></button>
+        ${verdict}
+      </div>
+      ${total ? `<div class="wfl-meter"><i class="w" style="width:${pct(p.w_count)}%"></i><i class="f" style="width:${pct(p.f_count)}%"></i><i class="l" style="width:${pct(p.l_count)}%"></i></div>` : ''}
+    </div>`;
+  }).join('');
+
+  grid.querySelectorAll('.wfl-votes button').forEach(b => b.onclick = async () => {
+    if (!ME) return openModal('auth-overlay');
+    const wrap = b.closest('.wfl-votes');
+    if (wrap.dataset.mine === '1') return toast('You can\'t rate your own trade — let the people speak.', 'info');
+    const r2 = await api(`/api/wfl/${wrap.dataset.wfl}/vote`, { method: 'POST', body: JSON.stringify({ vote: b.dataset.v }) });
+    if (r2.error) return toast(r2.error, 'error');
+    loadWfl();
+  });
+  grid.querySelectorAll('[data-wfl-del]').forEach(b => b.onclick = async () => {
+    if (!await vaultConfirm('The post and all its votes disappear.', { title: 'Delete this trade post?', okText: 'Delete post', danger: true, icon: '🗑' })) return;
+    const r2 = await api(`/api/wfl/${b.dataset.wflDel}`, { method: 'DELETE' });
+    if (r2.error) return toast(r2.error, 'error');
+    loadWfl();
+  });
+  grid.querySelectorAll('[data-lightbox]').forEach(el => el.onclick = () => openLightbox(el.dataset.lightbox));
+}
+
+$('#post-wfl-btn').addEventListener('click', () => {
+  if (!ME) return openModal('auth-overlay');
+  $('#wfl-error').textContent = '';
+  openModal('wfl-overlay');
+});
+$('#wfl-image-file').addEventListener('change', () => {
+  const f = $('#wfl-image-file').files[0];
+  $('#wfl-file-name').textContent = f ? f.name.slice(0, 18) : 'Upload';
+});
+$('#wfl-submit').addEventListener('click', async () => {
+  const err = $('#wfl-error');
+  err.textContent = '';
+  const btn = $('#wfl-submit');
+  btn.classList.add('loading');
+  let image_url = $('#wfl-image').value.trim();
+  const file = $('#wfl-image-file').files[0];
+  if (file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/uploads', { method: 'POST', body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { btn.classList.remove('loading'); err.textContent = data.error || 'Image upload failed.'; return; }
+    image_url = data.url;
+  }
+  const r = await api('/api/wfl', {
+    method: 'POST',
+    body: JSON.stringify({ body: $('#wfl-body').value.trim(), category: $('#wfl-category').value, image_url: image_url || null }),
+  });
+  btn.classList.remove('loading');
+  if (r.error) { err.textContent = r.error; return; }
+  closeModal('wfl-overlay');
+  $('#wfl-body').value = ''; $('#wfl-image').value = ''; $('#wfl-image-file').value = ''; $('#wfl-file-name').textContent = 'Upload';
+  toast('Posted — let\'s see what the people say.', 'success');
+  loadWfl();
+});
 
 // ============================================================
 // Section chat rooms (slowmode 5s, everyone welcome)
@@ -3149,6 +3249,7 @@ $('#dock-toggle').onclick = async () => {
   $('#dock-input').focus();
 };
 $('#dock-close').onclick = closeDockPanel;
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && dockOpen) closeDockPanel(); });
 
 async function pollDock(initial) {
   if (!dockRoom || dockPollBusy || !dockOpen) return;
