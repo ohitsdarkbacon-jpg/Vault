@@ -1424,58 +1424,88 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
    v11 — aurora waves, Looking For, game pulse, section chat
    ============================================================ */
 
-/* ---------- Aurora waves (Argentina-away energy: violet bands that sway) ---------- */
+/* ---------- Aurora waves (Argentina-away energy: violet bands that sway) ----------
+   High-amplitude, short-cycle sway — this is meant to be SEEN moving. */
 .bg-fx .wave {
-  position: absolute; left: -30%; width: 160%; height: 42vh;
+  position: absolute; left: -35%; width: 170%; height: 46vh;
   border-radius: 45% 55% 50% 50% / 100% 100% 0 0;
-  filter: blur(70px); pointer-events: none; will-change: transform;
+  filter: blur(58px); pointer-events: none; will-change: transform;
   background: linear-gradient(90deg,
-    transparent 0%, rgba(109,40,217,0.34) 22%, rgba(167,139,250,0.4) 45%,
-    rgba(196,181,253,0.3) 58%, rgba(88,101,242,0.26) 78%, transparent 100%);
-  top: -6vh; opacity: 0.55;
-  animation: wave-sway 18s ease-in-out infinite alternate;
+    transparent 0%, rgba(109,40,217,0.5) 20%, rgba(167,139,250,0.55) 42%,
+    rgba(196,181,253,0.45) 56%, rgba(88,101,242,0.4) 78%, transparent 100%);
+  top: -8vh; opacity: 0.65;
+  animation: wave-sway 9s ease-in-out infinite alternate;
   transform-origin: 50% 0;
 }
 .bg-fx .wave.w2 {
-  top: 16vh; height: 36vh; opacity: 0.32;
+  top: 14vh; height: 38vh; opacity: 0.45;
   border-radius: 55% 45% 50% 50% / 100% 100% 0 0;
   background: linear-gradient(90deg,
-    transparent 0%, rgba(139,92,246,0.3) 28%, rgba(196,181,253,0.34) 52%,
-    rgba(110,168,254,0.22) 74%, transparent 100%);
-  animation: wave-sway 24s ease-in-out infinite alternate-reverse;
+    transparent 0%, rgba(139,92,246,0.45) 26%, rgba(196,181,253,0.5) 50%,
+    rgba(110,168,254,0.32) 74%, transparent 100%);
+  animation: wave-sway 13s ease-in-out infinite alternate-reverse;
 }
 .bg-fx .wave.w3 {
-  top: auto; bottom: -18vh; height: 34vh; opacity: 0.25;
+  top: auto; bottom: -20vh; height: 36vh; opacity: 0.35;
   border-radius: 50% 50% 45% 55% / 0 0 100% 100%;
   background: linear-gradient(90deg,
-    transparent 0%, rgba(109,40,217,0.3) 30%, rgba(167,139,250,0.28) 55%,
-    rgba(139,92,246,0.24) 75%, transparent 100%);
-  animation: wave-sway 28s ease-in-out infinite alternate;
+    transparent 0%, rgba(109,40,217,0.42) 28%, rgba(167,139,250,0.4) 54%,
+    rgba(139,92,246,0.36) 76%, transparent 100%);
+  animation: wave-sway 16s ease-in-out infinite alternate;
 }
 @keyframes wave-sway {
-  0%   { transform: translateX(-6%) skewY(-3.5deg) scaleY(1); }
-  50%  { transform: translateX(3%)  skewY(2.5deg)  scaleY(1.14); }
-  100% { transform: translateX(7%)  skewY(-2deg)   scaleY(0.94); }
+  0%   { transform: translateX(-13%) skewY(-6deg) scaleY(0.92); }
+  50%  { transform: translateX(5%)   skewY(4.5deg) scaleY(1.22); }
+  100% { transform: translateX(14%)  skewY(-4deg) scaleY(0.9); }
 }
 
-/* ---------- Game pulse ---------- */
-.pulse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 12px; }
-.pulse-card {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-  padding: 13px 15px; display: flex; flex-direction: column; gap: 7px;
+/* Streaks: bright shooting bands that sweep the screen on a loop. */
+.bg-fx .streak {
+  position: absolute; display: block; top: 12vh; left: 0;
+  width: 46vw; height: 3px; border-radius: 3px;
+  filter: blur(2.5px); pointer-events: none; will-change: transform, opacity;
+  background: linear-gradient(90deg, transparent, rgba(196,181,253,0.85) 45%, rgba(139,92,246,0.9) 60%, transparent);
+  box-shadow: 0 0 18px rgba(167,139,250,0.7);
+  transform: rotate(-14deg);
+  animation: streak-fly 7s linear infinite;
+  opacity: 0;
+}
+.bg-fx .streak.s2 { top: 40vh; height: 2px; width: 34vw; animation-duration: 10s; animation-delay: 3s; }
+.bg-fx .streak.s3 { top: 66vh; height: 2px; width: 40vw; animation-duration: 12.5s; animation-delay: 6s; }
+@keyframes streak-fly {
+  0%   { transform: translateX(-60vw) rotate(-14deg); opacity: 0; }
+  8%   { opacity: 0.9; }
+  45%  { opacity: 0.75; }
+  60%  { transform: translateX(160vw) rotate(-14deg); opacity: 0; }
+  100% { transform: translateX(160vw) rotate(-14deg); opacity: 0; }
+}
+
+/* ---------- Game pulse: ranked horizontal bar chart ---------- */
+.pulse-chart {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 18px 22px; display: flex; flex-direction: column; gap: 4px;
   animation: card-in .45s var(--ease-out) both;
 }
-.pulse-card .pg-name { font-weight: 650; font-size: 0.88rem; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.pulse-card .pg-vol { font-family: 'JetBrains Mono', monospace; color: var(--gold); font-size: 0.85rem; }
-.pulse-bar { height: 5px; border-radius: 4px; background: rgba(148,163,184,0.12); overflow: hidden; }
-.pulse-bar i {
-  display: block; height: 100%; border-radius: 4px;
-  background: linear-gradient(90deg, var(--gold-dim), var(--gold), var(--gold-2));
-  box-shadow: 0 0 10px rgba(139,92,246,0.4);
-  transition: width .8s var(--ease-out);
+.pc-row {
+  display: grid; grid-template-columns: minmax(120px, 170px) 1fr 90px;
+  align-items: center; gap: 14px; padding: 7px 6px; border-radius: 9px;
+  transition: background .15s;
 }
-.pulse-card .pg-meta { display: flex; gap: 12px; font-size: 0.72rem; color: var(--muted); }
-.pulse-card .pg-meta b { color: var(--text); font-weight: 600; }
+.pc-row:hover { background: rgba(139,92,246,0.06); }
+.pc-label { display: flex; flex-direction: column; min-width: 0; }
+.pc-name { font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-meta { font-size: 0.68rem; color: var(--muted); }
+.pc-track { height: 12px; border-radius: 0 4px 4px 0; background: rgba(148,163,184,0.08); overflow: hidden; }
+.pc-fill {
+  display: block; height: 100%; width: 0; border-radius: 0 4px 4px 0;
+  background: linear-gradient(90deg, var(--gold-dim), var(--gold) 70%, var(--gold-2));
+  box-shadow: 0 0 12px rgba(139,92,246,0.35);
+  transition: width .9s var(--ease-out);
+}
+.pc-value { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--text); text-align: right; }
+@media (max-width: 640px) {
+  .pc-row { grid-template-columns: minmax(90px, 110px) 1fr 74px; gap: 8px; }
+}
 
 /* ---------- Looking For ---------- */
 .wanted-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
@@ -1494,20 +1524,21 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
 .wanted-card .wc-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; font-size: 0.78rem; color: var(--muted); }
 .wanted-card .wc-foot a { color: var(--gold-2); }
 
-/* ---------- Section chat dock ---------- */
-.chat-dock { position: fixed; left: 18px; bottom: 18px; z-index: 90; }
+/* ---------- Section chat dock ----------
+   Bottom-RIGHT: the scroll-to-top button lives bottom-left, and the two
+   used to collide there. */
+.chat-dock { position: fixed; right: 20px; bottom: 20px; z-index: 95; }
 .dock-toggle {
   display: flex; align-items: center; gap: 8px;
-  background: linear-gradient(160deg, rgba(28,34,48,0.95), rgba(19,23,33,0.95));
-  border: 1px solid var(--border-strong); color: var(--text);
-  padding: 10px 16px; border-radius: 24px; font-size: 0.85rem; font-weight: 600;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.45);
-  backdrop-filter: blur(10px);
-  transition: border-color .2s, transform .2s var(--ease-spring), box-shadow .2s;
+  background: linear-gradient(160deg, var(--gold-dim), var(--gold) 70%, var(--gold-2));
+  border: none; color: #fff;
+  padding: 11px 18px; border-radius: 26px; font-size: 0.87rem; font-weight: 650;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.45), 0 0 22px rgba(139,92,246,0.35), inset 0 1px 0 rgba(255,255,255,0.25);
+  transition: transform .2s var(--ease-spring), box-shadow .2s;
 }
-.dock-toggle:hover { border-color: var(--gold-dim); transform: translateY(-2px); box-shadow: 0 14px 36px rgba(0,0,0,0.5), 0 0 18px rgba(139,92,246,0.15); }
+.dock-toggle:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(0,0,0,0.5), 0 0 30px rgba(139,92,246,0.5), inset 0 1px 0 rgba(255,255,255,0.25); }
 .dock-panel {
-  position: absolute; left: 0; bottom: 52px;
+  position: absolute; right: 0; bottom: 56px;
   width: min(360px, calc(100vw - 36px)); height: 440px; max-height: 60vh;
   display: flex; flex-direction: column;
   background: linear-gradient(180deg, rgba(24,29,41,0.98), rgba(15,18,27,0.99));
@@ -1532,8 +1563,48 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
 .dock-msg .dm-time { color: var(--muted); font-size: 0.68rem; margin-left: 6px; }
 .dock-msg.mine .dm-who { color: var(--text); }
 .dock-input-row { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); }
+.dock-input-row .btn { min-width: 62px; } /* "Send" ↔ "5s" countdown without layout jump */
 .dock-input-row input {
   flex: 1; background: rgba(10,13,20,0.6); border: 1px solid var(--border);
   color: var(--text); padding: 9px 12px; border-radius: 9px; font-size: 0.84rem;
 }
-@media (max-width: 640px) { .chat-dock { left: 12px; bottom: 12px; } }
+@media (max-width: 640px) { .chat-dock { right: 12px; bottom: 12px; } }
+
+/* ---------- Traders Center (W / F / L) ---------- */
+.wfl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.wfl-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;
+  animation: card-in .45s var(--ease-out) both;
+  transition: border-color .2s, transform .2s var(--ease-spring), box-shadow .2s;
+}
+.wfl-card:hover { border-color: var(--gold-dim); transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0,0,0,0.35); }
+.wfl-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.8rem; color: var(--muted); }
+.wfl-top a { color: var(--gold-2); }
+.wfl-top .thumb-tag { position: static; }
+.wfl-body { font-size: 0.92rem; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.wfl-img {
+  height: 170px; border-radius: 10px; background-size: cover; background-position: center;
+  border: 1px solid var(--border); cursor: zoom-in;
+}
+.wfl-votes { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wfl-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 18px; font-weight: 800; font-size: 0.85rem;
+  background: rgba(148,163,184,0.07); border: 1px solid var(--border-strong); color: var(--muted);
+  transition: transform .15s var(--ease-spring), border-color .15s, background .15s, color .15s;
+}
+.wfl-btn b { font-weight: 650; font-size: 0.78rem; }
+.wfl-btn:hover { transform: translateY(-1px) scale(1.04); }
+.wfl-btn.w:hover, .wfl-btn.w.active { color: var(--live); border-color: rgba(61,220,151,0.5); background: rgba(61,220,151,0.1); }
+.wfl-btn.f:hover, .wfl-btn.f.active { color: #FFB74D; border-color: rgba(255,183,77,0.5); background: rgba(255,183,77,0.1); }
+.wfl-btn.l:hover, .wfl-btn.l.active { color: var(--danger); border-color: rgba(255,92,99,0.5); background: rgba(255,92,99,0.1); }
+.wfl-verdict { margin-left: auto; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; padding: 3px 10px; border-radius: 14px; }
+.wfl-verdict.w { color: var(--live); background: rgba(61,220,151,0.1); border: 1px solid rgba(61,220,151,0.3); }
+.wfl-verdict.f { color: #FFB74D; background: rgba(255,183,77,0.1); border: 1px solid rgba(255,183,77,0.3); }
+.wfl-verdict.l { color: var(--danger); background: rgba(255,92,99,0.1); border: 1px solid rgba(255,92,99,0.3); }
+.wfl-meter { display: flex; height: 6px; border-radius: 4px; overflow: hidden; background: rgba(148,163,184,0.08); gap: 2px; }
+.wfl-meter i { display: block; height: 100%; transition: width .5s var(--ease-out); }
+.wfl-meter i.w { background: var(--live); border-radius: 4px 0 0 4px; }
+.wfl-meter i.f { background: #FFB74D; }
+.wfl-meter i.l { background: var(--danger); border-radius: 0 4px 4px 0; }
