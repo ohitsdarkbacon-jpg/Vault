@@ -1424,33 +1424,32 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
    v11 — aurora waves, Looking For, game pulse, section chat
    ============================================================ */
 
-/* ---------- Aurora waves (Argentina-away energy: violet bands that sway) ----------
-   High-amplitude, short-cycle sway — this is meant to be SEEN moving. */
+/* ---------- Aurora waves (dark blue glow) ---------- */
 .bg-fx .wave {
   position: absolute; left: -35%; width: 170%; height: 46vh;
   border-radius: 45% 55% 50% 50% / 100% 100% 0 0;
   filter: blur(58px); pointer-events: none; will-change: transform;
   background: linear-gradient(90deg,
-    transparent 0%, rgba(109,40,217,0.5) 20%, rgba(167,139,250,0.55) 42%,
-    rgba(196,181,253,0.45) 56%, rgba(88,101,242,0.4) 78%, transparent 100%);
-  top: -8vh; opacity: 0.65;
+    transparent 0%, rgba(12,42,110,0.42) 20%, rgba(23,73,163,0.46) 42%,
+    rgba(30,90,200,0.38) 56%, rgba(14,52,130,0.34) 78%, transparent 100%);
+  top: -8vh; opacity: 0.5;
   animation: wave-sway 9s ease-in-out infinite alternate;
   transform-origin: 50% 0;
 }
 .bg-fx .wave.w2 {
-  top: 14vh; height: 38vh; opacity: 0.45;
+  top: 14vh; height: 38vh; opacity: 0.34;
   border-radius: 55% 45% 50% 50% / 100% 100% 0 0;
   background: linear-gradient(90deg,
-    transparent 0%, rgba(139,92,246,0.45) 26%, rgba(196,181,253,0.5) 50%,
-    rgba(110,168,254,0.32) 74%, transparent 100%);
+    transparent 0%, rgba(20,64,148,0.38) 26%, rgba(33,99,196,0.4) 50%,
+    rgba(15,55,140,0.28) 74%, transparent 100%);
   animation: wave-sway 13s ease-in-out infinite alternate-reverse;
 }
 .bg-fx .wave.w3 {
-  top: auto; bottom: -20vh; height: 36vh; opacity: 0.35;
+  top: auto; bottom: -20vh; height: 36vh; opacity: 0.26;
   border-radius: 50% 50% 45% 55% / 0 0 100% 100%;
   background: linear-gradient(90deg,
-    transparent 0%, rgba(109,40,217,0.42) 28%, rgba(167,139,250,0.4) 54%,
-    rgba(139,92,246,0.36) 76%, transparent 100%);
+    transparent 0%, rgba(12,42,110,0.34) 28%, rgba(23,73,163,0.3) 54%,
+    rgba(20,64,148,0.28) 76%, transparent 100%);
   animation: wave-sway 16s ease-in-out infinite alternate;
 }
 @keyframes wave-sway {
@@ -1458,12 +1457,11 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
   50%  { transform: translateX(5%)   skewY(4.5deg) scaleY(1.22); }
   100% { transform: translateX(14%)  skewY(-4deg) scaleY(0.9); }
 }
-
 /* Wavy aurora ribbons: real curved bands (SVG paths) with horizontal
    gradients, softly blurred, drifting side to side and breathing. */
 .aurora-svg {
   position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
-  opacity: 0.5; mix-blend-mode: screen; /* glow into the dark, don't fog over it */
+  opacity: 0.32; mix-blend-mode: screen; /* glow into the dark, don't fog over it */
 }
 .aurora-svg .ribbon {
   filter: blur(13px);
@@ -1471,8 +1469,8 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
   transform-origin: 50% 50%;
   animation: ribbon-drift 12s ease-in-out infinite alternate;
 }
-.aurora-svg .r2 { animation-duration: 16s; animation-direction: alternate-reverse; filter: blur(16px); opacity: 0.85; }
-.aurora-svg .r3 { animation-duration: 21s; filter: blur(18px); opacity: 0.7; }
+.aurora-svg .r2 { animation-duration: 16s; animation-direction: alternate-reverse; filter: blur(16px); opacity: 0.65; }
+.aurora-svg .r3 { animation-duration: 21s; filter: blur(18px); opacity: 0.5; }
 @keyframes ribbon-drift {
   0%   { transform: translateX(-70px) scaleY(0.94) skewY(-0.8deg); }
   50%  { transform: translateX(20px)  scaleY(1.1)  skewY(0.6deg); }
