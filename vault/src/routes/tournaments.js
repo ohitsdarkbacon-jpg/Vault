@@ -4,6 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { notify } = require('../lib/notify');
 const { moderateField } = require('../lib/moderation');
 const { parseCategory } = require('../lib/search');
+const { isPro } = require('../lib/fees');
 
 const router = express.Router();
 
@@ -18,6 +19,7 @@ const ONLINE_WINDOW_MIN = 5;
 
 const tournamentQuery = `
   SELECT t.*, u.username AS host_name, u.is_verified AS host_verified,
+    (u.pro_until IS NOT NULL AND julianday(u.pro_until) > julianday('now')) AS host_pro,
     (SELECT COUNT(*) FROM tournament_players p WHERE p.tournament_id = t.id) AS player_count,
     mm.username AS middleman_name
   FROM tournaments t
@@ -85,11 +87,12 @@ router.post('/tournaments', requireAuth, (req, res) => {
   const closeHours = parseInt(b.close_hours, 10);
   if (!CLOSE_HOURS.includes(closeHours)) return res.status(400).json({ error: 'Pick a valid signup window.' });
 
+  const hostCap = isPro(req.user) ? MAX_HOSTED_ACTIVE * 2 : MAX_HOSTED_ACTIVE; // Pro perk
   const active = db
     .prepare("SELECT COUNT(*) AS n FROM tournaments WHERE host_id = ? AND status IN ('open','ongoing')")
     .get(req.user.id).n;
-  if (active >= MAX_HOSTED_ACTIVE) {
-    return res.status(400).json({ error: `You can host at most ${MAX_HOSTED_ACTIVE} active tournaments — finish or cancel one first.` });
+  if (active >= hostCap) {
+    return res.status(400).json({ error: `You can host at most ${hostCap} active tournaments — finish or cancel one first.` });
   }
 
   const modTitle = moderateField(title, 'title');

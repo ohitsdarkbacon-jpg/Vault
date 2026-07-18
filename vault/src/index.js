@@ -21,6 +21,8 @@ const offersRoutes = require('./routes/offers');
 const { router: topupsRouter } = require('./routes/topups');
 const { router: tradesRouter, startTicketRotator } = require('./routes/trades');
 const tournamentsRouter = require('./routes/tournaments');
+const { router: proRouter, startProRenewJob } = require('./routes/pro');
+const { isPro } = require('./lib/fees');
 const { startAuctionCloser } = require('./jobs/auctionCloser');
 const { startAutoComplete } = require('./jobs/autoCompleteOrders');
 
@@ -59,11 +61,17 @@ app.use('/api/orders/:id/messages', messageLimiter);
 app.get('/api/me', (req, res) => {
   if (!req.user) return res.json({ user: null });
   const { id, provider_id, username, avatar_url, site_credit_cents, is_admin, bio, created_at, profile_hidden, middleman_status } = req.user;
-  res.json({ user: { id, provider_id, username, avatar_url, site_credit_cents, is_admin, bio, created_at, profile_hidden, middleman_status } });
+  res.json({ user: {
+    id, provider_id, username, avatar_url, site_credit_cents, is_admin, bio, created_at, profile_hidden, middleman_status,
+    pro: { active: isPro(req.user), until: req.user.pro_until || null, auto_renew: !!req.user.pro_auto_renew },
+  } });
 });
 
 app.get('/api/config', (req, res) => {
-  res.json({ fee_bps: config.platformFeeBps, fee_mode: config.feeMode });
+  res.json({
+    fee_bps: config.platformFeeBps, fee_mode: config.feeMode,
+    pro_fee_bps: config.proFeeBps, pro_price_cents: config.proPriceCents,
+  });
 });
 
 // Game categories — admin-managed rows, consumed by every category picker
@@ -135,6 +143,7 @@ app.use('/api', offersRoutes);          // /api/listings/:id/offers, /api/offers
 app.use('/api', topupsRouter);          // /api/topup/* — add funds to balance
 app.use('/api', tradesRouter);          // /api/trades/*, /api/mm/* — in-game trading + middlemen
 app.use('/api', tournamentsRouter);     // /api/tournaments/* — community tournaments
+app.use('/api', proRouter);             // /api/pro/* — Vault Pro subscriptions
 app.use('/api/uploads', uploadsRoutes); // image uploads for listings/auctions
 app.use('/api/admin', adminRoutes);
 app.use('/api', paymentsRoutes); // /api/auctions/:id/checkout/*, /api/listings/:id/checkout/*
@@ -166,6 +175,7 @@ startAuctionCloser();
 startAutoComplete();
 startTicketRotator(); // rotate middleman tickets that hit the 2-min window
 tournamentsRouter.startTournamentJob(); // flip tournaments live when signups close
+startProRenewJob(); // renew lapsed Pro subscriptions from site balance (hourly)
 
 app.listen(config.port, () => {
   console.log(`Vault backend listening on http://localhost:${config.port}`);

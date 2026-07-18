@@ -4,6 +4,7 @@ const { requireAuth } = require('../middleware/auth');
 const { notify, notifyAdmins } = require('../lib/notify');
 const { moderateField } = require('../lib/moderation');
 const { parseCategory } = require('../lib/search');
+const { isPro } = require('../lib/fees');
 
 const router = express.Router();
 
@@ -60,8 +61,9 @@ router.post('/trades', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Image URL must be a valid http(s) link.' });
   }
 
+  const cap = isPro(req.user) ? 25 : 10; // Pro perk: more open trade posts
   const open = db.prepare("SELECT COUNT(*) c FROM trade_posts WHERE user_id = ? AND status = 'open'").get(req.user.id).c;
-  if (open >= 10) return res.status(400).json({ error: 'You already have 10 open trade posts — close some first.' });
+  if (open >= cap) return res.status(400).json({ error: `You already have ${cap} open trade posts — close some first.` });
 
   const info = db
     .prepare('INSERT INTO trade_posts (user_id, offering, wants, category, image_url, notes) VALUES (?, ?, ?, ?, ?, ?)')

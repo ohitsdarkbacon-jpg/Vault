@@ -46,7 +46,8 @@ function loadListingForCheckout(req) {
 // baseCents = the listing price / winning bid. In 'added' fee mode the buyer
 // is charged base + fee and the seller's escrowed proceeds equal the full base.
 function createPendingOrder({ buyerId, sellerId, listingId, auctionId, baseCents, method }) {
-  const { amountCents, feeCents, sellerProceedsCents } = computeOrderAmounts(baseCents);
+  const buyer = db.prepare('SELECT pro_until FROM users WHERE id = ?').get(buyerId);
+  const { amountCents, feeCents, sellerProceedsCents } = computeOrderAmounts(baseCents, buyer);
   const info = db
     .prepare(
       `INSERT INTO orders (buyer_id, seller_id, listing_id, auction_id, amount_cents, fee_cents, seller_proceeds_cents, method, status)

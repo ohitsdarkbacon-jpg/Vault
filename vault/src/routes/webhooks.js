@@ -6,6 +6,7 @@ const { verifyIpnSignature, FINISHED_STATUSES } = require('../lib/nowpayments');
 const { isPayoutIpn, handlePayoutIpn } = require('../lib/payouts');
 const { fulfillOrder } = require('../lib/fulfillOrder');
 const { fulfillTopup } = require('./topups');
+const { fulfillProPurchase } = require('./pro');
 const { notify, notifyAdmins } = require('../lib/notify');
 
 const router = express.Router();
@@ -56,6 +57,18 @@ router.post('/nowpayments', (req, res) => {
   }
 
   const { payment_id, payment_status, order_id } = req.body;
+
+  // ---- Vault Pro purchases (matched by payment id, or the "pro:" order tag) ----
+  const proPurchase = db.prepare('SELECT * FROM pro_purchases WHERE nowpayments_payment_id = ?').get(String(payment_id));
+  if (proPurchase || String(order_id || '').startsWith('pro:')) {
+    const proId = proPurchase ? proPurchase.id : Number(String(order_id).slice(4));
+    if (FINISHED_STATUSES.has(payment_status)) {
+      fulfillProPurchase(proId);
+    } else if (['failed', 'expired', 'refunded'].includes(payment_status)) {
+      db.prepare("UPDATE pro_purchases SET status = 'failed', updated_at = datetime('now') WHERE id = ? AND status = 'pending'").run(proId);
+    }
+    return res.json({ received: true });
+  }
 
   // ---- Balance top-ups (matched by payment id, or the "topup:" order tag) ----
   const topup = db.prepare('SELECT * FROM topups WHERE nowpayments_payment_id = ?').get(String(payment_id));

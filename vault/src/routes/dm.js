@@ -38,6 +38,7 @@ router.get('/traders', (req, res) => {
   const rows = db
     .prepare(
       `SELECT u.id, u.username, u.avatar_url, u.bio, u.created_at, u.last_seen_at, u.is_verified,
+        (u.pro_until IS NOT NULL AND julianday(u.pro_until) > julianday('now')) AS pro,
         (SELECT COUNT(*) FROM orders o WHERE o.seller_id = u.id AND o.status = 'completed') AS completed_sales,
         (SELECT ROUND(AVG(r.rating), 2) FROM reviews r WHERE r.subject_id = u.id) AS avg_rating,
         (SELECT COUNT(*) FROM reviews r WHERE r.subject_id = u.id) AS review_count,

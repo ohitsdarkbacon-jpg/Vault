@@ -1314,3 +1314,58 @@ table.data td.mono { font-family: 'JetBrains Mono', monospace; }
 .tc-meta b { color: var(--text); font-weight: 600; }
 .tc-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 4px; }
 .tc-in { font-size: 0.78rem; color: var(--live); font-weight: 600; }
+
+/* ============================================================
+   v9 — Vault Pro
+   ============================================================ */
+.pro-badge {
+  display: inline-block; vertical-align: 1px;
+  font-size: 0.58rem; font-weight: 800; letter-spacing: 0.08em;
+  padding: 1px 6px; border-radius: 6px; margin-left: 4px;
+  background: linear-gradient(135deg, #F59E0B, #FBBF24);
+  color: #451A03; box-shadow: 0 0 10px rgba(245,158,11,0.35);
+}
+.card.pro-featured { border-color: rgba(245,158,11,0.35); }
+.card.pro-featured:hover { border-color: rgba(245,158,11,0.6); box-shadow: 0 14px 40px rgba(0,0,0,0.45), 0 0 24px rgba(245,158,11,0.12); }
+
+/* ---------- Pro modal ---------- */
+.pro-modal { max-width: 520px; }
+.pro-head { text-align: center; margin-bottom: 18px; }
+.pro-head h3 { margin: 6px 0 6px; }
+.pro-star {
+  width: 54px; height: 54px; margin: 0 auto; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center; font-size: 1.6rem;
+  background: linear-gradient(135deg, rgba(245,158,11,0.25), rgba(139,92,246,0.25));
+  border: 1px solid rgba(245,158,11,0.4);
+  box-shadow: 0 0 30px rgba(245,158,11,0.25);
+}
+.pro-perks { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+.pro-perk { display: flex; gap: 12px; align-items: flex-start; }
+.pp-ico {
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center; font-size: 0.95rem;
+  background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.25); color: var(--gold-2);
+}
+.pro-perk b { display: block; font-size: 0.9rem; margin-bottom: 1px; }
+.pro-perk span { font-size: 0.8rem; color: var(--muted); line-height: 1.45; }
+.pro-status {
+  padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; font-size: 0.86rem;
+  background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3);
+}
+.pro-renew-row {
+  display: flex; align-items: center; gap: 10px; margin-top: 14px;
+  font-size: 0.84rem; color: var(--muted); cursor: pointer;
+}
+
+/* ---------- Toggle switch (no native checkbox) ---------- */
+.toggle {
+  width: 40px; height: 22px; border-radius: 20px; flex-shrink: 0;
+  background: rgba(148,163,184,0.2); border: 1px solid var(--border-strong);
+  position: relative; padding: 0; transition: background .2s, border-color .2s;
+}
+.toggle .knob {
+  position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--muted); transition: transform .2s var(--ease-spring), background .2s;
+}
+.toggle.on { background: rgba(139,92,246,0.4); border-color: var(--gold-dim); }
+.toggle.on .knob { transform: translateX(18px); background: var(--gold-2); }

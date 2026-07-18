@@ -31,7 +31,9 @@ const orderCardQuery = `
 
 router.get('/users/:username', (req, res) => {
   const user = db
-    .prepare('SELECT id, username, avatar_url, bio, created_at, is_banned, is_verified, profile_hidden, last_seen_at FROM users WHERE username = ? COLLATE NOCASE')
+    .prepare(`SELECT id, username, avatar_url, bio, created_at, is_banned, is_verified, profile_hidden, last_seen_at,
+      (pro_until IS NOT NULL AND julianday(pro_until) > julianday('now')) AS pro
+      FROM users WHERE username = ? COLLATE NOCASE`)
     .get(req.params.username);
   if (!user) return res.status(404).json({ error: 'User not found.' });
 
