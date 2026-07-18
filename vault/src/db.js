@@ -391,6 +391,30 @@ CREATE TABLE IF NOT EXISTS admin_log (
 CREATE INDEX IF NOT EXISTS idx_admin_log_created ON admin_log(created_at);
 `);
 
+// Looking-For board (want-to-buy posts) + public section chat rooms.
+db.exec(`
+CREATE TABLE IF NOT EXISTS wanted_posts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  item TEXT NOT NULL,
+  budget_cents INTEGER,
+  notes TEXT,
+  category TEXT NOT NULL DEFAULT 'other',
+  status TEXT NOT NULL DEFAULT 'open', -- open | closed
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_wanted_status ON wanted_posts(status, created_at);
+
+CREATE TABLE IF NOT EXISTS room_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  room TEXT NOT NULL,
+  sender_id INTEGER NOT NULL REFERENCES users(id),
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_room_messages ON room_messages(room, id);
+`);
+
 // Vault Pro subscriptions — pro_until is the paid-through timestamp
 // (extended 30 days per purchase); purchases mirror the topups flow.
 ensureColumn('users', 'pro_until', 'pro_until TEXT');

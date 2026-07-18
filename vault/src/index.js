@@ -22,6 +22,7 @@ const { router: topupsRouter } = require('./routes/topups');
 const { router: tradesRouter, startTicketRotator } = require('./routes/trades');
 const tournamentsRouter = require('./routes/tournaments');
 const { router: proRouter, startProRenewJob } = require('./routes/pro');
+const communityRouter = require('./routes/community');
 const { isPro } = require('./lib/fees');
 const { startAuctionCloser } = require('./jobs/auctionCloser');
 const { startAutoComplete } = require('./jobs/autoCompleteOrders');
@@ -144,6 +145,7 @@ app.use('/api', topupsRouter);          // /api/topup/* — add funds to balance
 app.use('/api', tradesRouter);          // /api/trades/*, /api/mm/* — in-game trading + middlemen
 app.use('/api', tournamentsRouter);     // /api/tournaments/* — community tournaments
 app.use('/api', proRouter);             // /api/pro/* — Vault Pro subscriptions
+app.use('/api', communityRouter);       // /api/wanted, /api/game-stats, /api/rooms/*
 app.use('/api/uploads', uploadsRoutes); // image uploads for listings/auctions
 app.use('/api/admin', adminRoutes);
 app.use('/api', paymentsRoutes); // /api/auctions/:id/checkout/*, /api/listings/:id/checkout/*
