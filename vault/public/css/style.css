@@ -1373,3 +1373,49 @@ table.data td.mono { font-family: 'JetBrains Mono', monospace; }
 }
 .toggle.on { background: rgba(139,92,246,0.4); border-color: var(--gold-dim); }
 .toggle.on .knob { transform: translateX(18px); background: var(--gold-2); }
+
+/* ============================================================
+   v10 — the wow pass: aurora, shimmer, spotlight cards, reveals
+   ============================================================ */
+
+/* ---------- Aurora: the ambient orbs, turned up from a whisper ---------- */
+.bg-fx i { will-change: transform; }
+.bg-fx i:nth-child(1) { width: 680px; height: 680px; background: radial-gradient(circle, rgba(109,40,217,0.34), transparent 65%); }
+.bg-fx i:nth-child(2) { width: 560px; height: 560px; background: radial-gradient(circle, rgba(139,92,246,0.24), transparent 65%); }
+.bg-fx i:nth-child(3) { width: 520px; height: 520px; background: radial-gradient(circle, rgba(88,101,242,0.2), transparent 65%); }
+
+/* ---------- Hero title shimmer ---------- */
+.hero h1 .accent {
+  background: linear-gradient(100deg, var(--gold-2) 0%, var(--gold) 30%, #C4B5FD 50%, var(--gold) 70%, #7C3AED 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  animation: shimmer 6s ease-in-out infinite;
+}
+@keyframes shimmer { 0%, 100% { background-position: 0% 0; } 50% { background-position: 100% 0; } }
+
+/* ---------- Header gains depth once you scroll ---------- */
+header { transition: box-shadow .25s, border-color .25s; }
+header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,246,0.12); }
+
+/* ---------- Entry stagger for the newer grids (item cards already had it) ---------- */
+.tourney-grid .tourney-card { animation: card-in .5s var(--ease-out) both; }
+.tourney-grid > :nth-child(2) { animation-delay: .06s; }
+.tourney-grid > :nth-child(3) { animation-delay: .12s; }
+.tourney-grid > :nth-child(4) { animation-delay: .18s; }
+.tourney-grid > :nth-child(n+5) { animation-delay: .24s; }
+
+/* ---------- Cursor spotlight on cards ---------- */
+.card, .tourney-card { position: relative; }
+.card::before, .tourney-card::before {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit; z-index: 1;
+  background: radial-gradient(340px circle at var(--mx, 50%) var(--my, 50%), rgba(167,139,250,0.14), transparent 65%);
+  opacity: 0; transition: opacity .3s; pointer-events: none;
+}
+.card:hover::before, .tourney-card:hover::before { opacity: 1; }
+
+/* ---------- Scroll reveals for static sections ---------- */
+.reveal { opacity: 0; transform: translateY(22px); transition: opacity .6s var(--ease-out), transform .6s var(--ease-out); }
+.reveal.in { opacity: 1; transform: none; }
+
+/* Respect reduced motion: the global reduced-motion rule already zeroes
+   animation/transition durations, which covers everything above. */

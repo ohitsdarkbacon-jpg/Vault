@@ -75,7 +75,8 @@ withdrawals, notifications, public profiles, and an admin panel.
 
 **Admin panel** (`#admin`, for users in `ADMIN_DISCORD_IDS`)
 - Live stats incl. money held in escrow + fees earned + open reports, plus **7-day growth cards** (new users, sales, volume)
-- **📣 Site-wide announcements**: one click sends a notification to every member (with a confirm step so you don't fat-finger it)
+- **📣 Site-wide announcements**: one click sends a notification to every member (with a confirm step so you don't fat-finger it). Announcements are listed in the Log tab and can be **deleted** — the banner comes down for everyone and unread 📣 notifications are withdrawn (already-read ones stay)
+- **Revoke Vault Pro**: pull a subscription from the Users tab (perks end immediately, auto-renew off, user notified, action logged)
 - **Audit log tab**: every admin action — bans, payouts, credit adjustments, category changes, takedowns, announcements — is recorded with who did it, when, and the details
 - Dispute resolution, withdrawal queue, user search + ban/unban
 - **Reports tab**: review user reports and mark them resolved
