@@ -340,6 +340,7 @@ function renderAuth() {
       ? `<img src="${escapeHtml(ME.avatar_url)}" alt="">`
       : `<span class="avatar-fallback">${escapeHtml(ME.username[0].toUpperCase())}</span>`;
     area.innerHTML = `
+      <a class="btn btn-small dash-btn" href="#dashboard">📊 Dashboard</a>
       <a class="balance-chip" href="#dashboard" title="Your balance">◈ ${money(ME.site_credit_cents)}</a>
       <button class="icon-btn" id="dm-btn" title="Messages">💬<span class="badge-dot" id="dm-badge" style="display:none"></span></button>
       <button class="icon-btn" id="bell-btn" title="Notifications">🔔<span class="badge-dot" id="bell-badge" style="display:none"></span></button>
