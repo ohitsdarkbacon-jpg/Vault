@@ -209,11 +209,52 @@ router.get('/my/withdrawals', requireAuth, (req, res) => {
 
 const PAYOUT_CURRENCIES = new Set(['btc', 'eth', 'usdttrc20', 'usdterc20', 'ltc', 'sol']);
 
+// Loose per-chain shape checks — enough to catch pasted garbage and
+// wrong-chain mixups before money moves. NOWPayments re-validates on send.
+const ADDRESS_SHAPES = {
+  eth: /^0x[a-fA-F0-9]{40}$/,
+  usdterc20: /^0x[a-fA-F0-9]{40}$/,
+  btc: /^(bc1[a-zA-Z0-9]{20,60}|[13][a-km-zA-HJ-NP-Z1-9]{25,40})$/,
+  ltc: /^(ltc1[a-zA-Z0-9]{20,60}|[LM3][a-km-zA-HJ-NP-Z1-9]{25,40})$/,
+  sol: /^[1-9A-HJ-NP-Za-km-z]{32,44}$/,
+  usdttrc20: /^T[1-9A-HJ-NP-Za-km-z]{33}$/,
+};
+function validWalletAddress(currency, address) {
+  const re = ADDRESS_SHAPES[currency];
+  return !!re && re.test(address);
+}
+
+// ---------- Connected payout wallet ----------
+
+router.put('/my/wallet', requireAuth, (req, res) => {
+  const address = String(req.body?.address || '').trim();
+  const currency = String(req.body?.currency || '').toLowerCase();
+  if (!PAYOUT_CURRENCIES.has(currency)) return res.status(400).json({ error: 'Pick a payout currency.' });
+  if (!validWalletAddress(currency, address)) {
+    return res.status(400).json({ error: `That doesn't look like a valid ${currency.toUpperCase().replace('USDTTRC20', 'USDT (TRC-20)').replace('USDTERC20', 'USDT (ERC-20)')} address.` });
+  }
+  db.prepare('UPDATE users SET wallet_address = ?, wallet_currency = ? WHERE id = ?').run(address, currency, req.user.id);
+  res.json({ ok: true, wallet: { address, currency } });
+});
+
+router.delete('/my/wallet', requireAuth, (req, res) => {
+  db.prepare('UPDATE users SET wallet_address = NULL, wallet_currency = NULL WHERE id = ?').run(req.user.id);
+  res.json({ ok: true });
+});
+
 router.post('/my/withdrawals', requireAuth, async (req, res) => {
   const amountCents = parseInt(req.body?.amount_cents, 10);
-  const method = String(req.body?.method || '');
-  const destination = String(req.body?.destination || '').trim().slice(0, 200);
-  const currency = req.body?.currency ? String(req.body.currency).toLowerCase() : null;
+  let method = String(req.body?.method || '');
+  let destination = String(req.body?.destination || '').trim().slice(0, 200);
+  let currency = req.body?.currency ? String(req.body.currency).toLowerCase() : null;
+
+  // One-click payout to the connected wallet.
+  if (req.body?.use_wallet) {
+    if (!req.user.wallet_address) return res.status(400).json({ error: 'No wallet connected — connect one in your Wallet tab first.' });
+    method = 'crypto';
+    destination = req.user.wallet_address;
+    currency = req.user.wallet_currency;
+  }
 
   if (!Number.isInteger(amountCents) || amountCents < MIN_WITHDRAWAL_CENTS) {
     return res.status(400).json({ error: `Minimum withdrawal is $${(MIN_WITHDRAWAL_CENTS / 100).toFixed(2)}.` });

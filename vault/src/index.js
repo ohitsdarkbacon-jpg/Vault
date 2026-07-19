@@ -65,6 +65,7 @@ app.get('/api/me', (req, res) => {
   res.json({ user: {
     id, provider_id, username, avatar_url, site_credit_cents, is_admin, bio, created_at, profile_hidden, middleman_status,
     pro: { active: isPro(req.user), until: req.user.pro_until || null, auto_renew: !!req.user.pro_auto_renew },
+    wallet: req.user.wallet_address ? { address: req.user.wallet_address, currency: req.user.wallet_currency } : null,
   } });
 });
 

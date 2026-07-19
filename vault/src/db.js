@@ -435,6 +435,9 @@ CREATE INDEX IF NOT EXISTS idx_room_messages ON room_messages(room, id);
 // (extended 30 days per purchase); purchases mirror the topups flow.
 ensureColumn('users', 'pro_until', 'pro_until TEXT');
 ensureColumn('users', 'pro_auto_renew', 'pro_auto_renew INTEGER NOT NULL DEFAULT 0');
+// Connected payout wallet — withdrawals default straight to this address.
+ensureColumn('users', 'wallet_address', 'wallet_address TEXT');
+ensureColumn('users', 'wallet_currency', 'wallet_currency TEXT');
 db.exec(`
 CREATE TABLE IF NOT EXISTS pro_purchases (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

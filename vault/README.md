@@ -33,6 +33,7 @@ withdrawals, notifications, public profiles, and an admin panel.
 - Auto-release 72h after the seller marks delivered (`AUTO_COMPLETE_HOURS`) unless the buyer disputes
 - Disputes freeze funds; admins refund the buyer or release to the seller
 - Withdrawals: sellers request PayPal/crypto payouts into an admin queue
+- **🔗 Wallet connection**: save your payout wallet once (paste an address for BTC/ETH/USDT/LTC/SOL — or one click via **MetaMask** for EVM addresses) and every withdrawal goes **straight to your crypto wallet**, no destination form. Per-chain address validation catches wrong-network mixups before money moves; platform fees are untouched — they're collected at sale time as always
 - **One-click automated crypto payouts** via the NOWPayments Mass Payouts API — admin hits ⚡, the server authenticates (JWT + auto-generated 2FA/TOTP code), NOWPayments sends crypto from your balance to the seller's wallet, and the IPN webhook flips the withdrawal to Paid when the transfer confirms. PayPal stays manual.
 - **Fee modes** (`FEE_MODE`): `added` (default — buyer pays price + 6% at checkout, seller keeps 100% of the price) or `deducted` (classic: fee comes out of seller proceeds)
 

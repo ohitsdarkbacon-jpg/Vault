@@ -1689,12 +1689,31 @@ async function renderDashTab() {
   if (dashTab === 'wallet') {
     const r = await api('/api/my/withdrawals');
     const ws = r.withdrawals || [];
+    const w = ME.wallet;
     c.innerHTML = `
       <div class="order-card" style="justify-content:space-between">
         <div><div class="order-title">Available balance</div><div class="order-sub">Escrow releases and refunds land here. Withdraw any time (min ${money(r.min_cents || 500)}).</div></div>
         <div class="order-price" style="font-size:1.4rem;color:var(--gold)">${money(ME.site_credit_cents)}</div>
         <button class="btn btn-gold" id="open-topup">＋ Add funds</button>
         <button class="btn" id="open-withdraw">Withdraw</button>
+      </div>
+      <div class="wallet-card ${w ? 'connected' : ''}">
+        <div class="wallet-card-main">
+          <div class="wallet-ico">${w ? '🔗' : '👛'}</div>
+          <div>
+            <div class="order-title">${w ? 'Connected wallet' : 'No wallet connected'}</div>
+            <div class="order-sub">${w
+              ? `<span class="wd-badge">${CUR_LABELS[w.currency] || w.currency}</span> <span class="mono">${shortAddr(w.address)}</span> · withdrawals go straight here ⚡`
+              : 'Connect a crypto wallet and withdrawals get sent straight to it — instant within the payout caps.'}</div>
+          </div>
+        </div>
+        <div class="order-actions">
+          ${w
+            ? `<button class="btn btn-small btn-gold" id="wallet-payout">⚡ Withdraw to wallet</button>
+               <button class="btn btn-small" id="wallet-change">Change</button>
+               <button class="btn btn-small" id="wallet-disconnect" style="color:var(--danger)">Disconnect</button>`
+            : `<button class="btn btn-gold" id="wallet-connect">🔗 Connect wallet</button>`}
+        </div>
       </div>
       <h3 class="section-sub">Withdrawal history</h3>
       ${ws.length ? `<div class="table-wrap"><table class="data">
@@ -1712,13 +1731,24 @@ async function renderDashTab() {
       $('#topup-error').textContent = '';
       openModal('topup-overlay');
     };
-    $('#open-withdraw').onclick = () => {
+    const openWithdraw = () => {
       $('#withdraw-balance').textContent = `Available: ${money(ME.site_credit_cents)} · min ${money(r.min_cents || 500)}`;
       $('#withdraw-amount').value = '';
       $('#withdraw-dest').value = '';
       $('#withdraw-error').textContent = '';
       syncWithdrawMethodUi();
       openModal('withdraw-overlay');
+    };
+    $('#open-withdraw').onclick = openWithdraw;
+    const connectBtn = $('#wallet-connect') || $('#wallet-change');
+    if (connectBtn) connectBtn.onclick = openWalletModal;
+    if ($('#wallet-payout')) $('#wallet-payout').onclick = openWithdraw;
+    if ($('#wallet-disconnect')) $('#wallet-disconnect').onclick = async () => {
+      if (!await vaultConfirm('Withdrawals go back to asking for a destination each time.', { title: 'Disconnect this wallet?', okText: 'Disconnect', icon: '👛' })) return;
+      const r2 = await api('/api/my/wallet', { method: 'DELETE' });
+      if (r2.error) return toast(r2.error, 'error');
+      toast('Wallet disconnected.', 'info');
+      await loadMe(); renderDashTab();
     };
     return;
   }
@@ -1750,11 +1780,27 @@ async function renderDashTab() {
 
 // ---------- Withdraw modal ----------
 let withdrawMethod = 'paypal';
+let withdrawUseWallet = false;
+const CUR_LABELS = { btc: 'BTC', eth: 'ETH', usdttrc20: 'USDT · TRC20', usdterc20: 'USDT · ERC20', ltc: 'LTC', sol: 'SOL' };
+const shortAddr = (a) => a.length > 16 ? `${a.slice(0, 8)}…${a.slice(-6)}` : a;
+
 function syncWithdrawMethodUi() {
+  // Connected wallet takes over the destination unless the user opts out.
+  withdrawUseWallet = !!(ME && ME.wallet);
+  $('#withdraw-wallet-row').hidden = !withdrawUseWallet;
+  $('#withdraw-manual').style.display = withdrawUseWallet ? 'none' : '';
+  if (withdrawUseWallet) {
+    $('#withdraw-wallet-addr').textContent = `${CUR_LABELS[ME.wallet.currency] || ME.wallet.currency} · ${shortAddr(ME.wallet.address)}`;
+  }
   $('#withdraw-dest-label').textContent = withdrawMethod === 'paypal' ? 'PayPal email' : 'Wallet address';
   $('#withdraw-dest').placeholder = withdrawMethod === 'paypal' ? 'you@example.com' : 'Paste the exact address for the selected coin/network';
   $('#withdraw-currency-field').style.display = withdrawMethod === 'crypto' ? 'block' : 'none';
 }
+$('#withdraw-other').onclick = () => {
+  withdrawUseWallet = false;
+  $('#withdraw-wallet-row').hidden = true;
+  $('#withdraw-manual').style.display = '';
+};
 $('#withdraw-method').addEventListener('click', (e) => {
   const btn = e.target.closest('.pill');
   if (!btn) return;
@@ -1766,12 +1812,14 @@ $('#withdraw-submit').onclick = async () => {
   const amount = parseFloat($('#withdraw-amount').value);
   const destination = $('#withdraw-dest').value.trim();
   if (!amount || amount <= 0) { $('#withdraw-error').textContent = 'Enter a valid amount.'; return; }
-  if (!destination) { $('#withdraw-error').textContent = 'Enter where to send the money.'; return; }
+  if (!withdrawUseWallet && !destination) { $('#withdraw-error').textContent = 'Enter where to send the money.'; return; }
   $('#withdraw-submit').disabled = true;
-  const r = await api('/api/my/withdrawals', { method: 'POST', body: JSON.stringify({
-    amount_cents: Math.round(amount * 100), method: withdrawMethod, destination,
-    currency: withdrawMethod === 'crypto' ? $('#withdraw-currency').value : undefined,
-  }) });
+  const r = await api('/api/my/withdrawals', { method: 'POST', body: JSON.stringify(withdrawUseWallet
+    ? { amount_cents: Math.round(amount * 100), use_wallet: true }
+    : {
+      amount_cents: Math.round(amount * 100), method: withdrawMethod, destination,
+      currency: withdrawMethod === 'crypto' ? $('#withdraw-currency').value : undefined,
+    }) });
   $('#withdraw-submit').disabled = false;
   if (r.error) { $('#withdraw-error').textContent = r.error; return; }
   closeModal('withdraw-overlay');
@@ -1779,6 +1827,50 @@ $('#withdraw-submit').onclick = async () => {
     ? 'Withdrawal sent — crypto is on its way to your wallet. 🚀'
     : 'Withdrawal requested — you\'ll get a notification when it\'s processed.', 'success');
   await loadMe(); renderDashTab();
+};
+
+// ---------- Connect payout wallet ----------
+function openWalletModal() {
+  $('#wallet-error').textContent = '';
+  if (ME && ME.wallet) {
+    $('#wallet-address').value = ME.wallet.address;
+    $('#wallet-currency').value = ME.wallet.currency;
+  } else {
+    $('#wallet-address').value = '';
+  }
+  // MetaMask (or any injected EIP-1193 provider) can fill the address itself.
+  $('#wallet-metamask').hidden = !window.ethereum;
+  openModal('wallet-overlay');
+}
+
+$('#wallet-metamask').onclick = async () => {
+  try {
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    if (!accounts || !accounts[0]) return toast('MetaMask didn\'t return an account.', 'error');
+    $('#wallet-address').value = accounts[0];
+    // An injected account is an EVM address — default to ETH, they can flip to USDT-ERC20.
+    if (!['eth', 'usdterc20'].includes($('#wallet-currency').value)) $('#wallet-currency').value = 'eth';
+    toast('Wallet linked from MetaMask — hit Save.', 'success');
+  } catch (err) {
+    toast(err && err.code === 4001 ? 'MetaMask connection was declined.' : 'Could not connect to MetaMask.', 'error');
+  }
+};
+
+$('#wallet-save').onclick = async () => {
+  const err = $('#wallet-error');
+  err.textContent = '';
+  const btn = $('#wallet-save');
+  btn.classList.add('loading');
+  const r = await api('/api/my/wallet', {
+    method: 'PUT',
+    body: JSON.stringify({ address: $('#wallet-address').value.trim(), currency: $('#wallet-currency').value }),
+  });
+  btn.classList.remove('loading');
+  if (r.error) { err.textContent = r.error; return; }
+  closeModal('wallet-overlay');
+  toast('🔗 Wallet connected — withdrawals now go straight to it.', 'success');
+  await loadMe();
+  renderDashTab();
 };
 
 // ---------- Dispute modal ----------
