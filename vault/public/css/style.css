@@ -451,7 +451,12 @@ footer {
   .nav-toggle { display: block; }
   header { padding: 11px 14px; gap: 8px; }
   .brand { font-size: 1.12rem; }
-  .hero { padding: 46px 16px 30px; }
+  /* Compact hero on phones so the marketplace is right there, not a
+     full screen of banner text before any items show. */
+  .hero { padding: 24px 16px 20px; }
+  .hero h1 { font-size: 1.9rem; margin-bottom: 12px; }
+  .hero p { font-size: 0.95rem; margin-bottom: 18px; }
+  .hero-stats { margin-top: 22px; gap: 14px 22px; }
   .section { padding: 16px 16px 44px; }
   .footer-grid { grid-template-columns: 1fr 1fr; gap: 26px; }
   .footer-bottom { flex-direction: column; gap: 4px; }
@@ -1740,4 +1745,27 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
 @media (max-width: 620px) {
   .lr-cols { grid-template-columns: 1fr; }
   .lr-roster { flex-direction: row; flex-wrap: wrap; }
+}
+
+/* ---------- Developer / API keys tab ---------- */
+.dev-intro { margin-bottom: 16px; }
+.dev-newkey { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.dev-newkey input {
+  flex: 1; min-width: 180px; background: rgba(10,13,20,0.6); border: 1px solid var(--border);
+  color: var(--text); padding: 10px 12px; border-radius: 9px; font-size: 0.88rem;
+}
+.dev-reveal { background: rgba(61,220,151,0.08); border: 1px solid rgba(61,220,151,0.35); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+.dev-key-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.dev-key-row code { flex: 1; min-width: 200px; overflow-wrap: anywhere; background: rgba(0,0,0,0.3); padding: 8px 10px; border-radius: 8px; font-size: 0.82rem; color: var(--live); }
+.dev-docs { display: flex; flex-direction: column; gap: 9px; }
+.dev-doc-line { font-size: 0.85rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dev-doc-line code { background: rgba(148,163,184,0.1); padding: 2px 7px; border-radius: 6px; font-size: 0.8rem; }
+.dev-verb { font-size: 0.68rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; letter-spacing: 0.04em; }
+.dev-verb.get { background: rgba(61,220,151,0.15); color: var(--live); }
+.dev-verb.post { background: rgba(139,92,246,0.18); color: var(--gold-2); }
+.dev-verb.patch { background: rgba(255,183,77,0.15); color: #FFB74D; }
+.dev-curl {
+  background: rgba(0,0,0,0.35); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; font-size: 0.78rem; color: var(--text); overflow-x: auto;
+  font-family: 'JetBrains Mono', monospace; line-height: 1.55; margin: 6px 0;
 }

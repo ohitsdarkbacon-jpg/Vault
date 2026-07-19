@@ -24,6 +24,7 @@ const tournamentsRouter = require('./routes/tournaments');
 const { router: proRouter, startProRenewJob } = require('./routes/pro');
 const communityRouter = require('./routes/community');
 const lobbiesRouter = require('./routes/lobbies');
+const { keysRouter, v1Router } = require('./routes/api');
 const { isPro } = require('./lib/fees');
 const { startAuctionCloser } = require('./jobs/auctionCloser');
 const { startAutoComplete } = require('./jobs/autoCompleteOrders');
@@ -107,27 +108,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Self-describing index of the public read-only API.
-app.get('/api/v1', (req, res) => {
-  res.json({
-    name: 'Vault public API',
-    version: '1',
-    docs: `${config.baseUrl}/api/v1`,
-    endpoints: {
-      'GET /api/health': 'Service health + uptime',
-      'GET /api/stats': 'Live counts: auctions, listings, completed trades, traders',
-      'GET /api/config': 'Fee schedule + Pro pricing',
-      'GET /api/categories': 'Supported game categories',
-      'GET /api/trending': 'Most-watched live items',
-      'GET /api/recent-sales': 'Recently settled trades',
-      'GET /api/game-stats': '30-day traded volume per game',
-      'GET /api/listings': 'Browse fixed-price listings (q, category, sort, page)',
-      'GET /api/auctions': 'Browse live auctions (q, category, sort, page)',
-    },
-    note: 'Read-only. Prices are USD cents. Rate limit applies.',
-  });
-});
-
 // robots.txt — allow crawling of public pages, keep the API + auth out.
 app.get('/robots.txt', (req, res) => {
   res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /auth/\nDisallow: /dashboard\nSitemap: ${config.baseUrl}/sitemap.xml\n`);
@@ -200,6 +180,8 @@ app.use('/api', tournamentsRouter);     // /api/tournaments/* — community tour
 app.use('/api', proRouter);             // /api/pro/* — Vault Pro subscriptions
 app.use('/api', communityRouter);       // /api/wanted, /api/game-stats, /api/rooms/*
 app.use('/api', lobbiesRouter);         // /api/lobbies/* — play-together lobbies + voice
+app.use('/api', keysRouter);            // /api/keys — developer API key management (session)
+app.use('/api/v1', v1Router);           // /api/v1/* — developer API (key-authed commands)
 app.use('/api/uploads', uploadsRoutes); // image uploads for listings/auctions
 app.use('/api/admin', adminRoutes);
 app.use('/api', paymentsRoutes); // /api/auctions/:id/checkout/*, /api/listings/:id/checkout/*
