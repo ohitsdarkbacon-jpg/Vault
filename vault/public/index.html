@@ -74,8 +74,8 @@
     <a href="#listings" data-scroll>Marketplace</a>
     <a href="#trading">Trading</a>
     <a href="#tournaments">Tournaments</a>
+    <a href="#lobbies">Lobbies</a>
     <a href="#traders-center">Traders center</a>
-    <a href="#traders">Traders</a>
     <a href="#dashboard">Dashboard</a>
     <a href="#" id="nav-sell">Sell an item</a>
   </nav>
@@ -100,6 +100,7 @@
   <a href="#listings" data-scroll>Marketplace</a>
   <a href="#trading">Trading</a>
   <a href="#tournaments">Tournaments</a>
+  <a href="#lobbies">Lobbies</a>
   <a href="#traders-center">Traders center</a>
   <a href="#traders">Traders</a>
   <a href="#messages">Messages</a>
@@ -316,6 +317,17 @@
       <button class="btn btn-gold" id="host-tourney-btn">+ Host a tournament</button>
     </div>
     <div class="tourney-grid" id="tourney-grid"><div class="empty">Loading tournaments…</div></div>
+  </div>
+</div>
+
+<!-- ================= LOBBIES VIEW ================= -->
+<div class="view" id="view-lobbies">
+  <div class="page">
+    <div class="page-head">
+      <div><h2>Lobbies</h2><div class="sub">Playing something and want people to join? Spin up a lobby — anyone can hop in, jump in <b>voice chat</b>, and play together.</div></div>
+      <button class="btn btn-gold" id="host-lobby-btn">+ Create a lobby</button>
+    </div>
+    <div class="lobby-grid" id="lobby-grid"><div class="empty-block">Loading…</div></div>
   </div>
 </div>
 
@@ -751,6 +763,82 @@
     <div class="field"><label>Image URL (optional)</label><input id="trade-image" placeholder="https://… or /uploads/…"></div>
     <div class="error-text" id="trade-error"></div>
     <div class="modal-actions"><button class="btn btn-gold" id="trade-submit" style="flex:1">Post trade</button></div>
+  </div>
+</div>
+
+<!-- Create lobby modal -->
+<div class="overlay" id="lobby-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="lobby-overlay">✕</button>
+    <h3>Create a lobby</h3>
+    <div class="sub">Set it up, and players can join + drop into voice chat with you.</div>
+    <div class="field"><label>Lobby title</label><input id="lobby-title" placeholder="Chill Rivals ranked grind" maxlength="80"></div>
+    <div class="field"><label>Game</label><input id="lobby-game" placeholder="Rivals" maxlength="40"></div>
+    <div class="field"><label>Notes (optional)</label><input id="lobby-notes" placeholder="Mic preferred, we're just vibing" maxlength="200"></div>
+    <div class="field-row">
+      <div class="field">
+        <label>Players</label>
+        <div class="custom-select" id="lobby-max" data-value="4">
+          <div class="cs-trigger"><span class="cs-label">4 players</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="cs-dropdown">
+            <div class="cs-option" data-value="2">2 players</div>
+            <div class="cs-option" data-value="3">3 players</div>
+            <div class="cs-option active" data-value="4">4 players</div>
+            <div class="cs-option" data-value="6">6 players</div>
+            <div class="cs-option" data-value="8">8 players</div>
+            <div class="cs-option" data-value="12">12 players</div>
+            <div class="cs-option" data-value="20">20 players</div>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Region</label>
+        <div class="custom-select" id="lobby-region" data-value="any">
+          <div class="cs-trigger"><span class="cs-label">Any region</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="cs-dropdown">
+            <div class="cs-option active" data-value="any">Any region</div>
+            <div class="cs-option" data-value="na-east">NA East</div>
+            <div class="cs-option" data-value="na-west">NA West</div>
+            <div class="cs-option" data-value="eu">Europe</div>
+            <div class="cs-option" data-value="asia">Asia</div>
+            <div class="cs-option" data-value="oceania">Oceania</div>
+            <div class="cs-option" data-value="sa">South America</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <label class="pro-renew-row" style="margin-top:4px">
+      <button type="button" class="toggle" id="lobby-private-toggle" role="switch" aria-checked="false"><span class="knob"></span></button>
+      Private — only people with the join code can enter
+    </label>
+    <div class="error-text" id="lobby-error"></div>
+    <div class="modal-actions"><button class="btn btn-gold" id="lobby-submit" style="flex:1">Create lobby</button></div>
+  </div>
+</div>
+
+<!-- Lobby room modal (roster + voice + chat) -->
+<div class="overlay" id="lobbyroom-overlay">
+  <div class="modal modal-wrap" style="max-width:660px">
+    <button class="modal-close" data-close="lobbyroom-overlay">✕</button>
+    <h3 id="lr-title">Lobby</h3>
+    <div class="sub" id="lr-sub"></div>
+    <div class="lr-voice" id="lr-voice">
+      <div><b>🎙 Voice chat</b><span class="sub" style="display:block;margin:0">Free room — no account needed, works on mobile.</span></div>
+      <a class="btn btn-gold" id="lr-voice-btn" href="#" target="_blank" rel="noopener">Join voice →</a>
+    </div>
+    <div class="lr-cols">
+      <div class="lr-roster" id="lr-roster"></div>
+      <div class="lr-chat">
+        <div class="chat-box" id="lr-box" style="height:260px"><div class="chat-empty">Loading…</div></div>
+        <div class="chat-input-row">
+          <input id="lr-input" placeholder="Message the lobby…" maxlength="300" autocomplete="off">
+          <button class="btn btn-gold btn-small" id="lr-send">Send</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn" id="lr-leave" style="flex:1;color:var(--danger)">Leave lobby</button>
+    </div>
   </div>
 </div>
 

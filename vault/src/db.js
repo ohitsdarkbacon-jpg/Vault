@@ -405,6 +405,36 @@ CREATE TABLE IF NOT EXISTS wanted_posts (
 );
 CREATE INDEX IF NOT EXISTS idx_wanted_status ON wanted_posts(status, created_at);
 
+CREATE TABLE IF NOT EXISTS lobbies (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  host_id INTEGER NOT NULL REFERENCES users(id),
+  title TEXT NOT NULL,
+  game TEXT NOT NULL,
+  notes TEXT,
+  region TEXT NOT NULL DEFAULT 'any',
+  max_players INTEGER NOT NULL DEFAULT 4,
+  voice_room TEXT NOT NULL,
+  join_code TEXT,
+  status TEXT NOT NULL DEFAULT 'open', -- open | closed
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_active_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_lobbies_status ON lobbies(status, last_active_at);
+CREATE TABLE IF NOT EXISTS lobby_members (
+  lobby_id INTEGER NOT NULL REFERENCES lobbies(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (lobby_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS lobby_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  lobby_id INTEGER NOT NULL REFERENCES lobbies(id),
+  sender_id INTEGER NOT NULL REFERENCES users(id),
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_lobby_messages ON lobby_messages(lobby_id, id);
+
 CREATE TABLE IF NOT EXISTS wfl_posts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id),
