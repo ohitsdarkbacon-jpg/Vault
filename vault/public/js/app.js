@@ -1787,6 +1787,75 @@ async function renderDashTab() {
     }));
     return;
   }
+
+  if (dashTab === 'developer') {
+    await renderDeveloperTab(c);
+    return;
+  }
+}
+
+// ---------- Developer / API keys ----------
+async function renderDeveloperTab(c) {
+  const origin = location.origin;
+  const r = await api('/api/keys');
+  const keys = r.keys || [];
+  c.innerHTML = `
+    <div class="dev-intro">
+      <div class="order-title">🔑 API keys</div>
+      <div class="order-sub">Drive your account over HTTP — list items, edit prices, check orders. Send your key as a Bearer token. 60 requests/min per key.</div>
+    </div>
+    <div class="dev-newkey">
+      <input id="dev-key-label" placeholder="Key label — e.g. my bot" maxlength="40">
+      <button class="btn btn-gold" id="dev-key-create">＋ Generate key</button>
+    </div>
+    <div id="dev-key-reveal"></div>
+    ${keys.length ? `<div class="table-wrap"><table class="data">
+      <tr><th>Label</th><th>Key</th><th>Last used</th><th>Status</th><th></th></tr>
+      ${keys.map(k => `<tr>
+        <td>${escapeHtml(k.label)}</td>
+        <td class="mono">${escapeHtml(k.prefix)}…${k.revoked ? '' : ''}</td>
+        <td>${k.last_used_at ? timeAgo(k.last_used_at) : 'never'}</td>
+        <td>${k.revoked ? '<span class="status-badge status-disputed">Revoked</span>' : '<span class="status-badge status-active">Active</span>'}</td>
+        <td>${k.revoked ? '' : `<button class="btn btn-small" data-revoke-key="${k.id}" style="color:var(--danger)">Revoke</button>`}</td>
+      </tr>`).join('')}
+    </table></div>` : '<div class="empty-block" style="margin-top:14px">No keys yet — generate one to get started.</div>'}
+
+    <h3 class="section-sub">Quick start</h3>
+    <div class="dev-docs">
+      <div class="dev-doc-line"><span class="dev-verb get">GET</span> <code>${origin}/api/v1/me</code> — your account + balance</div>
+      <div class="dev-doc-line"><span class="dev-verb get">GET</span> <code>/api/v1/listings</code> — your active listings</div>
+      <div class="dev-doc-line"><span class="dev-verb post">POST</span> <code>/api/v1/listings</code> — create a listing</div>
+      <div class="dev-doc-line"><span class="dev-verb patch">PATCH</span> <code>/api/v1/listings/:id</code> — edit title/price/image</div>
+      <div class="dev-doc-line"><span class="dev-verb post">POST</span> <code>/api/v1/listings/:id/close</code> — take it down</div>
+      <div class="dev-doc-line"><span class="dev-verb get">GET</span> <code>/api/v1/orders</code> · <code>/api/v1/notifications</code></div>
+      <pre class="dev-curl"># List an item from the command line
+curl -X POST ${origin}/api/v1/listings \\
+  -H "Authorization: Bearer vlt_live_your_key" \\
+  -H "Content-Type: application/json" \\
+  -d '{"title":"Neon Shadow Dragon","price_usd":54.99,"category":"adopt-me","image_url":"https://i.imgur.com/x.png"}'</pre>
+      <div class="order-sub">Full endpoint index: <a href="/api/v1" target="_blank" style="color:var(--gold-2)">${origin}/api/v1</a></div>
+    </div>`;
+
+  $('#dev-key-create').onclick = async () => {
+    const label = $('#dev-key-label').value.trim();
+    const r2 = await api('/api/keys', { method: 'POST', body: JSON.stringify({ label }) });
+    if (r2.error) return toast(r2.error, 'error');
+    // Re-render the list (so the new key shows), then surface the one-time reveal.
+    await renderDeveloperTab(c);
+    $('#dev-key-reveal').innerHTML = `
+      <div class="dev-reveal">
+        <div class="order-title">✅ Key created — copy it now, it won't be shown again</div>
+        <div class="dev-key-row"><code class="mono">${escapeHtml(r2.key)}</code><button class="btn btn-small btn-gold" id="dev-copy-key">Copy</button></div>
+      </div>`;
+    $('#dev-copy-key').onclick = () => navigator.clipboard.writeText(r2.key).then(() => toast('Key copied.', 'success'));
+  };
+  c.querySelectorAll('[data-revoke-key]').forEach(b => b.onclick = async () => {
+    if (!await vaultConfirm('Any bot or script using this key stops working immediately.', { title: 'Revoke this key?', okText: 'Revoke key', danger: true, icon: '🔑' })) return;
+    const r2 = await api(`/api/keys/${b.dataset.revokeKey}`, { method: 'DELETE' });
+    if (r2.error) return toast(r2.error, 'error');
+    toast('Key revoked.', 'info');
+    renderDeveloperTab(c);
+  });
 }
 
 // ---------- Withdraw modal ----------
