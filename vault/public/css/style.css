@@ -1638,3 +1638,12 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
 .wallet-mm-btn { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .wallet-mm-btn[hidden] { display: none; }
 .mm-fox { font-size: 1.1rem; }
+
+/* ---------- Header Dashboard button ---------- */
+.dash-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  border-color: rgba(139,92,246,0.45); color: var(--gold-2);
+  background: rgba(139,92,246,0.1); white-space: nowrap;
+}
+.dash-btn:hover { color: var(--text); border-color: var(--gold); background: rgba(139,92,246,0.18); }
+@media (max-width: 900px) { .dash-btn { display: none; } } /* mobile nav already has Dashboard */
