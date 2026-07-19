@@ -129,6 +129,7 @@ function closeModal(id) {
   if (id === 'bid-overlay') clearInterval(bidPollTimer);
   if (id === 'ticket-overlay') { clearInterval(ticketPollTimer); activeTicketId = null; }
   if (id === 'tchat-overlay') { clearInterval(tchatPollTimer); activeTourneyId = null; }
+  if (id === 'lobbyroom-overlay') { clearInterval(lobbyPollTimer); clearInterval(lobbyChatTimer); activeLobbyId = null; }
 }
 // ---------- Custom confirm / prompt dialogs (replace native popups) ----------
 let dialogResolve = null;
@@ -237,8 +238,16 @@ $$('.overlay').forEach(ov => ov.addEventListener('click', e => {
 }));
 
 // ---------- Mobile nav ----------
-$('#nav-toggle').addEventListener('click', () => $('#mobile-nav').classList.toggle('open'));
+$('#nav-toggle').addEventListener('click', (e) => {
+  e.stopPropagation();
+  closeDropdowns();
+  $('#mobile-nav').classList.toggle('open');
+});
 $$('#mobile-nav a').forEach(a => a.addEventListener('click', () => $('#mobile-nav').classList.remove('open')));
+// Tap outside the open menu closes it.
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#mobile-nav') && !e.target.closest('#nav-toggle')) $('#mobile-nav').classList.remove('open');
+});
 
 // ---------- Fetch helper ----------
 async function api(url, opts = {}) {
@@ -286,6 +295,7 @@ async function route() {
   if (h === 'trading') { showView('trading'); renderCatChips('#trades-cats', tradeState, loadTradePosts); loadTradePosts(); return; }
   if (h === 'tournaments') { showView('tournaments'); loadTournaments(); return; }
   if (h === 'traders-center') { showView('wfl'); loadWfl(); return; }
+  if (h === 'lobbies') { showView('lobbies'); loadLobbies(); return; }
   if (h === 'messages' || h.startsWith('messages/')) {
     if (!ME) { showView('home'); return openModal('auth-overlay'); }
     showView('messages');
@@ -3203,6 +3213,176 @@ async function loadGameStats() {
     $$('#game-pulse .pc-fill').forEach(el => { el.style.width = el.dataset.w + '%'; });
   }));
 }
+
+// ============================================================
+// Lobbies — play together + voice chat
+// ============================================================
+const REGION_LABELS = { any: 'Any region', 'na-east': 'NA East', 'na-west': 'NA West', eu: 'Europe', asia: 'Asia', oceania: 'Oceania', sa: 'South America' };
+let activeLobbyId = null;
+let lobbyPollTimer = null;
+let lobbyChatTimer = null;
+let lobbyChatBusy = false;
+let lastLobbyMsgId = 0;
+
+async function loadLobbies() {
+  const grid = $('#lobby-grid');
+  const r = await api('/api/lobbies');
+  const ls = r.lobbies || [];
+  if (!ls.length) {
+    grid.innerHTML = '<div class="empty-block">No open lobbies — create one and get a squad together. 🎮</div>';
+    return;
+  }
+  grid.innerHTML = ls.map(l => {
+    const full = l.player_count >= l.max_players;
+    return `
+    <div class="lobby-card">
+      <div class="lobby-top">
+        <div class="lobby-game">🎮 ${escapeHtml(l.game)}</div>
+        ${l.private ? '<span class="lobby-tag private">🔒 Private</span>' : ''}
+        <span class="lobby-tag">${escapeHtml(REGION_LABELS[l.region] || l.region)}</span>
+      </div>
+      <div class="lobby-title">${escapeHtml(l.title)}</div>
+      ${l.notes ? `<div class="lobby-notes">${escapeHtml(l.notes)}</div>` : ''}
+      <div class="lobby-foot">
+        <span class="lobby-host">Host <a href="#u/${encodeURIComponent(l.host_name)}">${escapeHtml(l.host_name)}</a>${probadge(l.host_pro)}</span>
+        <span class="lobby-count ${full ? 'full' : ''}">👥 ${l.player_count}/${l.max_players}</span>
+      </div>
+      ${l.joined
+        ? `<button class="btn btn-small btn-gold" data-lobby-open="${l.id}">Open lobby</button>`
+        : full ? `<button class="btn btn-small" disabled>Full</button>`
+        : `<button class="btn btn-small btn-gold" data-lobby-join="${l.id}" data-private="${l.private ? 1 : 0}">${l.private ? '🔒 Join with code' : 'Join lobby'}</button>`}
+    </div>`;
+  }).join('');
+
+  grid.querySelectorAll('[data-lobby-join]').forEach(b => b.onclick = async () => {
+    if (!ME) return openModal('auth-overlay');
+    let code;
+    if (b.dataset.private === '1') {
+      code = await vaultPrompt('Enter the join code the host shared with you.', { title: 'Private lobby', okText: 'Join', placeholder: 'e.g. A1B2C3', icon: '🔒' });
+      if (code === null) return;
+    }
+    const r2 = await api(`/api/lobbies/${b.dataset.lobbyJoin}/join`, { method: 'POST', body: JSON.stringify({ code: code || undefined }) });
+    if (r2.error) return toast(r2.error, 'error');
+    openLobbyRoom(parseInt(b.dataset.lobbyJoin, 10));
+  });
+  grid.querySelectorAll('[data-lobby-open]').forEach(b => b.onclick = () => openLobbyRoom(parseInt(b.dataset.lobbyOpen, 10)));
+}
+
+// ---- Create ----
+let lobbyPrivate = false;
+$('#lobby-private-toggle').onclick = () => {
+  lobbyPrivate = !lobbyPrivate;
+  $('#lobby-private-toggle').classList.toggle('on', lobbyPrivate);
+  $('#lobby-private-toggle').setAttribute('aria-checked', String(lobbyPrivate));
+};
+$('#host-lobby-btn').addEventListener('click', () => {
+  if (!ME) return openModal('auth-overlay');
+  $('#lobby-error').textContent = '';
+  openModal('lobby-overlay');
+});
+$('#lobby-submit').addEventListener('click', async () => {
+  const err = $('#lobby-error');
+  err.textContent = '';
+  const btn = $('#lobby-submit');
+  btn.classList.add('loading');
+  const r = await api('/api/lobbies', {
+    method: 'POST',
+    body: JSON.stringify({
+      title: $('#lobby-title').value.trim(),
+      game: $('#lobby-game').value.trim(),
+      notes: $('#lobby-notes').value.trim(),
+      max_players: parseInt($('#lobby-max').value, 10),
+      region: $('#lobby-region').value,
+      private: lobbyPrivate,
+    }),
+  });
+  btn.classList.remove('loading');
+  if (r.error) { err.textContent = r.error; return; }
+  closeModal('lobby-overlay');
+  $('#lobby-title').value = ''; $('#lobby-game').value = ''; $('#lobby-notes').value = '';
+  if (r.join_code) {
+    await vaultConfirm(`Share this code with people you want to let in:\n\n${r.join_code}`, { title: '🔒 Private lobby created', okText: 'Got it', icon: '🔒' });
+  }
+  openLobbyRoom(r.id);
+});
+
+// ---- Lobby room ----
+async function openLobbyRoom(id) {
+  activeLobbyId = id;
+  lastLobbyMsgId = 0;
+  $('#lr-box').innerHTML = '<div class="chat-empty">Loading…</div>';
+  $('#lr-roster').innerHTML = '';
+  openModal('lobbyroom-overlay');
+  await refreshLobbyRoom();
+  await pollLobbyChat(true);
+  clearInterval(lobbyPollTimer); lobbyPollTimer = setInterval(refreshLobbyRoom, 6000);
+  clearInterval(lobbyChatTimer); lobbyChatTimer = setInterval(() => pollLobbyChat(false), 4000);
+}
+
+async function refreshLobbyRoom() {
+  if (!activeLobbyId) return;
+  const r = await api(`/api/lobbies/${activeLobbyId}`);
+  if (r.error || !r.lobby) return;
+  const l = r.lobby;
+  if (l.status !== 'open' && !l.joined) {
+    toast('This lobby has closed.', 'info');
+    return closeModal('lobbyroom-overlay');
+  }
+  $('#lr-title').textContent = l.title;
+  $('#lr-sub').innerHTML = `🎮 <b>${escapeHtml(l.game)}</b> · ${escapeHtml(REGION_LABELS[l.region] || l.region)} · ${l.player_count}/${l.max_players} players · host ${escapeHtml(l.host_name)}`;
+  if (l.voice_url) $('#lr-voice-btn').href = l.voice_url;
+  $('#lr-roster').innerHTML = `<div class="lr-roster-head">In the lobby (${(l.members || []).length})</div>` + (l.members || []).map(m => `
+    <a class="lr-member" href="#u/${encodeURIComponent(m.username)}">
+      ${m.avatar_url ? `<img src="${escapeHtml(m.avatar_url)}" alt="">` : `<span class="lr-av-fallback">${escapeHtml(m.username[0].toUpperCase())}</span>`}
+      <span>${escapeHtml(m.username)}${m.id === l.host_id ? ' 👑' : ''}${probadge(m.pro)}</span>
+    </a>`).join('');
+}
+
+async function pollLobbyChat(initial) {
+  if (!activeLobbyId || lobbyChatBusy) return;
+  lobbyChatBusy = true;
+  try {
+    const r = await api(`/api/lobbies/${activeLobbyId}/messages?after=${lastLobbyMsgId}`);
+    if (r.error) { if (initial) $('#lr-box').innerHTML = `<div class="chat-empty">${escapeHtml(r.error)}</div>`; return; }
+    const box = $('#lr-box');
+    const msgs = (r.messages || []).filter(m => m.id > lastLobbyMsgId);
+    if (initial && !msgs.length) { box.innerHTML = '<div class="chat-empty">Say hi, then jump in voice 🎙</div>'; return; }
+    if (initial || box.querySelector('.chat-empty')) box.innerHTML = '';
+    msgs.forEach(m => {
+      lastLobbyMsgId = Math.max(lastLobbyMsgId, m.id);
+      const el = document.createElement('div');
+      el.className = 'chat-msg ' + (m.mine ? 'mine' : 'theirs');
+      el.innerHTML = `${escapeHtml(m.body)}<div class="m-meta">${m.from_host ? '👑 ' : ''}${escapeHtml(m.sender_name)} · ${timeAgo(m.created_at)}</div>`;
+      box.appendChild(el);
+    });
+    if (msgs.length) box.scrollTop = box.scrollHeight;
+  } finally { lobbyChatBusy = false; }
+}
+
+let lobbySending = false;
+async function sendLobbyMsg() {
+  const input = $('#lr-input');
+  const body = input.value.trim();
+  if (!body || !activeLobbyId || lobbySending) return;
+  lobbySending = true;
+  $('#lr-send').disabled = true;
+  input.value = '';
+  try {
+    const r = await api(`/api/lobbies/${activeLobbyId}/messages`, { method: 'POST', body: JSON.stringify({ body }) });
+    if (r.error) { toast(r.error, 'error'); input.value = body; return; }
+    await pollLobbyChat(false);
+  } finally { lobbySending = false; $('#lr-send').disabled = false; input.focus(); }
+}
+$('#lr-send').onclick = sendLobbyMsg;
+$('#lr-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendLobbyMsg(); });
+$('#lr-leave').onclick = async () => {
+  if (!activeLobbyId) return;
+  const r = await api(`/api/lobbies/${activeLobbyId}/leave`, { method: 'POST' });
+  if (r.error) return toast(r.error, 'error');
+  closeModal('lobbyroom-overlay');
+  toast('Left the lobby.', 'info');
+  if ($('#view-lobbies').classList.contains('active')) loadLobbies();
+};
 
 // ============================================================
 // Traders Center — W / F / L

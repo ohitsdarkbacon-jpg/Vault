@@ -53,6 +53,15 @@ withdrawals, notifications, public profiles, and an admin panel.
 - One-time promo popup after signing in (dismiss once, never nags again); subscribe any time from the ⭐ Vault Pro menu entry
 - Trust is never paywalled: escrow, disputes, middlemen, and the ✓ verified badge stay free/admin-granted for everyone
 
+**🎮 Lobbies (play together + voice)**
+- Spin up a lobby for whatever you're playing (Rivals, Blade Ball, anything) — set a title, game, region, and player cap (2–20)
+- Anyone browses open lobbies and joins; **each lobby gets its own free voice room** (Jitsi Meet — no account, works on mobile) so the roster can talk and play together
+- Members-only lobby text chat + live roster (host wears a 👑); the voice link and roster are hidden from non-members
+- **Private lobbies** issue a 6-char join code to share out-of-band; hosts can close any time, and idle lobbies auto-close after 30 min. Two active lobbies per host
+
+**Public API & site utilities**
+- Read-only JSON API with a self-describing index at `GET /api/v1`, plus `GET /api/health` (uptime probe for status pages / monitors), `robots.txt`, and `sitemap.xml`
+
 **Tournaments (community events)**
 - **Anyone can host**: title, game, description, player limit (4–128), and a signup deadline (1h–3 days)
 - **Prize transparency**: every tournament states its prize situation up front — 🛡 **held by middleman** (an online middleman is auto-assigned at start to hold the prize → guaranteed payout), ⚠ **held by the host** (no guaranteed payout), or 🎉 **no prize, just for fun**

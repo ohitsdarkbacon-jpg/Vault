@@ -449,13 +449,68 @@ footer {
 @media (max-width: 640px) {
   nav { display: none; }
   .nav-toggle { display: block; }
-  header { padding: 12px 18px; }
-  .hero { padding: 52px 18px 32px; }
-  .section { padding: 16px 18px 48px; }
+  header { padding: 11px 14px; gap: 8px; }
+  .brand { font-size: 1.12rem; }
+  .hero { padding: 46px 16px 30px; }
+  .section { padding: 16px 16px 44px; }
   .footer-grid { grid-template-columns: 1fr 1fr; gap: 26px; }
   .footer-bottom { flex-direction: column; gap: 4px; }
   .field-row { flex-direction: column; gap: 0; }
   .toast-stack { left: 12px; right: 12px; max-width: none; }
+}
+
+/* ============================================================
+   Mobile polish — a single consolidated pass for small screens
+   ============================================================ */
+@media (max-width: 680px) {
+  /* Header controls stay on one tidy row */
+  .header-right { gap: 7px; }
+  .balance-chip { padding: 6px 9px; font-size: 0.78rem; }
+  .icon-btn { width: 34px; height: 34px; }
+  .avatar-btn img, .avatar-fallback { width: 30px; height: 30px; }
+
+  /* Section-head action buttons go full width under the heading */
+  .page-head { align-items: stretch; gap: 12px; }
+  .page-head > .btn, .page-head > button.btn { width: 100%; }
+  .section-head { flex-wrap: wrap; gap: 10px; }
+
+  /* Every card grid collapses cleanly (some had 340px minimums that
+     forced horizontal scroll on narrow phones) */
+  .grid, .tourney-grid, .trade-grid, .wanted-grid, .wfl-grid, .lobby-grid,
+  .pulse-chart, .stat-cards { grid-template-columns: 1fr !important; }
+  .stat-cards { grid-template-columns: 1fr 1fr !important; }
+
+  /* Modals hug the screen with comfortable margins */
+  .overlay { padding: 10px; align-items: flex-end; }
+  .modal { padding: 20px 18px; max-height: 92vh; border-radius: 18px 18px 14px 14px; }
+  .modal-actions { flex-direction: column; }
+  .modal-actions .btn { width: 100%; }
+
+  /* Tabs scroll horizontally without an ugly scrollbar */
+  .tabs { flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { white-space: nowrap; flex-shrink: 0; }
+
+  /* Hero stats read as a 2-up grid instead of a cramped row */
+  .hero-stats { gap: 18px 26px; }
+
+  /* Tap targets */
+  .btn { padding: 10px 15px; }
+  .cat-chip { padding: 7px 13px; }
+
+  /* Pull the floating chat dock above the mobile safe area */
+  .chat-dock { bottom: max(14px, env(safe-area-inset-bottom)); }
+}
+
+/* Slide-down mobile menu: bigger touch targets + a highlighted Dashboard */
+@media (max-width: 640px) {
+  .mobile-nav { padding: 6px 16px 12px; }
+  .mobile-nav a {
+    padding: 14px 6px; font-size: 0.98rem; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .mobile-nav a[href="#dashboard"] { color: var(--gold-2); font-weight: 650; }
+  .mobile-nav a:active { background: rgba(139,92,246,0.1); }
 }
 
 /* ============================================================
@@ -1647,3 +1702,42 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
 }
 .dash-btn:hover { color: var(--text); border-color: var(--gold); background: rgba(139,92,246,0.18); }
 @media (max-width: 900px) { .dash-btn { display: none; } } /* mobile nav already has Dashboard */
+
+/* ---------- Lobbies ---------- */
+.lobby-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.lobby-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 9px;
+  animation: card-in .45s var(--ease-out) both;
+  transition: border-color .2s, transform .2s var(--ease-spring), box-shadow .2s;
+}
+.lobby-card:hover { border-color: var(--gold-dim); transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0,0,0,0.35); }
+.lobby-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lobby-game { font-weight: 700; font-size: 0.9rem; }
+.lobby-tag { font-size: 0.68rem; font-weight: 600; padding: 2px 9px; border-radius: 12px; background: rgba(148,163,184,0.1); color: var(--muted); border: 1px solid var(--border); }
+.lobby-tag.private { color: var(--gold-2); background: rgba(139,92,246,0.12); border-color: rgba(139,92,246,0.35); }
+.lobby-title { font-family: 'Space Grotesk', sans-serif; font-size: 1.02rem; font-weight: 600; }
+.lobby-notes { font-size: 0.83rem; color: var(--muted); line-height: 1.45; overflow-wrap: anywhere; }
+.lobby-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.8rem; color: var(--muted); }
+.lobby-host a { color: var(--gold-2); }
+.lobby-count { font-family: 'JetBrains Mono', monospace; }
+.lobby-count.full { color: #FFB74D; }
+
+/* Lobby room modal */
+.lr-voice {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  background: linear-gradient(120deg, rgba(61,220,151,0.1), rgba(139,92,246,0.08));
+  border: 1px solid rgba(61,220,151,0.35); border-radius: 12px; padding: 12px 16px; margin: 6px 0 14px;
+}
+.lr-cols { display: grid; grid-template-columns: 180px 1fr; gap: 14px; }
+.lr-roster { display: flex; flex-direction: column; gap: 6px; }
+.lr-roster-head { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 2px; }
+.lr-member { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; font-size: 0.84rem; transition: background .15s; }
+.lr-member:hover { background: rgba(139,92,246,0.08); }
+.lr-member img, .lr-av-fallback { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; }
+.lr-av-fallback { display: flex; align-items: center; justify-content: center; background: var(--gold-dim); color: #fff; font-size: 0.75rem; font-weight: 700; }
+.lr-chat { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+@media (max-width: 620px) {
+  .lr-cols { grid-template-columns: 1fr; }
+  .lr-roster { flex-direction: row; flex-wrap: wrap; }
+}
