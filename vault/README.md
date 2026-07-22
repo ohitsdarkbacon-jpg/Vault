@@ -65,7 +65,7 @@ withdrawals, notifications, public profiles, and an admin panel.
 - Plus read-only public endpoints (`/api/stats`, `/api/health`, `/api/categories`, `/api/trending`…), `robots.txt`, and `sitemap.xml`
 
 **🛡 Trust check / scammer watchlist (`#trust`)**
-- Before you trade, look up any **Roblox username** and see where it stands — a color-coded verdict card with the report/vouch tally: ➖ no reports, ⚠ community-reported, ⛔ admin-confirmed scammer, or ✅ verified-trusted
+- Before you trade, look up any **Discord username** and see where it stands — a color-coded verdict card with the report/vouch tally: ➖ no reports, ⚠ community-reported, ⛔ admin-confirmed scammer, or ✅ verified-trusted
 - **Anyone can file a report or a vouch** against a username (what happened + optional evidence link); one per user per username, run through the moderation filter. A scam report auto-flags a previously-clean username until an admin rules on it
 - **Admins set the verified verdict** (scammer / trusted / clear) with an optional public note, and can dismiss false reports — auto-flagged names fall back to clean once the last open report is cleared
 - A public **known-scammer watchlist** ranks confirmed and most-reported accounts, worst first — click any row to pull up its full record. Endpoints: `GET /api/trust/lookup?u=`, `GET /api/trust/watchlist`, `POST /api/trust/report`

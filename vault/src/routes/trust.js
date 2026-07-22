@@ -1,4 +1,4 @@
-// Trust Check / scammer watchlist — look up a Roblox username before you trade.
+// Trust Check / scammer watchlist — look up a Discord username before you trade.
 // Anyone can file a report (or a vouch) against a username; admins set a
 // verified verdict. A username with open scam reports is auto-"flagged" until
 // an admin confirms (scammer) or clears (trusted) it.
@@ -11,7 +11,9 @@ const router = express.Router();
 
 const STATUSES = ['clean', 'flagged', 'scammer', 'trusted'];
 const MAX_DETAIL = 600;
-const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/; // Roblox usernames: 3–20, letters/digits/underscore
+// Discord usernames: 2–32 chars of letters/digits/._ , with an optional
+// legacy #0000 discriminator (e.g. "scammer.99" or "Scammer#1234").
+const USERNAME_RE = /^[A-Za-z0-9._]{2,32}(#[0-9]{1,4})?$/;
 
 function requireAdmin(req, res, next) {
   if (!req.user || !req.user.is_admin) return res.status(403).json({ error: 'Admin only.' });
@@ -98,7 +100,7 @@ router.get('/trust/watchlist', (req, res) => {
 router.post('/trust/report', requireAuth, (req, res) => {
   const b = req.body || {};
   const username = String(b.username || '').trim();
-  if (!USERNAME_RE.test(username)) return res.status(400).json({ error: 'Enter a valid Roblox username (3–20 letters, digits, or underscores).' });
+  if (!USERNAME_RE.test(username)) return res.status(400).json({ error: 'Enter a valid Discord username (2–32 characters — letters, numbers, . or _).' });
   const kind = b.kind === 'safe' ? 'safe' : 'scam';
   const detail = String(b.detail || '').trim();
   if (detail.length < 10) return res.status(400).json({ error: 'Please describe what happened (at least 10 characters).' });
