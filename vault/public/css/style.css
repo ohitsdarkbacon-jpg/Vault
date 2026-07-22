@@ -1876,7 +1876,15 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
 
 /* ---------- Trust check / scammer watchlist ---------- */
 .trust-search { display: flex; gap: 10px; margin-bottom: 18px; }
-.trust-search .search-input-wrap { flex: 1; }
+.trust-search .search-input-wrap { position: relative; flex: 1; }
+.trust-search .search-input-wrap svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: 0.5; pointer-events: none; }
+.trust-search input {
+  width: 100%; padding: 11px 14px 11px 36px; border-radius: 10px; border: 1px solid var(--border);
+  background: rgba(10, 13, 20, 0.6); color: var(--text); font-size: 0.9rem;
+  transition: border-color .2s, box-shadow .2s;
+}
+.trust-search input::placeholder { color: var(--muted); }
+.trust-search input:focus { outline: none; border-color: var(--gold-dim); box-shadow: 0 0 0 3px rgba(139,92,246,0.1); }
 /* status pill colours, shared by lookup card + watchlist rows */
 .trust-pill { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; font-size: 1.3rem; flex-shrink: 0; }
 .ts-clean   .trust-pill, .trust-pill.ts-clean   { background: rgba(148,163,184,0.14); color: var(--muted); }
