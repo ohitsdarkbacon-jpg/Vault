@@ -3502,7 +3502,7 @@ async function doTrustLookup(username) {
   box.innerHTML = `<div class="empty" style="padding:20px">Checking…</div>`;
   const r = await api('/api/trust/lookup?u=' + encodeURIComponent(username));
   if (r.invalid) {
-    box.innerHTML = `<div class="trust-card ts-clean"><div class="trust-card-head"><span class="trust-pill ts-clean">?</span><div><h3>${escapeHtml(username)}</h3><div class="sub">That doesn't look like a Roblox username (3–20 letters, digits, or underscores).</div></div></div></div>`;
+    box.innerHTML = `<div class="trust-card ts-clean"><div class="trust-card-head"><span class="trust-pill ts-clean">?</span><div><h3>${escapeHtml(username)}</h3><div class="sub">That doesn't look like a Discord username (2–32 characters — letters, numbers, . or _).</div></div></div></div>`;
     return;
   }
   renderTrustResult(r.username, r.profile);
@@ -3577,7 +3577,8 @@ function renderTrustResult(username, p) {
   });
 }
 
-$('#trust-search').addEventListener('submit', (e) => { e.preventDefault(); doTrustLookup($('#trust-q').value); });
+$('#trust-check').addEventListener('click', () => doTrustLookup($('#trust-q').value));
+$('#trust-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doTrustLookup($('#trust-q').value); } });
 
 function openTrustReport(username, kind) {
   $('#trust-modal-user').textContent = username;

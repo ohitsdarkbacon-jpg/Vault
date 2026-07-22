@@ -328,15 +328,15 @@
 <div class="view" id="view-trust">
   <div class="page">
     <div class="page-head">
-      <div><h2>Trust check 🛡</h2><div class="sub">Before you trade, look up a Roblox username. See admin-verified verdicts and what the community has reported.</div></div>
+      <div><h2>Trust check 🛡</h2><div class="sub">Before you trade, look up a Discord username. See admin-verified verdicts and what the community has reported.</div></div>
     </div>
-    <form class="trust-search" id="trust-search">
+    <div class="trust-search" id="trust-search">
       <div class="search-input-wrap" style="flex:1">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <input type="search" id="trust-q" placeholder="Enter a Roblox username…" autocomplete="off" maxlength="30">
+        <input type="text" id="trust-q" placeholder="Enter a Discord username…" autocomplete="off" maxlength="37">
       </div>
-      <button class="btn btn-gold" type="submit">Check</button>
-    </form>
+      <button class="btn btn-gold" type="button" id="trust-check">Check</button>
+    </div>
     <div id="trust-result"></div>
     <div class="trust-watchlist">
       <h3>⚠ Known scammer watchlist</h3>
