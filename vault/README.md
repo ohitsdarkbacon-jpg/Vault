@@ -71,6 +71,14 @@ withdrawals, notifications, public profiles, and an admin panel.
 - **When the deadline hits, the tournament goes ongoing and everyone lands in a group chat together** — host messages get a 👑 tag, the prize middleman gets ⚖️. Chat goes read-only when the host marks it finished
 - Too few players at the deadline → auto-cancelled with notifications; hosts can cancel any time; 3 active tournaments max per host
 
+**💬 Vault Server (Discord-style hub, `#server`)**
+- **Text channels** — `#general`, `#giveaways`, `#clips`, `#help`, `#off-topic` — one community-wide chat each with 5s slowmode, bot protection, and moderation
+- **Voice channels** — General / Games / Trading / Chill VC. Clicking one drops you into the lobby-backed voice room (free Jitsi voice, roster, and text) with live occupancy counts; they persist Discord-style until empty
+- Live **online members** sidebar with presence dots and Pro badges
+
+**💸 Send balance (P2P transfers)**
+- Send site credit to any trader with a **5% fee** (kept by the platform, `TRANSFER_FEE_BPS`): you're debited the full amount, they receive 95%, with a live breakdown before you confirm. Blocks are respected, transfers show in your wallet history, and the recipient gets a notification
+
 **Community & trust**
 - **🔎 Looking For board** on the marketplace: post what you want to buy (item, game, optional budget + notes) and sellers hit "I have this" to DM you. 10 open requests per user (25 for Pro), close them any time
 - **📊 Game pulse**: a ranked bar chart on the home page — 30-day traded volume per game with animated bars, live-item counts, and how many people are hunting items from each game

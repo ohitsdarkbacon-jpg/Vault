@@ -177,7 +177,9 @@ router.get('/game-stats', (req, res) => {
 // Section chat rooms — everyone can talk; slowmode + bot checks.
 // ============================================================
 
-const ROOMS = new Set(['marketplace', 'trading', 'tournaments']);
+// Section dock rooms + Vault Server text channels (all share the same
+// slowmode + bot-check + moderation pipeline below).
+const ROOMS = new Set(['marketplace', 'trading', 'tournaments', 'general', 'giveaways', 'help', 'off-topic', 'clips']);
 const SLOWMODE_MS = 5000;
 const MIN_ACCOUNT_AGE_MS = 5 * 60 * 1000; // brand-new accounts wait 5 minutes
 const BURST_LIMIT = 10;                   // max messages per rolling minute
@@ -263,6 +265,38 @@ router.post('/rooms/:room/messages', requireAuth, (req, res) => {
     .prepare('INSERT INTO room_messages (room, sender_id, body) VALUES (?, ?, ?)')
     .run(room, req.user.id, mod.clean);
   res.status(201).json({ ok: true, id: info.lastInsertRowid, slowmode_seconds: SLOWMODE_MS / 1000 });
+});
+
+// ============================================================
+// Vault Server — a Discord-style hub. Text channels reuse the room
+// chat above; voice channels reuse lobbies (see lobbies.js).
+// ============================================================
+router.get('/server/summary', (req, res) => {
+  const online = db
+    .prepare("SELECT COUNT(*) n FROM users WHERE last_seen_at IS NOT NULL AND (julianday('now') - julianday(last_seen_at)) * 24 * 60 <= 5 AND is_banned = 0")
+    .get().n;
+  // Occupancy of each voice channel (open server-voice lobbies).
+  const voice = db
+    .prepare(
+      `SELECT channel, COUNT(DISTINCT m.user_id) AS in_voice
+       FROM lobbies l JOIN lobby_members m ON m.lobby_id = l.id
+       WHERE l.channel IS NOT NULL AND l.status = 'open'
+       GROUP BY channel`
+    )
+    .all();
+  const voiceMap = {};
+  voice.forEach((v) => { voiceMap[v.channel] = v.in_voice; });
+  // A peek at who's around, newest-active first.
+  const members = db
+    .prepare(
+      `SELECT username, avatar_url,
+        (pro_until IS NOT NULL AND julianday(pro_until) > julianday('now')) AS pro
+       FROM users
+       WHERE last_seen_at IS NOT NULL AND (julianday('now') - julianday(last_seen_at)) * 24 * 60 <= 5 AND is_banned = 0
+       ORDER BY last_seen_at DESC LIMIT 20`
+    )
+    .all();
+  res.json({ online, voice: voiceMap, members });
 });
 
 module.exports = router;

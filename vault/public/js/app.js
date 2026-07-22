@@ -266,6 +266,7 @@ function showView(name) {
   const el = $('#view-' + name);
   (el || $('#view-home')).classList.add('active');
   if (name !== 'messages') { clearInterval(dmPollTimer); activeDmPartner = null; }
+  if (name !== 'server') { clearInterval(serverPollTimer); clearInterval(serverSummaryTimer); }
   syncNavActive(name);
   if (typeof updateDock === 'function') updateDock(name);
   window.scrollTo({ top: 0 });
@@ -296,6 +297,7 @@ async function route() {
   if (h === 'tournaments') { showView('tournaments'); loadTournaments(); return; }
   if (h === 'traders-center') { showView('wfl'); loadWfl(); return; }
   if (h === 'lobbies') { showView('lobbies'); loadLobbies(); return; }
+  if (h === 'server') { showView('server'); loadServer(); return; }
   if (h === 'messages' || h.startsWith('messages/')) {
     if (!ME) { showView('home'); return openModal('auth-overlay'); }
     showView('messages');
@@ -1706,6 +1708,7 @@ async function renderDashTab() {
         <div><div class="order-title">Available balance</div><div class="order-sub">Escrow releases and refunds land here. Withdraw any time (min ${money(r.min_cents || 500)}).</div></div>
         <div class="order-price" style="font-size:1.4rem;color:var(--gold)">${money(ME.site_credit_cents)}</div>
         <button class="btn btn-gold" id="open-topup">＋ Add funds</button>
+        <button class="btn" id="open-send">Send</button>
         <button class="btn" id="open-withdraw">Withdraw</button>
       </div>
       <div class="wallet-card ${w ? 'connected' : ''}">
@@ -1736,7 +1739,22 @@ async function renderDashTab() {
           <td>${timeAgo(w.created_at)}${w.admin_note ? ' · ' + escapeHtml(w.admin_note) : ''}</td>
         </tr>`).join('')}
       </table></div>` : `<div class="empty-block">No withdrawals yet.</div>`}
+      <h3 class="section-sub">Transfers</h3>
+      <div id="wallet-transfers"><div class="empty-block">Loading…</div></div>
     `;
+    api('/api/my/transfers').then(tr => {
+      const ts = tr.transfers || [];
+      $('#wallet-transfers').innerHTML = ts.length ? `<div class="table-wrap"><table class="data">
+        <tr><th></th><th>Who</th><th>Amount</th><th>When</th></tr>
+        ${ts.map(t => `<tr>
+          <td>${t.outgoing ? '↗ Sent' : '↘ Received'}</td>
+          <td><a href="#u/${encodeURIComponent(t.outgoing ? t.recipient_name : t.sender_name)}" style="color:var(--gold-2)">${escapeHtml(t.outgoing ? t.recipient_name : t.sender_name)}</a>${t.note ? ` · <span style="color:var(--muted)">${escapeHtml(t.note)}</span>` : ''}</td>
+          <td class="mono" style="color:${t.outgoing ? 'var(--danger)' : 'var(--live)'}">${t.outgoing ? '−' + money(t.amount_cents) : '+' + money(t.received_cents)}</td>
+          <td>${timeAgo(t.created_at)}</td>
+        </tr>`).join('')}
+      </table></div>` : '<div class="empty-block">No transfers yet.</div>';
+    });
+    $('#open-send').onclick = openTransferModal;
     $('#open-topup').onclick = () => {
       $('#topup-amount').value = '';
       $('#topup-error').textContent = '';
@@ -3284,6 +3302,165 @@ async function loadGameStats() {
 }
 
 // ============================================================
+// Send balance (P2P transfer, 5% fee)
+// ============================================================
+let TRANSFER_FEE_BPS = 500;
+function openTransferModal() {
+  if (!ME) return openModal('auth-overlay');
+  $('#transfer-balance').textContent = `Your balance: ${money(ME.site_credit_cents)}`;
+  $('#transfer-to').value = ''; $('#transfer-amount').value = ''; $('#transfer-note').value = '';
+  $('#transfer-error').textContent = '';
+  $('#transfer-breakdown').hidden = true;
+  openModal('transfer-overlay');
+}
+function updateTransferBreakdown() {
+  const amt = Math.round(parseFloat($('#transfer-amount').value) * 100);
+  const bd = $('#transfer-breakdown');
+  if (!amt || amt < 100) { bd.hidden = true; return; }
+  const fee = Math.round(amt * TRANSFER_FEE_BPS / 10000);
+  $('#tb-fee-label').textContent = `Fee (${(TRANSFER_FEE_BPS / 100).toFixed(0)}%)`;
+  $('#tb-fee').textContent = money(fee);
+  $('#tb-receive').textContent = money(amt - fee);
+  bd.hidden = false;
+}
+$('#transfer-amount').addEventListener('input', updateTransferBreakdown);
+$('#transfer-submit').onclick = async () => {
+  const err = $('#transfer-error');
+  err.textContent = '';
+  const to = $('#transfer-to').value.trim();
+  const amount = parseFloat($('#transfer-amount').value);
+  if (!to) { err.textContent = 'Enter who to send to.'; return; }
+  if (!amount || amount <= 0) { err.textContent = 'Enter a valid amount.'; return; }
+  const cents = Math.round(amount * 100);
+  const fee = Math.round(cents * TRANSFER_FEE_BPS / 10000);
+  if (!await vaultConfirm(`${to} receives ${money(cents - fee)} (you're charged ${money(cents)} incl. a ${money(fee)} fee).`, { title: 'Send balance?', okText: 'Send ' + money(cents), icon: '💸' })) return;
+  $('#transfer-submit').disabled = true;
+  const r = await api('/api/my/transfer', { method: 'POST', body: JSON.stringify({ to, amount_cents: cents, note: $('#transfer-note').value.trim() || undefined }) });
+  $('#transfer-submit').disabled = false;
+  if (r.error) { err.textContent = r.error; return; }
+  closeModal('transfer-overlay');
+  toast(`Sent ${money(r.received_cents)} to ${escapeHtml(r.recipient)}. 💸`, 'success');
+  await loadMe();
+  renderDashTab();
+};
+
+// ============================================================
+// Vault Server — Discord-style hub (text channels + voice channels)
+// ============================================================
+const SERVER_CHAN_DESC = {
+  general: 'Chat with the whole Vault community',
+  giveaways: 'Giveaways, drops, and events',
+  clips: 'Share your best trades and plays',
+  help: 'Stuck? Ask the community',
+  'off-topic': 'Anything goes (keep it civil)',
+};
+let serverRoom = 'general';
+let serverPollTimer = null;
+let serverPollBusy = false;
+let lastServerMsgId = 0;
+let serverSlowTimer = null;
+
+async function loadServer() {
+  loadServerSummary();
+  clearInterval(serverSummaryTimer); serverSummaryTimer = setInterval(loadServerSummary, 20000);
+  switchServerChannel(serverRoom);
+}
+let serverSummaryTimer = null;
+
+async function loadServerSummary() {
+  const r = await api('/api/server/summary');
+  if (r.error) return;
+  $('#server-online').textContent = `· ${r.online} online`;
+  $('#server-online-n').textContent = r.online;
+  Object.entries(r.voice || {}).forEach(([ch, n]) => {
+    const el = document.querySelector(`[data-vc-count="${ch}"]`);
+    if (el) el.textContent = n ? `· ${n}` : '';
+  });
+  document.querySelectorAll('[data-vc-count]').forEach(el => { if (!(r.voice && r.voice[el.dataset.vcCount])) el.textContent = ''; });
+  $('#server-members').innerHTML = (r.members || []).map(m => `
+    <a class="member-row" href="#u/${encodeURIComponent(m.username)}">
+      ${m.avatar_url ? `<img src="${escapeHtml(m.avatar_url)}" alt="">` : `<span class="member-av">${escapeHtml(m.username[0].toUpperCase())}</span>`}
+      <span class="member-dot"></span><span>${escapeHtml(m.username)}${probadge(m.pro)}</span>
+    </a>`).join('') || '<div class="sub" style="padding:8px">Nobody around right now.</div>';
+}
+
+function switchServerChannel(room) {
+  serverRoom = room;
+  lastServerMsgId = 0;
+  $$('#text-channels .chan').forEach(c => c.classList.toggle('active', c.dataset.chan === room));
+  $('#server-chan-name').textContent = '# ' + room;
+  $('#server-chan-desc').textContent = `${SERVER_CHAN_DESC[room] || ''} · 5s slowmode`;
+  $('#server-input').placeholder = `Message #${room}…`;
+  $('#server-box').innerHTML = '<div class="chat-empty">Loading…</div>';
+  clearInterval(serverPollTimer);
+  pollServer(true);
+  serverPollTimer = setInterval(() => pollServer(false), 4000);
+}
+
+async function pollServer(initial) {
+  if (serverPollBusy) return;
+  serverPollBusy = true;
+  try {
+    const r = await api(`/api/rooms/${serverRoom}/messages?after=${lastServerMsgId}`);
+    if (r.error) { if (initial) $('#server-box').innerHTML = `<div class="chat-empty">${escapeHtml(r.error)}</div>`; return; }
+    const box = $('#server-box');
+    if (initial) box.innerHTML = '';
+    const msgs = (r.messages || []).filter(m => m.id > lastServerMsgId);
+    if (initial && !msgs.length) { box.innerHTML = `<div class="chat-empty">No messages in #${serverRoom} yet — say hi!</div>`; return; }
+    if (msgs.length && box.querySelector('.chat-empty')) box.innerHTML = '';
+    msgs.forEach(m => {
+      lastServerMsgId = Math.max(lastServerMsgId, m.id);
+      const el = document.createElement('div');
+      el.className = 'srv-msg';
+      el.innerHTML = `<span class="srv-who">${escapeHtml(m.sender_name)}</span>${vbadge(m.is_verified)}${probadge(m.pro)}<span class="srv-time">${timeAgo(m.created_at)}</span><div class="srv-body">${escapeHtml(m.body)}</div>`;
+      box.appendChild(el);
+    });
+    if (msgs.length) box.scrollTop = box.scrollHeight;
+  } finally { serverPollBusy = false; }
+}
+
+function serverSlowmode(seconds) {
+  const btn = $('#server-send');
+  clearInterval(serverSlowTimer);
+  let left = seconds; btn.disabled = true; btn.textContent = `${left}s`;
+  serverSlowTimer = setInterval(() => {
+    left -= 1;
+    if (left <= 0) { clearInterval(serverSlowTimer); btn.disabled = false; btn.textContent = 'Send'; return; }
+    btn.textContent = `${left}s`;
+  }, 1000);
+}
+let serverSending = false;
+async function sendServerMsg() {
+  if (!ME) return openModal('auth-overlay');
+  const input = $('#server-input');
+  const body = input.value.trim();
+  if (!body || serverSending || $('#server-send').disabled) return;
+  serverSending = true;
+  input.value = '';
+  try {
+    const r = await api(`/api/rooms/${serverRoom}/messages`, { method: 'POST', body: JSON.stringify({ body }) });
+    if (r.error) { toast(r.error, 'error'); input.value = body; if (r.retry_in) serverSlowmode(r.retry_in); return; }
+    await pollServer(false);
+    serverSlowmode(r.slowmode_seconds || 5);
+  } finally { serverSending = false; input.focus(); }
+}
+$('#server-send').onclick = sendServerMsg;
+$('#server-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendServerMsg(); });
+$('#text-channels').addEventListener('click', (e) => {
+  const c = e.target.closest('.chan');
+  if (c) switchServerChannel(c.dataset.chan);
+});
+$('#voice-channels').addEventListener('click', async (e) => {
+  const c = e.target.closest('.chan');
+  if (!c) return;
+  if (!ME) return openModal('auth-overlay');
+  const r = await api(`/api/server/voice/${c.dataset.vc}/join`, { method: 'POST' });
+  if (r.error) return toast(r.error, 'error');
+  openLobbyRoom(r.id);
+  loadServerSummary();
+});
+
+// ============================================================
 // Lobbies — play together + voice chat
 // ============================================================
 const REGION_LABELS = { any: 'Any region', 'na-east': 'NA East', 'na-west': 'NA West', eu: 'Europe', asia: 'Asia', oceania: 'Oceania', sa: 'South America' };
@@ -3693,7 +3870,7 @@ document.addEventListener('mousemove', (e) => {
 // ============================================================
 (async function init() {
   const params = new URLSearchParams(location.search);
-  api('/api/config').then(c => { if (c.fee_bps) FEE = c; });
+  api('/api/config').then(c => { if (c.fee_bps) FEE = c; if (c.transfer_fee_bps != null) TRANSFER_FEE_BPS = c.transfer_fee_bps; });
   await loadMe();
   loadSiteStats();
   loadCategories();

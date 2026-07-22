@@ -61,13 +61,45 @@ function shape(l, userId) {
   return out;
 }
 
-// ---------- Browse ----------
+// ---------- Browse (user lobbies only; server-voice channels excluded) ----------
 router.get('/lobbies', (req, res) => {
   closeIdleLobbies();
   const rows = db
-    .prepare(`${lobbyQuery} WHERE l.status = 'open' ORDER BY l.last_active_at DESC LIMIT 40`)
+    .prepare(`${lobbyQuery} WHERE l.status = 'open' AND l.channel IS NULL ORDER BY l.last_active_at DESC LIMIT 40`)
     .all();
   res.json({ lobbies: rows.map((l) => shape(l, req.user ? req.user.id : null)) });
+});
+
+// ---------- Vault Server voice channels ----------
+// Join the persistent lobby behind a server voice channel, or spin one up.
+// These don't count toward the host cap and don't auto-close on host-leave
+// (only when empty) — they behave like Discord voice channels.
+const VOICE_CHANNELS = {
+  general: 'General VC',
+  games: 'Games VC',
+  trading: 'Trading VC',
+  chill: 'Chill VC',
+};
+router.post('/server/voice/:channel/join', requireAuth, (req, res) => {
+  const channel = String(req.params.channel);
+  if (!VOICE_CHANNELS[channel]) return res.status(404).json({ error: 'Voice channel not found.' });
+  let l = db.prepare("SELECT * FROM lobbies WHERE channel = ? AND status = 'open' ORDER BY id ASC LIMIT 1").get(channel);
+  if (!l) {
+    const info = db
+      .prepare(
+        `INSERT INTO lobbies (host_id, title, game, region, max_players, voice_room, channel)
+         VALUES (?, ?, ?, 'any', 20, ?, ?)`
+      )
+      .run(req.user.id, VOICE_CHANNELS[channel], 'Vault Server', newVoiceRoom(), channel);
+    l = db.prepare('SELECT * FROM lobbies WHERE id = ?').get(info.lastInsertRowid);
+  }
+  if (!isMember(l.id, req.user.id)) {
+    const count = db.prepare('SELECT COUNT(*) n FROM lobby_members WHERE lobby_id = ?').get(l.id).n;
+    if (count >= l.max_players) return res.status(400).json({ error: 'This voice channel is full.' });
+    db.prepare('INSERT INTO lobby_members (lobby_id, user_id) VALUES (?, ?)').run(l.id, req.user.id);
+  }
+  touch(l.id);
+  res.json({ ok: true, id: l.id });
 });
 
 // ---------- Host ----------
@@ -87,7 +119,7 @@ router.post('/lobbies', requireAuth, (req, res) => {
     return res.status(400).json({ error: `Player limit must be between ${MIN_PLAYERS} and ${MAX_PLAYERS}.` });
   }
 
-  const active = db.prepare("SELECT COUNT(*) n FROM lobbies WHERE host_id = ? AND status = 'open'").get(req.user.id).n;
+  const active = db.prepare("SELECT COUNT(*) n FROM lobbies WHERE host_id = ? AND status = 'open' AND channel IS NULL").get(req.user.id).n;
   if (active >= MAX_HOSTED) return res.status(400).json({ error: `You can host ${MAX_HOSTED} lobbies at once — close one first.` });
 
   const modTitle = moderateField(title, 'title');
@@ -129,9 +161,10 @@ router.post('/lobbies/:id/leave', requireAuth, (req, res) => {
   const l = db.prepare('SELECT * FROM lobbies WHERE id = ?').get(req.params.id);
   if (!l) return res.status(404).json({ error: 'Lobby not found.' });
   db.prepare('DELETE FROM lobby_members WHERE lobby_id = ? AND user_id = ?').run(l.id, req.user.id);
-  // Host left, or the lobby emptied → close it and hand the roster the door.
   const remaining = db.prepare('SELECT user_id FROM lobby_members WHERE lobby_id = ? ORDER BY joined_at ASC').all(l.id);
-  if (l.host_id === req.user.id || remaining.length === 0) {
+  // Server voice channels persist until empty (Discord-style); user lobbies
+  // also close when the host leaves.
+  if (remaining.length === 0 || (!l.channel && l.host_id === req.user.id)) {
     db.prepare("UPDATE lobbies SET status = 'closed' WHERE id = ?").run(l.id);
   } else {
     touch(l.id);
