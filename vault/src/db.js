@@ -488,6 +488,30 @@ CREATE TABLE IF NOT EXISTS lobby_signals (
 CREATE INDEX IF NOT EXISTS idx_lobby_signals_to ON lobby_signals(to_id, id);
 `);
 
+// Value list / price guide — the community reference for item worth.
+db.exec(`
+CREATE TABLE IF NOT EXISTS value_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  game TEXT NOT NULL DEFAULT 'other',
+  value_cents INTEGER NOT NULL,
+  demand TEXT NOT NULL DEFAULT 'medium', -- low | medium | high | insane
+  trend TEXT NOT NULL DEFAULT 'stable',  -- up | down | stable
+  image_url TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_value_items_game ON value_items(game);
+CREATE TABLE IF NOT EXISTS value_votes (
+  item_id INTEGER NOT NULL REFERENCES value_items(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  vote TEXT NOT NULL CHECK (vote IN ('accurate','low','high')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (item_id, user_id)
+);
+`);
+
 // Peer-to-peer balance transfers (5% fee kept by the platform).
 db.exec(`
 CREATE TABLE IF NOT EXISTS transfers (

@@ -73,6 +73,7 @@
     <a href="#auctions" data-scroll>Live auctions</a>
     <a href="#listings" data-scroll>Marketplace</a>
     <a href="#trading">Trading</a>
+    <a href="#values">Values</a>
     <a href="#tournaments">Tournaments</a>
     <a href="#lobbies">Play with others</a>
     <a href="#server">Server</a>
@@ -99,6 +100,7 @@
   <a href="#auctions" data-scroll>Live auctions</a>
   <a href="#listings" data-scroll>Marketplace</a>
   <a href="#trading">Trading</a>
+  <a href="#values">Value list</a>
   <a href="#tournaments">Tournaments</a>
   <a href="#lobbies">Play with others</a>
   <a href="#server">Server</a>
@@ -319,6 +321,22 @@
       <button class="btn btn-gold" id="host-tourney-btn">+ Host a tournament</button>
     </div>
     <div class="tourney-grid" id="tourney-grid"><div class="empty">Loading tournaments…</div></div>
+  </div>
+</div>
+
+<!-- ================= VALUE LIST VIEW ================= -->
+<div class="view" id="view-values">
+  <div class="page">
+    <div class="page-head">
+      <div><h2>Value list</h2><div class="sub">The community price guide — what popular items are actually worth. Vote on whether a value looks right.</div></div>
+      <button class="btn btn-gold" id="value-add-btn" style="display:none">+ Add item</button>
+    </div>
+    <div class="search-bar" style="margin-bottom:14px"><div class="search-input-wrap" style="flex:1">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="search" id="values-q" placeholder="Search items…" autocomplete="off">
+    </div></div>
+    <div class="cat-chips" id="values-cats"></div>
+    <div id="values-list"><div class="empty">Loading…</div></div>
   </div>
 </div>
 
@@ -830,6 +848,53 @@
   </div>
 </div>
 
+<!-- Add / edit value item (admin) -->
+<div class="overlay" id="value-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="value-overlay">✕</button>
+    <h3 id="value-modal-title">Add item</h3>
+    <div class="sub">Set the official value; the community votes on whether it's accurate.</div>
+    <div class="field"><label>Item name</label><input id="value-name" placeholder="Neon Shadow Dragon" maxlength="80"></div>
+    <div class="field">
+      <label>Game</label>
+      <div class="custom-select" id="value-game" data-value="other">
+        <div class="cs-trigger"><span class="cs-label">Other</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="cs-dropdown"><div class="cs-option active" data-value="other">Other</div></div>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Value (USD)</label><input id="value-usd" type="number" min="0.01" step="0.01" placeholder="55.00"></div>
+      <div class="field">
+        <label>Demand</label>
+        <div class="custom-select" id="value-demand" data-value="medium">
+          <div class="cs-trigger"><span class="cs-label">Medium</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="cs-dropdown">
+            <div class="cs-option" data-value="low">Low</div>
+            <div class="cs-option active" data-value="medium">Medium</div>
+            <div class="cs-option" data-value="high">High</div>
+            <div class="cs-option" data-value="insane">Insane</div>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Trend</label>
+        <div class="custom-select" id="value-trend" data-value="stable">
+          <div class="cs-trigger"><span class="cs-label">Stable</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="cs-dropdown">
+            <div class="cs-option" data-value="up">Rising</div>
+            <div class="cs-option active" data-value="stable">Stable</div>
+            <div class="cs-option" data-value="down">Falling</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="field"><label>Image URL (optional)</label><input id="value-image" placeholder="https://… or /uploads/…"></div>
+    <div class="field"><label>Notes (optional)</label><input id="value-notes" placeholder="e.g. FR/NFR similar, seasonal" maxlength="200"></div>
+    <div class="error-text" id="value-error"></div>
+    <div class="modal-actions"><button class="btn btn-gold" id="value-save" style="flex:1">Save item</button></div>
+  </div>
+</div>
+
 <!-- Create lobby modal -->
 <div class="overlay" id="lobby-overlay">
   <div class="modal modal-wrap">
@@ -888,15 +953,12 @@
     <div class="sub" id="lr-sub"></div>
     <div class="lr-voice" id="lr-voice">
       <div class="lrv-top">
-        <div><b>🎙 Voice chat</b><span class="sub" id="lrv-status" style="display:block;margin:0">Built-in voice — talk right here in the browser.</span></div>
+        <div><b>🎙 Voice chat</b><span class="sub" id="lrv-status" style="display:block;margin:0">Built-in voice — talk right here, and keep browsing while you're in.</span></div>
         <div class="lrv-actions">
           <button class="btn btn-gold btn-small" id="lrv-join">Join voice</button>
-          <button class="icon-btn" id="lrv-mute" title="Mute" hidden>🎙</button>
-          <button class="btn btn-small" id="lrv-leave" style="color:var(--danger)" hidden>Leave voice</button>
+          <span class="lrv-inmsg" id="lrv-inmsg" hidden>🔴 You're in voice</span>
         </div>
       </div>
-      <div class="lrv-peers" id="lrv-peers" hidden></div>
-      <div id="lrv-audio" style="display:none"></div>
     </div>
     <div class="lr-cols">
       <div class="lr-roster" id="lr-roster"></div>
@@ -967,6 +1029,26 @@
 </div>
 
 <!-- Section chat dock -->
+<!-- Persistent voice widget — stays connected while you browse the site -->
+<div class="voice-widget" id="voice-widget" hidden>
+  <button class="vw-pill" id="vw-pill" hidden><span class="vw-live-dot"></span> In voice · <b id="vw-pill-count">1</b></button>
+  <div class="vw-panel" id="vw-panel">
+    <div class="vw-head">
+      <div class="vw-title"><span class="vw-live-dot"></span> <b id="vw-lobby">Voice</b></div>
+      <div class="vw-head-actions">
+        <button class="vw-ibtn" id="vw-open" title="Open lobby">⤢</button>
+        <button class="vw-ibtn" id="vw-min" title="Minimize">▁</button>
+      </div>
+    </div>
+    <div class="vw-peers" id="vw-peers"></div>
+    <div class="vw-controls">
+      <button class="btn btn-small" id="vw-mute">🎙 Mute</button>
+      <button class="btn btn-small" id="vw-leave" style="color:var(--danger)">Leave voice</button>
+    </div>
+  </div>
+  <div id="lrv-audio" style="display:none"></div>
+</div>
+
 <div class="chat-dock" id="chat-dock" hidden>
   <button class="dock-toggle" id="dock-toggle">💬 <span id="dock-label">Marketplace chat</span></button>
   <div class="dock-panel" id="dock-panel" hidden>
