@@ -488,28 +488,36 @@ CREATE TABLE IF NOT EXISTS lobby_signals (
 CREATE INDEX IF NOT EXISTS idx_lobby_signals_to ON lobby_signals(to_id, id);
 `);
 
-// Value list / price guide — the community reference for item worth.
+// Trust Check / scammer watchlist — a per-Roblox-username trust record.
+// status: clean (default) | flagged (community-reported, unverified) |
+// scammer (admin-confirmed) | trusted (admin-vouched safe). Anyone can file a
+// report against a username; admins set the verified status.
 db.exec(`
-CREATE TABLE IF NOT EXISTS value_items (
+CREATE TABLE IF NOT EXISTS trust_profiles (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  game TEXT NOT NULL DEFAULT 'other',
-  value_cents INTEGER NOT NULL,
-  demand TEXT NOT NULL DEFAULT 'medium', -- low | medium | high | insane
-  trend TEXT NOT NULL DEFAULT 'stable',  -- up | down | stable
-  image_url TEXT,
-  notes TEXT,
+  username TEXT NOT NULL,                 -- Roblox username, stored as entered
+  username_key TEXT NOT NULL UNIQUE,      -- lowercased, for lookups
+  status TEXT NOT NULL DEFAULT 'clean' CHECK (status IN ('clean','flagged','scammer','trusted')),
+  admin_note TEXT,                        -- optional admin verdict shown publicly
+  reviewed_by INTEGER REFERENCES users(id),
+  reviewed_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE INDEX IF NOT EXISTS idx_value_items_game ON value_items(game);
-CREATE TABLE IF NOT EXISTS value_votes (
-  item_id INTEGER NOT NULL REFERENCES value_items(id),
-  user_id INTEGER NOT NULL REFERENCES users(id),
-  vote TEXT NOT NULL CHECK (vote IN ('accurate','low','high')),
+CREATE INDEX IF NOT EXISTS idx_trust_status ON trust_profiles(status, updated_at);
+
+CREATE TABLE IF NOT EXISTS trust_reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  profile_id INTEGER NOT NULL REFERENCES trust_profiles(id),
+  reporter_id INTEGER NOT NULL REFERENCES users(id),
+  kind TEXT NOT NULL DEFAULT 'scam' CHECK (kind IN ('scam','safe')), -- report OR vouch
+  detail TEXT NOT NULL,                   -- what happened / evidence
+  evidence_url TEXT,                       -- optional proof link
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','dismissed')),
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  PRIMARY KEY (item_id, user_id)
+  UNIQUE (profile_id, reporter_id)         -- one report per user per username
 );
+CREATE INDEX IF NOT EXISTS idx_trust_reports_profile ON trust_reports(profile_id, id);
 `);
 
 // Peer-to-peer balance transfers (5% fee kept by the platform).

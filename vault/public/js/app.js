@@ -77,7 +77,7 @@ async function loadCategories() {
   if (!r.categories) return;
   CATEGORY_LABELS = Object.fromEntries(r.categories.map(c => [c.slug, c.label]));
   const opts = r.categories.map(c => ({ value: c.slug, label: c.label }));
-  ['#sell-category', '#trade-category', '#tourney-category', '#wanted-category', '#wfl-category', '#value-game'].forEach(id => { const el = $(id); if (el) setSelectOptions(el, opts); });
+  ['#sell-category', '#trade-category', '#tourney-category', '#wanted-category', '#wfl-category'].forEach(id => { const el = $(id); if (el) setSelectOptions(el, opts); });
   renderCatChips('#auctions-cats', auctionState, loadAuctions);
   renderCatChips('#listings-cats', listingState, loadListings);
   renderCatChips('#wanted-cats', wantedState, loadWanted);
@@ -298,7 +298,7 @@ async function route() {
   if (h === 'traders-center') { showView('wfl'); loadWfl(); return; }
   if (h === 'lobbies') { showView('lobbies'); loadLobbies(); return; }
   if (h === 'server') { showView('server'); loadServer(); return; }
-  if (h === 'values') { showView('values'); renderCatChips('#values-cats', valueState, loadValues); loadValues(); return; }
+  if (h === 'trust') { showView('trust'); loadTrustList(); return; }
   if (h === 'messages' || h.startsWith('messages/')) {
     if (!ME) { showView('home'); return openModal('auth-overlay'); }
     showView('messages');
@@ -3462,105 +3462,149 @@ $('#voice-channels').addEventListener('click', async (e) => {
 });
 
 // ============================================================
-// Value list / price guide
+// Trust check / scammer watchlist
 // ============================================================
-const valueState = { category: '' };
-let valueEditId = null;
-const DEMAND_META = { low: ['Low', 'dm-low'], medium: ['Medium', 'dm-med'], high: ['High', 'dm-high'], insane: ['Insane', 'dm-insane'] };
-const TREND_META = { up: ['▲', 'tr-up', 'Rising'], down: ['▼', 'tr-down', 'Falling'], stable: ['▬', 'tr-stable', 'Stable'] };
+const TRUST_META = {
+  clean:   { label: 'No reports on file', cls: 'ts-clean',   icon: '➖', blurb: "No one has reported this username. That's not a guarantee — always use a middleman." },
+  flagged: { label: 'Reported by the community', cls: 'ts-flagged', icon: '⚠', blurb: 'Traders have reported this username. Not yet reviewed by an admin — trade with extreme caution.' },
+  scammer: { label: 'Confirmed scammer', cls: 'ts-scammer', icon: '⛔', blurb: 'Admins have confirmed this account scams traders. Do not trade with them.' },
+  trusted: { label: 'Verified trusted trader', cls: 'ts-trusted', icon: '✅', blurb: 'Admins have vouched for this account. Still use a middleman for high-value trades.' },
+};
+let trustLastLookup = null; // last looked-up username, for post-report refresh
 
-async function loadValues() {
-  $('#value-add-btn').style.display = (ME && ME.is_admin) ? '' : 'none';
-  const box = $('#values-list');
-  const params = new URLSearchParams();
-  if (valueState.category) params.set('game', valueState.category);
-  const q = $('#values-q').value.trim();
-  if (q) params.set('q', q);
-  const r = await api('/api/values?' + params);
+async function loadTrustList() {
+  const box = $('#trust-list');
+  const r = await api('/api/trust/watchlist');
   const items = r.items || [];
   if (!items.length) {
-    box.innerHTML = `<div class="empty-block">${ME && ME.is_admin ? 'No items yet — add the first one.' : 'No values listed yet — check back soon.'}</div>`;
+    box.innerHTML = `<div class="empty-block">No flagged accounts yet. Report a scammer to help protect other traders.</div>`;
     return;
   }
-  box.innerHTML = `<div class="table-wrap"><table class="data value-table">
-    <tr><th>Item</th><th>Value</th><th>Demand</th><th>Trend</th><th>Community</th><th></th></tr>
-    ${items.map(it => {
-      const [dLabel, dCls] = DEMAND_META[it.demand] || DEMAND_META.medium;
-      const [tArrow, tCls, tLabel] = TREND_META[it.trend] || TREND_META.stable;
-      const total = it.v_accurate + it.v_low + it.v_high;
-      const pct = (n) => total ? Math.round(n / total * 100) : 0;
-      return `<tr>
-        <td><div class="vi-cell">
-          <div class="vi-thumb" style="${it.image_url ? `background-image:url('${escapeHtml(it.image_url)}')` : ''}">${it.image_url ? '' : '📦'}</div>
-          <div><b>${escapeHtml(it.name)}</b>${it.notes ? `<span class="vi-notes">${escapeHtml(it.notes)}</span>` : ''}<span class="vi-game">${escapeHtml(CATEGORY_LABELS[it.game] || it.game)}</span></div>
-        </div></td>
-        <td class="mono" style="font-weight:650;color:var(--gold)">${money(it.value_cents)}</td>
-        <td><span class="demand-badge ${dCls}">${dLabel}</span></td>
-        <td><span class="trend ${tCls}" title="${tLabel}">${tArrow}</span></td>
-        <td>
-          <div class="vote-row" data-vitem="${it.id}">
-            <button class="vote-pill ${it.my_vote === 'accurate' ? 'on' : ''}" data-v="accurate" title="Value looks right">✓ ${it.v_accurate}</button>
-            <button class="vote-pill ${it.my_vote === 'low' ? 'on' : ''}" data-v="low" title="Worth more than this">⬆ ${it.v_low}</button>
-            <button class="vote-pill ${it.my_vote === 'high' ? 'on' : ''}" data-v="high" title="Worth less than this">⬇ ${it.v_high}</button>
-          </div>
-          ${total ? `<div class="vote-meter"><i class="va" style="width:${pct(it.v_accurate)}%"></i><i class="vl" style="width:${pct(it.v_low)}%"></i><i class="vh" style="width:${pct(it.v_high)}%"></i></div>` : ''}
-        </td>
-        <td>${ME && ME.is_admin ? `<button class="btn btn-small" data-vedit='${escapeHtml(JSON.stringify({ id: it.id, name: it.name, game: it.game, value_cents: it.value_cents, demand: it.demand, trend: it.trend, image_url: it.image_url, notes: it.notes }))}'>Edit</button> <button class="btn btn-small" data-vdel="${it.id}" style="color:var(--danger)">✕</button>` : ''}</td>
-      </tr>`;
-    }).join('')}
-  </table></div>`;
+  box.innerHTML = `<div class="trust-grid">${items.map(p => {
+    const m = TRUST_META[p.status] || TRUST_META.clean;
+    return `<button class="trust-row" data-tlook="${escapeHtml(p.username)}">
+      <span class="trust-pill ${m.cls}">${m.icon}</span>
+      <span class="trust-row-main"><b>${escapeHtml(p.username)}</b><span class="trust-row-sub">${m.label}</span></span>
+      <span class="trust-row-count">${p.scam_reports} report${p.scam_reports === 1 ? '' : 's'}</span>
+    </button>`;
+  }).join('')}</div>`;
+  box.querySelectorAll('[data-tlook]').forEach(b => b.onclick = () => {
+    $('#trust-q').value = b.dataset.tlook;
+    doTrustLookup(b.dataset.tlook);
+  });
+}
 
-  box.querySelectorAll('.vote-row button').forEach(b => b.onclick = async () => {
+async function doTrustLookup(username) {
+  username = (username || '').trim();
+  const box = $('#trust-result');
+  if (!username) { box.innerHTML = ''; return; }
+  trustLastLookup = username;
+  box.innerHTML = `<div class="empty" style="padding:20px">Checking…</div>`;
+  const r = await api('/api/trust/lookup?u=' + encodeURIComponent(username));
+  if (r.invalid) {
+    box.innerHTML = `<div class="trust-card ts-clean"><div class="trust-card-head"><span class="trust-pill ts-clean">?</span><div><h3>${escapeHtml(username)}</h3><div class="sub">That doesn't look like a Roblox username (3–20 letters, digits, or underscores).</div></div></div></div>`;
+    return;
+  }
+  renderTrustResult(r.username, r.profile);
+}
+
+function renderTrustResult(username, p) {
+  const box = $('#trust-result');
+  const status = p ? p.status : 'clean';
+  const m = TRUST_META[status] || TRUST_META.clean;
+  const reports = (p && p.reports) || [];
+  const canReport = !!ME;
+  const admin = ME && ME.is_admin;
+  const reportsHtml = reports.length ? `<div class="trust-reports">
+    <h4>${reports.length} community report${reports.length === 1 ? '' : 's'}</h4>
+    ${reports.map(rep => `<div class="trust-report ${rep.kind === 'safe' ? 'is-safe' : 'is-scam'}">
+      <div class="tr-head"><span class="tr-kind">${rep.kind === 'safe' ? '✅ Vouch' : '🚩 Scam'}</span><span class="tr-by">by ${escapeHtml(rep.reporter)}</span></div>
+      <div class="tr-detail">${escapeHtml(rep.detail)}</div>
+      ${rep.evidence_url ? `<a class="tr-evidence" href="${escapeHtml(rep.evidence_url)}" target="_blank" rel="noopener">🔗 Evidence</a>` : ''}
+      ${admin ? `<button class="btn btn-small tr-dismiss" data-tdismiss="${rep.id}">Dismiss</button>` : ''}
+    </div>`).join('')}
+  </div>` : `<div class="sub" style="margin-top:12px">No detailed reports on file.</div>`;
+
+  box.innerHTML = `<div class="trust-card ${m.cls}">
+    <div class="trust-card-head">
+      <span class="trust-pill ${m.cls}">${m.icon}</span>
+      <div>
+        <h3>${escapeHtml(username)} ${m.icon === '✅' ? '' : ''}</h3>
+        <div class="trust-verdict">${m.label}</div>
+      </div>
+      <div class="trust-tally">
+        <span class="tt-scam">${p ? p.scam_reports : 0}<small>reports</small></span>
+        <span class="tt-safe">${p ? p.vouches : 0}<small>vouches</small></span>
+      </div>
+    </div>
+    <div class="trust-blurb">${m.blurb}</div>
+    ${p && p.admin_note ? `<div class="trust-adminnote"><b>Admin note:</b> ${escapeHtml(p.admin_note)}</div>` : ''}
+    <div class="trust-actions">
+      <button class="btn btn-gold btn-small" data-treport="scam">🚩 Report a scam</button>
+      <button class="btn btn-small" data-treport="safe">✅ Vouch as safe</button>
+    </div>
+    ${admin ? `<div class="trust-admin">
+      <span class="sub">Admin verdict:</span>
+      <button class="btn btn-small" data-tstatus="scammer" data-tpid="${p ? p.id : ''}">⛔ Scammer</button>
+      <button class="btn btn-small" data-tstatus="trusted" data-tpid="${p ? p.id : ''}">✅ Trusted</button>
+      <button class="btn btn-small" data-tstatus="clean" data-tpid="${p ? p.id : ''}">➖ Clear</button>
+    </div>` : ''}
+    ${reportsHtml}
+  </div>`;
+
+  box.querySelectorAll('[data-treport]').forEach(b => b.onclick = () => {
     if (!ME) return openModal('auth-overlay');
-    const id = b.closest('.vote-row').dataset.vitem;
-    const r2 = await api(`/api/values/${id}/vote`, { method: 'POST', body: JSON.stringify({ vote: b.dataset.v }) });
-    if (r2.error) return toast(r2.error, 'error');
-    loadValues();
+    openTrustReport(username, b.dataset.treport);
   });
-  box.querySelectorAll('[data-vedit]').forEach(b => b.onclick = () => openValueModal(JSON.parse(b.dataset.vedit)));
-  box.querySelectorAll('[data-vdel]').forEach(b => b.onclick = async () => {
-    if (!await vaultConfirm('Removes the item and all its community votes.', { title: 'Delete this value?', okText: 'Delete', danger: true, icon: '📦' })) return;
-    const r2 = await api(`/api/admin/values/${b.dataset.vdel}`, { method: 'DELETE' });
-    if (r2.error) return toast(r2.error, 'error');
-    toast('Item removed.', 'info');
-    loadValues();
+  box.querySelectorAll('[data-tdismiss]').forEach(b => b.onclick = async () => {
+    const r = await api(`/api/admin/trust/reports/${b.dataset.tdismiss}`, { method: 'DELETE' });
+    if (r.error) return toast(r.error, 'error');
+    toast('Report dismissed.', 'info');
+    doTrustLookup(username); loadTrustList();
+  });
+  box.querySelectorAll('[data-tstatus]').forEach(b => b.onclick = async () => {
+    const pid = b.dataset.tpid;
+    if (!pid) return toast('File a report first so this username has a record.', 'info');
+    let note = null;
+    if (b.dataset.tstatus !== 'clean') {
+      note = await vaultPrompt('Optional note shown publicly (why?).', { title: 'Set admin verdict', okText: 'Set verdict', placeholder: 'e.g. Confirmed via ticket #123', icon: '🛡' });
+      if (note === null) return; // cancelled
+    }
+    const r = await api(`/api/admin/trust/${pid}/status`, { method: 'POST', body: JSON.stringify({ status: b.dataset.tstatus, admin_note: note || undefined }) });
+    if (r.error) return toast(r.error, 'error');
+    toast('Verdict updated.', 'success');
+    doTrustLookup(username); loadTrustList();
   });
 }
-$('#values-q').addEventListener('input', debounce(loadValues, 300));
 
-function openValueModal(item) {
-  valueEditId = item ? item.id : null;
-  $('#value-modal-title').textContent = item ? 'Edit item' : 'Add item';
-  $('#value-error').textContent = '';
-  $('#value-name').value = item ? item.name : '';
-  $('#value-usd').value = item ? (item.value_cents / 100).toFixed(2) : '';
-  $('#value-image').value = item && item.image_url ? item.image_url : '';
-  $('#value-notes').value = item && item.notes ? item.notes : '';
-  $('#value-game').value = item ? item.game : 'other';
-  $('#value-demand').value = item ? item.demand : 'medium';
-  $('#value-trend').value = item ? item.trend : 'stable';
-  openModal('value-overlay');
+$('#trust-search').addEventListener('submit', (e) => { e.preventDefault(); doTrustLookup($('#trust-q').value); });
+
+function openTrustReport(username, kind) {
+  $('#trust-modal-user').textContent = username;
+  $('#trust-modal-title').textContent = kind === 'safe' ? 'Vouch for a trader' : 'Report a scammer';
+  $('#trust-kind').value = kind === 'safe' ? 'safe' : 'scam';
+  $('#trust-detail').value = '';
+  $('#trust-evidence').value = '';
+  $('#trust-error').textContent = '';
+  $('#trust-submit').dataset.user = username;
+  openModal('trust-overlay');
 }
-$('#value-add-btn').addEventListener('click', () => openValueModal(null));
-$('#value-save').addEventListener('click', async () => {
-  const err = $('#value-error');
+$('#trust-submit').addEventListener('click', async () => {
+  const err = $('#trust-error');
   err.textContent = '';
+  const username = $('#trust-submit').dataset.user;
   const body = {
-    name: $('#value-name').value.trim(),
-    game: $('#value-game').value,
-    value_usd: $('#value-usd').value,
-    demand: $('#value-demand').value,
-    trend: $('#value-trend').value,
-    image_url: $('#value-image').value.trim() || null,
-    notes: $('#value-notes').value.trim() || null,
+    username,
+    kind: $('#trust-kind').value,
+    detail: $('#trust-detail').value.trim(),
+    evidence_url: $('#trust-evidence').value.trim() || null,
   };
-  const r = valueEditId
-    ? await api(`/api/admin/values/${valueEditId}`, { method: 'PATCH', body: JSON.stringify(body) })
-    : await api('/api/admin/values', { method: 'POST', body: JSON.stringify(body) });
+  const r = await api('/api/trust/report', { method: 'POST', body: JSON.stringify(body) });
   if (r.error) { err.textContent = r.error; return; }
-  closeModal('value-overlay');
-  toast(valueEditId ? 'Item updated.' : 'Item added.', 'success');
-  loadValues();
+  closeModal('trust-overlay');
+  toast('Report submitted — thanks for protecting other traders.', 'success');
+  if (trustLastLookup) doTrustLookup(trustLastLookup);
+  loadTrustList();
 });
 
 // ============================================================
@@ -3749,8 +3793,12 @@ const Voice = (() => {
   const levels = new Map();  // peerId|'self' -> smoothed 0..1 level
   let iceServers = [{ urls: ['stun:stun.l.google.com:19302'] }];
   let audioCtx = null;
+  let micId = (() => { try { return localStorage.getItem('vault-mic') || ''; } catch (_) { return ''; } })();
 
   api('/api/rtc-config').then(c => { if (c.iceServers) iceServers = c.iceServers; });
+
+  // Build getUserMedia constraints honouring the chosen input device.
+  const micConstraints = () => ({ audio: micId ? { deviceId: { exact: micId } } : true, video: false });
 
   const active = () => !!localStream;
   const inLobby = (id) => active() && lobbyId === id;
@@ -3769,15 +3817,22 @@ const Voice = (() => {
       stop(false);
     }
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      localStream = await navigator.mediaDevices.getUserMedia(micConstraints());
     } catch (e) {
-      toast('Mic access denied — allow the microphone to use voice.', 'error');
-      return;
+      if (micId) { // a saved device may no longer exist — fall back to the default
+        micId = '';
+        try { localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false }); }
+        catch (_) { toast('Mic access denied — allow the microphone to use voice.', 'error'); return; }
+      } else {
+        toast('Mic access denied — allow the microphone to use voice.', 'error');
+        return;
+      }
     }
     lobbyId = id;
     lobbyTitle = title || (activeLobbyId === id ? ($('#lr-title') && $('#lr-title').textContent) : '') || 'Voice';
     meter('self', localStream);
     showWidget();
+    populateMics();  // labels are available now that mic permission is granted
     syncModal();
 
     const r = await api(`/api/lobbies/${lobbyId}/voice/join`, { method: 'POST' });
@@ -3876,6 +3931,48 @@ const Voice = (() => {
     render();
   }
 
+  // ---- Microphone input device selection ----
+  async function populateMics() {
+    const sel = $('#vw-mic');
+    if (!sel || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    let devices = [];
+    try { devices = await navigator.mediaDevices.enumerateDevices(); } catch (_) { return; }
+    const mics = devices.filter(d => d.kind === 'audioinput');
+    if (!mics.length) return;
+    const opts = [{ value: '', label: 'Default microphone' }].concat(
+      mics.map((d, i) => ({ value: d.deviceId, label: d.label || `Microphone ${i + 1}` }))
+    );
+    // Preserve the current pick if the device is still present, else default.
+    sel.dataset.value = (micId && mics.some(m => m.deviceId === micId)) ? micId : '';
+    setSelectOptions(sel, opts);
+  }
+
+  // Swap the input device mid-call: replace the audio track on every peer.
+  async function switchMic(deviceId) {
+    micId = deviceId || '';
+    try { localStorage.setItem('vault-mic', micId); } catch (_) {}
+    if (!active()) return;
+    let newStream;
+    try {
+      newStream = await navigator.mediaDevices.getUserMedia(micConstraints());
+    } catch (e) {
+      toast('Could not switch to that microphone.', 'error');
+      return;
+    }
+    const newTrack = newStream.getAudioTracks()[0];
+    if (!newTrack) return;
+    newTrack.enabled = !muted;                       // keep current mute state
+    pcs.forEach(pc => {
+      const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+      if (sender) sender.replaceTrack(newTrack).catch(() => {});
+    });
+    const old = localStream.getAudioTracks()[0];
+    if (old) { localStream.removeTrack(old); old.stop(); }
+    localStream.addTrack(newTrack);
+    meters.delete('self'); meter('self', localStream);  // re-point the loudness meter
+    toast('Microphone switched.', 'success');
+  }
+
   function meter(key, stream) {
     try {
       audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
@@ -3964,6 +4061,11 @@ const Voice = (() => {
   function minimize(min) {
     $('#vw-panel').hidden = min;
     $('#vw-pill').hidden = !min;
+  }
+
+  if ($('#vw-mic')) $('#vw-mic').addEventListener('change', () => switchMic($('#vw-mic').value || ''));
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+    navigator.mediaDevices.addEventListener('devicechange', () => { if (active()) populateMics(); });
   }
 
   return { join, leave, stop, toggleMute, minimize, syncModal, inLobby, active, openLobby: () => lobbyId };

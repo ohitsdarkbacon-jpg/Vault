@@ -1850,6 +1850,13 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
 .vw-ibtn { background: none; border: none; color: var(--muted); font-size: 0.9rem; padding: 4px 8px; border-radius: 6px; }
 .vw-ibtn:hover { color: var(--text); background: rgba(148,163,184,0.1); }
 .vw-peers { max-height: 240px; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.vw-mic-row { padding: 9px 12px; border-top: 1px solid var(--border); }
+.vw-mic-label { display: block; font-size: 0.66rem; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 5px; }
+.vw-mic { width: 100%; }
+.vw-mic .cs-trigger { font-size: 0.8rem; padding: 7px 10px; }
+.vw-mic .cs-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Widget sits at the bottom of the viewport, so open the mic list upward. */
+.vw-mic .cs-dropdown { top: auto; bottom: calc(100% + 6px); max-height: 200px; }
 .vw-controls { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); }
 .vw-controls .btn { flex: 1; }
 #vw-mute.muted { border-color: var(--danger); color: var(--danger); }
@@ -1867,28 +1874,55 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
 .vp-level i { display: block; height: 100%; width: 0%; border-radius: 3px; background: linear-gradient(90deg, var(--live), #86efac); transition: width .08s linear; }
 @media (max-width: 640px) { .voice-widget { left: 12px; bottom: 66px; } }
 
-/* ---------- Value list ---------- */
-.value-table td { vertical-align: middle; }
-.vi-cell { display: flex; align-items: center; gap: 11px; }
-.vi-thumb { width: 40px; height: 40px; border-radius: 9px; flex-shrink: 0; background: var(--surface-2); background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
-.vi-cell b { display: block; font-size: 0.9rem; }
-.vi-notes { display: block; font-size: 0.72rem; color: var(--muted); }
-.vi-game { display: inline-block; font-size: 0.66rem; color: var(--gold-2); margin-top: 2px; }
-.demand-badge { font-size: 0.7rem; font-weight: 700; padding: 3px 9px; border-radius: 12px; white-space: nowrap; }
-.demand-badge.dm-low { background: rgba(148,163,184,0.14); color: var(--muted); }
-.demand-badge.dm-med { background: rgba(110,168,254,0.14); color: var(--blue); }
-.demand-badge.dm-high { background: rgba(139,92,246,0.16); color: var(--gold-2); }
-.demand-badge.dm-insane { background: rgba(255,92,99,0.16); color: var(--danger); }
-.trend { font-size: 0.9rem; font-weight: 700; }
-.trend.tr-up { color: var(--live); }
-.trend.tr-down { color: var(--danger); }
-.trend.tr-stable { color: var(--muted); }
-.vote-row { display: flex; gap: 5px; }
-.vote-pill { font-size: 0.72rem; font-weight: 650; padding: 4px 9px; border-radius: 14px; background: rgba(148,163,184,0.08); border: 1px solid var(--border); color: var(--muted); transition: all .15s; white-space: nowrap; }
-.vote-pill:hover { border-color: var(--gold-dim); color: var(--text); }
-.vote-pill.on { background: rgba(139,92,246,0.16); border-color: var(--gold-dim); color: var(--gold-2); }
-.vote-meter { display: flex; height: 4px; border-radius: 3px; overflow: hidden; margin-top: 5px; gap: 1px; background: rgba(148,163,184,0.1); }
-.vote-meter i { display: block; height: 100%; }
-.vote-meter i.va { background: var(--live); }
-.vote-meter i.vl { background: var(--gold-2); }
-.vote-meter i.vh { background: var(--danger); }
+/* ---------- Trust check / scammer watchlist ---------- */
+.trust-search { display: flex; gap: 10px; margin-bottom: 18px; }
+.trust-search .search-input-wrap { flex: 1; }
+/* status pill colours, shared by lookup card + watchlist rows */
+.trust-pill { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; font-size: 1.3rem; flex-shrink: 0; }
+.ts-clean   .trust-pill, .trust-pill.ts-clean   { background: rgba(148,163,184,0.14); color: var(--muted); }
+.ts-flagged .trust-pill, .trust-pill.ts-flagged { background: rgba(245,178,66,0.16); color: #f5b242; }
+.ts-scammer .trust-pill, .trust-pill.ts-scammer { background: rgba(255,92,99,0.18); color: var(--danger); }
+.ts-trusted .trust-pill, .trust-pill.ts-trusted { background: rgba(52,199,123,0.16); color: var(--live); }
+
+.trust-card { border: 1px solid var(--border); border-radius: 16px; background: var(--surface); padding: 20px; margin-bottom: 22px; border-left: 4px solid var(--border); }
+.trust-card.ts-flagged { border-left-color: #f5b242; }
+.trust-card.ts-scammer { border-left-color: var(--danger); }
+.trust-card.ts-trusted { border-left-color: var(--live); }
+.trust-card-head { display: flex; align-items: center; gap: 14px; }
+.trust-card-head h3 { margin: 0; font-size: 1.15rem; word-break: break-all; }
+.trust-verdict { font-size: 0.82rem; font-weight: 650; color: var(--muted); margin-top: 2px; }
+.trust-card.ts-scammer .trust-verdict { color: var(--danger); }
+.trust-card.ts-trusted .trust-verdict { color: var(--live); }
+.trust-card.ts-flagged .trust-verdict { color: #f5b242; }
+.trust-tally { margin-left: auto; display: flex; gap: 14px; text-align: center; }
+.trust-tally span { display: flex; flex-direction: column; font-size: 1.25rem; font-weight: 750; line-height: 1; }
+.trust-tally small { font-size: 0.6rem; font-weight: 600; color: var(--muted); margin-top: 3px; text-transform: uppercase; letter-spacing: .05em; }
+.trust-tally .tt-scam { color: var(--danger); }
+.trust-tally .tt-safe { color: var(--live); }
+.trust-blurb { font-size: 0.85rem; color: var(--muted); margin-top: 12px; }
+.trust-adminnote { font-size: 0.82rem; margin-top: 10px; padding: 9px 12px; border-radius: 10px; background: rgba(139,92,246,0.1); border: 1px solid var(--gold-dim); }
+.trust-actions { display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap; }
+.trust-admin { display: flex; gap: 8px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); flex-wrap: wrap; }
+.trust-reports { margin-top: 16px; }
+.trust-reports h4 { margin: 0 0 8px; font-size: 0.82rem; color: var(--muted); }
+.trust-report { border: 1px solid var(--border); border-radius: 11px; padding: 11px 13px; margin-bottom: 8px; background: var(--surface-2); }
+.trust-report.is-scam { border-left: 3px solid var(--danger); }
+.trust-report.is-safe { border-left: 3px solid var(--live); }
+.tr-head { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.tr-kind { font-size: 0.74rem; font-weight: 700; }
+.tr-by { font-size: 0.72rem; color: var(--muted); }
+.tr-detail { font-size: 0.85rem; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+.tr-evidence { display: inline-block; margin-top: 6px; font-size: 0.76rem; color: var(--blue); }
+.tr-dismiss { margin-top: 8px; }
+
+.trust-watchlist { margin-top: 8px; }
+.trust-watchlist h3 { margin: 0 0 2px; font-size: 1rem; }
+.trust-grid { display: grid; gap: 9px; }
+.trust-row { display: flex; align-items: center; gap: 12px; text-align: left; width: 100%; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 11px 14px; cursor: pointer; transition: border-color .15s, transform .12s; }
+.trust-row:hover { border-color: var(--gold-dim); transform: translateY(-1px); }
+.trust-row .trust-pill { width: 36px; height: 36px; font-size: 1.05rem; border-radius: 10px; }
+.trust-row-main { display: flex; flex-direction: column; min-width: 0; }
+.trust-row-main b { font-size: 0.9rem; word-break: break-all; }
+.trust-row-sub { font-size: 0.72rem; color: var(--muted); }
+.trust-row-count { margin-left: auto; font-size: 0.74rem; font-weight: 650; color: var(--danger); white-space: nowrap; }
+@media (max-width: 640px) { .trust-tally { width: 100%; margin: 10px 0 0; justify-content: flex-start; } }
