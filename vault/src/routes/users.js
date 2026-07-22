@@ -9,6 +9,80 @@ const router = express.Router();
 
 const MIN_WITHDRAWAL_CENTS = parseInt(process.env.MIN_WITHDRAWAL_CENTS || '500', 10); // $5
 const MAX_BIO_LEN = 300;
+const config = require('../config');
+
+// ---------- Peer-to-peer balance transfers ----------
+
+// Preview the split so the sender sees exactly what lands where.
+router.get('/my/transfer/quote', requireAuth, (req, res) => {
+  const amount = parseInt(req.query.amount_cents, 10);
+  if (!Number.isInteger(amount) || amount < config.minTransferCents) {
+    return res.status(400).json({ error: `Minimum transfer is $${(config.minTransferCents / 100).toFixed(2)}.` });
+  }
+  const fee = Math.round((amount * config.transferFeeBps) / 10000);
+  res.json({ amount_cents: amount, fee_cents: fee, received_cents: amount - fee, fee_bps: config.transferFeeBps });
+});
+
+router.get('/my/transfers', requireAuth, (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT t.*, su.username AS sender_name, ru.username AS recipient_name,
+        (t.sender_id = ?) AS outgoing
+       FROM transfers t
+       JOIN users su ON su.id = t.sender_id
+       JOIN users ru ON ru.id = t.recipient_id
+       WHERE t.sender_id = ? OR t.recipient_id = ? ORDER BY t.id DESC LIMIT 50`
+    )
+    .all(req.user.id, req.user.id, req.user.id);
+  res.json({ transfers: rows, fee_bps: config.transferFeeBps, min_cents: config.minTransferCents });
+});
+
+router.post('/my/transfer', requireAuth, (req, res) => {
+  const amount = parseInt(req.body?.amount_cents, 10);
+  const username = String(req.body?.to || '').trim();
+  const note = req.body?.note ? String(req.body.note).trim().slice(0, 140) : null;
+
+  if (!username) return res.status(400).json({ error: 'Who are you sending to?' });
+  if (!Number.isInteger(amount) || amount < config.minTransferCents) {
+    return res.status(400).json({ error: `Minimum transfer is $${(config.minTransferCents / 100).toFixed(2)}.` });
+  }
+  const recipient = db.prepare('SELECT id, username, is_banned FROM users WHERE username = ? COLLATE NOCASE').get(username);
+  if (!recipient) return res.status(404).json({ error: 'No trader with that username.' });
+  if (recipient.id === req.user.id) return res.status(400).json({ error: "You can't send balance to yourself." });
+  if (recipient.is_banned) return res.status(400).json({ error: 'That account is unavailable.' });
+
+  // Respect blocks in either direction.
+  const blocked = db
+    .prepare('SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)')
+    .get(req.user.id, recipient.id, recipient.id, req.user.id);
+  if (blocked) return res.status(403).json({ error: "You can't send balance to this trader." });
+
+  if (req.user.site_credit_cents < amount) return res.status(400).json({ error: 'Not enough balance.' });
+
+  const fee = Math.round((amount * config.transferFeeBps) / 10000);
+  const received = amount - fee;
+  if (note) {
+    const mod = moderateField(note, 'note');
+    if (!mod.ok) return res.status(400).json({ error: mod.error });
+  }
+
+  let transferId;
+  const tx = db.transaction(() => {
+    // Re-read the sender balance inside the tx to avoid a stale-read race.
+    const bal = db.prepare('SELECT site_credit_cents FROM users WHERE id = ?').get(req.user.id).site_credit_cents;
+    if (bal < amount) throw new Error('INSUFFICIENT');
+    db.prepare('UPDATE users SET site_credit_cents = site_credit_cents - ? WHERE id = ?').run(amount, req.user.id);
+    db.prepare('UPDATE users SET site_credit_cents = site_credit_cents + ? WHERE id = ?').run(received, recipient.id);
+    const info = db
+      .prepare('INSERT INTO transfers (sender_id, recipient_id, amount_cents, fee_cents, received_cents, note) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(req.user.id, recipient.id, amount, fee, received, note);
+    transferId = info.lastInsertRowid;
+  });
+  try { tx(); } catch (e) { return res.status(400).json({ error: 'Not enough balance.' }); }
+
+  notify(recipient.id, 'transfer', `💸 ${req.user.username} sent you ${(received / 100).toFixed(2)} USD${note ? ` — “${note}”` : ''}.`, '#dashboard');
+  res.status(201).json({ ok: true, id: transferId, amount_cents: amount, fee_cents: fee, received_cents: received, recipient: recipient.username });
+});
 
 // review_rating = the CALLER's own review of the order (reviews are two-way,
 // so the join must be pinned to one reviewer).

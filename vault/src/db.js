@@ -469,6 +469,25 @@ ensureColumn('users', 'pro_auto_renew', 'pro_auto_renew INTEGER NOT NULL DEFAULT
 ensureColumn('users', 'wallet_address', 'wallet_address TEXT');
 ensureColumn('users', 'wallet_currency', 'wallet_currency TEXT');
 
+// Vault Server voice channels are lobbies tagged with a channel slug.
+ensureColumn('lobbies', 'channel', 'channel TEXT');
+
+// Peer-to-peer balance transfers (5% fee kept by the platform).
+db.exec(`
+CREATE TABLE IF NOT EXISTS transfers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  sender_id INTEGER NOT NULL REFERENCES users(id),
+  recipient_id INTEGER NOT NULL REFERENCES users(id),
+  amount_cents INTEGER NOT NULL,       -- debited from the sender
+  fee_cents INTEGER NOT NULL,          -- platform's cut
+  received_cents INTEGER NOT NULL,     -- credited to the recipient
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_transfers_sender ON transfers(sender_id, id);
+CREATE INDEX IF NOT EXISTS idx_transfers_recipient ON transfers(recipient_id, id);
+`);
+
 // Developer API keys — hashed at rest; the raw key is shown once on creation.
 db.exec(`
 CREATE TABLE IF NOT EXISTS api_keys (

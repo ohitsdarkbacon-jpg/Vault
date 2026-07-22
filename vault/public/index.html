@@ -75,7 +75,7 @@
     <a href="#trading">Trading</a>
     <a href="#tournaments">Tournaments</a>
     <a href="#lobbies">Play with others</a>
-    <a href="#traders-center">Traders center</a>
+    <a href="#server">Server</a>
     <a href="#dashboard">Dashboard</a>
     <a href="#" id="nav-sell">Sell an item</a>
   </nav>
@@ -101,6 +101,7 @@
   <a href="#trading">Trading</a>
   <a href="#tournaments">Tournaments</a>
   <a href="#lobbies">Play with others</a>
+  <a href="#server">Server</a>
   <a href="#traders-center">Traders center</a>
   <a href="#traders">Traders</a>
   <a href="#messages">Messages</a>
@@ -318,6 +319,50 @@
       <button class="btn btn-gold" id="host-tourney-btn">+ Host a tournament</button>
     </div>
     <div class="tourney-grid" id="tourney-grid"><div class="empty">Loading tournaments…</div></div>
+  </div>
+</div>
+
+<!-- ================= VAULT SERVER VIEW ================= -->
+<div class="view" id="view-server">
+  <div class="page" style="max-width:1180px">
+    <div class="server-layout">
+      <aside class="server-sidebar">
+        <div class="server-brand">
+          <div class="server-crest">V</div>
+          <div><b>Vault Server</b><span class="server-online" id="server-online">· online</span></div>
+        </div>
+        <div class="chan-group">Text channels</div>
+        <div class="chan-list" id="text-channels">
+          <button class="chan active" data-chan="general"># general</button>
+          <button class="chan" data-chan="giveaways"># giveaways</button>
+          <button class="chan" data-chan="clips"># clips</button>
+          <button class="chan" data-chan="help"># help</button>
+          <button class="chan" data-chan="off-topic"># off-topic</button>
+        </div>
+        <div class="chan-group">Voice channels</div>
+        <div class="chan-list" id="voice-channels">
+          <button class="chan voice" data-vc="general">🔊 General VC <span class="vc-count" data-vc-count="general"></span></button>
+          <button class="chan voice" data-vc="games">🔊 Games VC <span class="vc-count" data-vc-count="games"></span></button>
+          <button class="chan voice" data-vc="trading">🔊 Trading VC <span class="vc-count" data-vc-count="trading"></span></button>
+          <button class="chan voice" data-vc="chill">🔊 Chill VC <span class="vc-count" data-vc-count="chill"></span></button>
+        </div>
+      </aside>
+      <main class="server-main">
+        <div class="server-chan-head">
+          <b id="server-chan-name"># general</b>
+          <span class="sub" id="server-chan-desc">Chat with the whole Vault community · 5s slowmode</span>
+        </div>
+        <div class="server-box" id="server-box"><div class="chat-empty">Loading…</div></div>
+        <div class="chat-input-row server-input">
+          <input id="server-input" placeholder="Message #general…" maxlength="300" autocomplete="off">
+          <button class="btn btn-gold" id="server-send">Send</button>
+        </div>
+      </main>
+      <aside class="server-members">
+        <div class="chan-group">Online — <span id="server-online-n">0</span></div>
+        <div class="member-list" id="server-members"></div>
+      </aside>
+    </div>
   </div>
 </div>
 
@@ -711,6 +756,24 @@
     </div><!-- /withdraw-manual -->
     <div class="error-text" id="withdraw-error"></div>
     <div class="modal-actions"><button class="btn btn-gold" id="withdraw-submit" style="flex:1">Request withdrawal</button></div>
+  </div>
+</div>
+
+<!-- Send balance to another trader -->
+<div class="overlay" id="transfer-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="transfer-overlay">✕</button>
+    <h3>Send balance</h3>
+    <div class="sub" id="transfer-balance"></div>
+    <div class="field"><label>Send to (username)</label><input id="transfer-to" placeholder="e.g. neondragonfan" maxlength="40" autocomplete="off"></div>
+    <div class="field"><label>Amount (USD)</label><input id="transfer-amount" type="number" min="1" step="0.01" placeholder="20.00"></div>
+    <div class="field"><label>Note (optional)</label><input id="transfer-note" placeholder="e.g. gg wp, thanks for the trade" maxlength="140"></div>
+    <div class="transfer-breakdown" id="transfer-breakdown" hidden>
+      <div><span>They receive</span><b id="tb-receive">$0.00</b></div>
+      <div class="tb-fee"><span id="tb-fee-label">Fee (5%)</span><b id="tb-fee">$0.00</b></div>
+    </div>
+    <div class="error-text" id="transfer-error"></div>
+    <div class="modal-actions"><button class="btn btn-gold" id="transfer-submit" style="flex:1">Send balance</button></div>
   </div>
 </div>
 

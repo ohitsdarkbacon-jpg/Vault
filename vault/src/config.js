@@ -38,6 +38,11 @@ module.exports = {
   proFeeBps: parseInt(process.env.PRO_FEE_BPS || '100', 10),           // 1.00% buyer fee for Pro
   proDays: parseInt(process.env.PRO_DAYS || '30', 10),
 
+  // Peer-to-peer balance transfers: fee skimmed from each send (kept by the
+  // platform). 500 = 5.00%.
+  transferFeeBps: parseInt(process.env.TRANSFER_FEE_BPS || '500', 10),
+  minTransferCents: parseInt(process.env.MIN_TRANSFER_CENTS || '100', 10),
+
   // Content moderation on user-authored text (listings, auctions, chat, bios).
   // On by default; set MODERATION=0 to disable. Extend the word lists with
   // MOD_BLOCKLIST / MOD_MASKLIST (comma-separated). See lib/moderation.js.

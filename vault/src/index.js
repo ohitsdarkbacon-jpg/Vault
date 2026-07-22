@@ -73,7 +73,7 @@ app.get('/api/me', (req, res) => {
 
 app.get('/api/config', (req, res) => {
   res.json({
-    fee_bps: config.platformFeeBps, fee_mode: config.feeMode,
+    fee_bps: config.platformFeeBps, fee_mode: config.feeMode, transfer_fee_bps: config.transferFeeBps,
     pro_fee_bps: config.proFeeBps, pro_price_cents: config.proPriceCents,
   });
 });
