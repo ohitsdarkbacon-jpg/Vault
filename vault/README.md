@@ -64,9 +64,11 @@ withdrawals, notifications, public profiles, and an admin panel.
 - **Commands**: `GET /me`, `GET /listings`, **`POST /listings`** (create a listing from a script/bot), `PATCH /listings/:id` (edit title/price/image), `POST /listings/:id/close`, `GET /orders`, `GET /notifications`
 - Plus read-only public endpoints (`/api/stats`, `/api/health`, `/api/categories`, `/api/trending`…), `robots.txt`, and `sitemap.xml`
 
-**📊 Value list / price guide (`#values`)**
-- The community reference for what items are actually worth — every serious trader lives by a value list. Admins curate items (name, game, **value in USD**, demand `low→insane`, trend `rising/stable/falling`, image, notes)
-- **Community accuracy votes**: anyone can vote whether a listed value is ✓ spot-on, ⬆ too low, or ⬇ too high — with live tallies and a consensus meter, so the guide stays honest. Searchable and filterable by game
+**🛡 Trust check / scammer watchlist (`#trust`)**
+- Before you trade, look up any **Roblox username** and see where it stands — a color-coded verdict card with the report/vouch tally: ➖ no reports, ⚠ community-reported, ⛔ admin-confirmed scammer, or ✅ verified-trusted
+- **Anyone can file a report or a vouch** against a username (what happened + optional evidence link); one per user per username, run through the moderation filter. A scam report auto-flags a previously-clean username until an admin rules on it
+- **Admins set the verified verdict** (scammer / trusted / clear) with an optional public note, and can dismiss false reports — auto-flagged names fall back to clean once the last open report is cleared
+- A public **known-scammer watchlist** ranks confirmed and most-reported accounts, worst first — click any row to pull up its full record. Endpoints: `GET /api/trust/lookup?u=`, `GET /api/trust/watchlist`, `POST /api/trust/report`
 
 **Tournaments (community events)**
 - **Anyone can host**: title, game, description, player limit (4–128), and a signup deadline (1h–3 days)

@@ -73,7 +73,7 @@
     <a href="#auctions" data-scroll>Live auctions</a>
     <a href="#listings" data-scroll>Marketplace</a>
     <a href="#trading">Trading</a>
-    <a href="#values">Values</a>
+    <a href="#trust">Trust check</a>
     <a href="#tournaments">Tournaments</a>
     <a href="#lobbies">Play with others</a>
     <a href="#server">Server</a>
@@ -100,7 +100,7 @@
   <a href="#auctions" data-scroll>Live auctions</a>
   <a href="#listings" data-scroll>Marketplace</a>
   <a href="#trading">Trading</a>
-  <a href="#values">Value list</a>
+  <a href="#trust">Trust check</a>
   <a href="#tournaments">Tournaments</a>
   <a href="#lobbies">Play with others</a>
   <a href="#server">Server</a>
@@ -324,19 +324,25 @@
   </div>
 </div>
 
-<!-- ================= VALUE LIST VIEW ================= -->
-<div class="view" id="view-values">
+<!-- ================= TRUST CHECK VIEW ================= -->
+<div class="view" id="view-trust">
   <div class="page">
     <div class="page-head">
-      <div><h2>Value list</h2><div class="sub">The community price guide — what popular items are actually worth. Vote on whether a value looks right.</div></div>
-      <button class="btn btn-gold" id="value-add-btn" style="display:none">+ Add item</button>
+      <div><h2>Trust check 🛡</h2><div class="sub">Before you trade, look up a Roblox username. See admin-verified verdicts and what the community has reported.</div></div>
     </div>
-    <div class="search-bar" style="margin-bottom:14px"><div class="search-input-wrap" style="flex:1">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-      <input type="search" id="values-q" placeholder="Search items…" autocomplete="off">
-    </div></div>
-    <div class="cat-chips" id="values-cats"></div>
-    <div id="values-list"><div class="empty">Loading…</div></div>
+    <form class="trust-search" id="trust-search">
+      <div class="search-input-wrap" style="flex:1">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="search" id="trust-q" placeholder="Enter a Roblox username…" autocomplete="off" maxlength="30">
+      </div>
+      <button class="btn btn-gold" type="submit">Check</button>
+    </form>
+    <div id="trust-result"></div>
+    <div class="trust-watchlist">
+      <h3>⚠ Known scammer watchlist</h3>
+      <div class="sub" style="margin-bottom:12px">Usernames admins have confirmed as scammers, plus the most-reported accounts. Always use a middleman.</div>
+      <div id="trust-list"><div class="empty">Loading…</div></div>
+    </div>
   </div>
 </div>
 
@@ -848,50 +854,26 @@
   </div>
 </div>
 
-<!-- Add / edit value item (admin) -->
-<div class="overlay" id="value-overlay">
+<!-- Report / vouch for a username (Trust check) -->
+<div class="overlay" id="trust-overlay">
   <div class="modal modal-wrap">
-    <button class="modal-close" data-close="value-overlay">✕</button>
-    <h3 id="value-modal-title">Add item</h3>
-    <div class="sub">Set the official value; the community votes on whether it's accurate.</div>
-    <div class="field"><label>Item name</label><input id="value-name" placeholder="Neon Shadow Dragon" maxlength="80"></div>
+    <button class="modal-close" data-close="trust-overlay">✕</button>
+    <h3 id="trust-modal-title">Report a scammer</h3>
+    <div class="sub">You're filing a report for <b id="trust-modal-user">username</b>. Reports are public and help protect other traders — false reports get removed.</div>
     <div class="field">
-      <label>Game</label>
-      <div class="custom-select" id="value-game" data-value="other">
-        <div class="cs-trigger"><span class="cs-label">Other</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        <div class="cs-dropdown"><div class="cs-option active" data-value="other">Other</div></div>
-      </div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>Value (USD)</label><input id="value-usd" type="number" min="0.01" step="0.01" placeholder="55.00"></div>
-      <div class="field">
-        <label>Demand</label>
-        <div class="custom-select" id="value-demand" data-value="medium">
-          <div class="cs-trigger"><span class="cs-label">Medium</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <div class="cs-dropdown">
-            <div class="cs-option" data-value="low">Low</div>
-            <div class="cs-option active" data-value="medium">Medium</div>
-            <div class="cs-option" data-value="high">High</div>
-            <div class="cs-option" data-value="insane">Insane</div>
-          </div>
-        </div>
-      </div>
-      <div class="field">
-        <label>Trend</label>
-        <div class="custom-select" id="value-trend" data-value="stable">
-          <div class="cs-trigger"><span class="cs-label">Stable</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <div class="cs-dropdown">
-            <div class="cs-option" data-value="up">Rising</div>
-            <div class="cs-option active" data-value="stable">Stable</div>
-            <div class="cs-option" data-value="down">Falling</div>
-          </div>
+      <label>What kind of report?</label>
+      <div class="custom-select" id="trust-kind" data-value="scam">
+        <div class="cs-trigger"><span class="cs-label">🚩 Scam / bad experience</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="cs-dropdown">
+          <div class="cs-option active" data-value="scam">🚩 Scam / bad experience</div>
+          <div class="cs-option" data-value="safe">✅ Vouch — safe to trade with</div>
         </div>
       </div>
     </div>
-    <div class="field"><label>Image URL (optional)</label><input id="value-image" placeholder="https://… or /uploads/…"></div>
-    <div class="field"><label>Notes (optional)</label><input id="value-notes" placeholder="e.g. FR/NFR similar, seasonal" maxlength="200"></div>
-    <div class="error-text" id="value-error"></div>
-    <div class="modal-actions"><button class="btn btn-gold" id="value-save" style="flex:1">Save item</button></div>
+    <div class="field"><label>What happened?</label><textarea id="trust-detail" rows="4" placeholder="Describe the trade, what was promised, and how it went wrong…" maxlength="600"></textarea></div>
+    <div class="field"><label>Evidence link (optional)</label><input id="trust-evidence" placeholder="https://… screenshot / video proof"></div>
+    <div class="error-text" id="trust-error"></div>
+    <div class="modal-actions"><button class="btn btn-gold" id="trust-submit" style="flex:1">Submit report</button></div>
   </div>
 </div>
 
@@ -1041,6 +1023,13 @@
       </div>
     </div>
     <div class="vw-peers" id="vw-peers"></div>
+    <div class="vw-mic-row">
+      <span class="vw-mic-label">🎙 Input device</span>
+      <div class="custom-select vw-mic" id="vw-mic" data-value="">
+        <div class="cs-trigger"><span class="cs-label">Default microphone</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="cs-dropdown"><div class="cs-option active" data-value="">Default microphone</div></div>
+      </div>
+    </div>
     <div class="vw-controls">
       <button class="btn btn-small" id="vw-mute">🎙 Mute</button>
       <button class="btn btn-small" id="vw-leave" style="color:var(--danger)">Leave voice</button>

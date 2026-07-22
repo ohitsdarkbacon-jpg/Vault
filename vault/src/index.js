@@ -25,7 +25,7 @@ const { router: proRouter, startProRenewJob } = require('./routes/pro');
 const communityRouter = require('./routes/community');
 const lobbiesRouter = require('./routes/lobbies');
 const { keysRouter, v1Router } = require('./routes/api');
-const valuesRouter = require('./routes/values');
+const trustRouter = require('./routes/trust');
 const { isPro } = require('./lib/fees');
 const { startAuctionCloser } = require('./jobs/auctionCloser');
 const { startAutoComplete } = require('./jobs/autoCompleteOrders');
@@ -195,7 +195,7 @@ app.use('/api', tournamentsRouter);     // /api/tournaments/* — community tour
 app.use('/api', proRouter);             // /api/pro/* — Vault Pro subscriptions
 app.use('/api', communityRouter);       // /api/wanted, /api/game-stats, /api/rooms/*
 app.use('/api', lobbiesRouter);         // /api/lobbies/* — play-together lobbies + voice
-app.use('/api', valuesRouter);          // /api/values, /api/admin/values — value list
+app.use('/api', trustRouter);           // /api/trust/* — scammer watchlist / trust check
 app.use('/api', keysRouter);            // /api/keys — developer API key management (session)
 app.use('/api/v1', v1Router);           // /api/v1/* — developer API (key-authed commands)
 app.use('/api/uploads', uploadsRoutes); // image uploads for listings/auctions
