@@ -55,7 +55,7 @@ withdrawals, notifications, public profiles, and an admin panel.
 
 **🎮 Play with others (lobbies + voice)**
 - Spin up a lobby for whatever you're playing (Rivals, Blade Ball, anything) — set a title, game, region, and player cap (2–20)
-- Anyone browses open lobbies and joins; **each lobby has built-in voice chat** (native WebRTC — talk right in the browser, no downloads or accounts) with live speaking indicators and a mute toggle so the roster can talk and play together
+- Anyone browses open lobbies and joins; **each lobby has built-in voice chat** (native WebRTC — talk right in the browser, no downloads or accounts). Voice runs in a **persistent, minimizable widget** so you can keep browsing the rest of the site while you talk, with **live per-person volume meters** (real RMS loudness), speaking rings, and a mute toggle
 - Members-only lobby text chat + live roster (host wears a 👑); the voice link and roster are hidden from non-members
 - **Private lobbies** issue a 6-char join code to share out-of-band; hosts can close any time, and idle lobbies auto-close after 30 min. Two active lobbies per host
 
@@ -63,6 +63,10 @@ withdrawals, notifications, public profiles, and an admin panel.
 - **API keys**: mint a key in Dashboard → Developer (shown once, stored hashed, up to 5, revocable). Authenticate with `Authorization: Bearer vlt_live_...`; 60 requests/min per key
 - **Commands**: `GET /me`, `GET /listings`, **`POST /listings`** (create a listing from a script/bot), `PATCH /listings/:id` (edit title/price/image), `POST /listings/:id/close`, `GET /orders`, `GET /notifications`
 - Plus read-only public endpoints (`/api/stats`, `/api/health`, `/api/categories`, `/api/trending`…), `robots.txt`, and `sitemap.xml`
+
+**📊 Value list / price guide (`#values`)**
+- The community reference for what items are actually worth — every serious trader lives by a value list. Admins curate items (name, game, **value in USD**, demand `low→insane`, trend `rising/stable/falling`, image, notes)
+- **Community accuracy votes**: anyone can vote whether a listed value is ✓ spot-on, ⬆ too low, or ⬇ too high — with live tallies and a consensus meter, so the guide stays honest. Searchable and filterable by game
 
 **Tournaments (community events)**
 - **Anyone can host**: title, game, description, player limit (4–128), and a signup deadline (1h–3 days)

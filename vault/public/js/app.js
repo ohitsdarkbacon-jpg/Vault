@@ -77,7 +77,7 @@ async function loadCategories() {
   if (!r.categories) return;
   CATEGORY_LABELS = Object.fromEntries(r.categories.map(c => [c.slug, c.label]));
   const opts = r.categories.map(c => ({ value: c.slug, label: c.label }));
-  ['#sell-category', '#trade-category', '#tourney-category', '#wanted-category', '#wfl-category'].forEach(id => { const el = $(id); if (el) setSelectOptions(el, opts); });
+  ['#sell-category', '#trade-category', '#tourney-category', '#wanted-category', '#wfl-category', '#value-game'].forEach(id => { const el = $(id); if (el) setSelectOptions(el, opts); });
   renderCatChips('#auctions-cats', auctionState, loadAuctions);
   renderCatChips('#listings-cats', listingState, loadListings);
   renderCatChips('#wanted-cats', wantedState, loadWanted);
@@ -129,7 +129,7 @@ function closeModal(id) {
   if (id === 'bid-overlay') clearInterval(bidPollTimer);
   if (id === 'ticket-overlay') { clearInterval(ticketPollTimer); activeTicketId = null; }
   if (id === 'tchat-overlay') { clearInterval(tchatPollTimer); activeTourneyId = null; }
-  if (id === 'lobbyroom-overlay') { clearInterval(lobbyPollTimer); clearInterval(lobbyChatTimer); activeLobbyId = null; if (typeof Voice !== 'undefined') Voice.stop(false); }
+  if (id === 'lobbyroom-overlay') { clearInterval(lobbyPollTimer); clearInterval(lobbyChatTimer); activeLobbyId = null; /* voice keeps running in the widget */ }
 }
 // ---------- Custom confirm / prompt dialogs (replace native popups) ----------
 let dialogResolve = null;
@@ -298,6 +298,7 @@ async function route() {
   if (h === 'traders-center') { showView('wfl'); loadWfl(); return; }
   if (h === 'lobbies') { showView('lobbies'); loadLobbies(); return; }
   if (h === 'server') { showView('server'); loadServer(); return; }
+  if (h === 'values') { showView('values'); renderCatChips('#values-cats', valueState, loadValues); loadValues(); return; }
   if (h === 'messages' || h.startsWith('messages/')) {
     if (!ME) { showView('home'); return openModal('auth-overlay'); }
     showView('messages');
@@ -3461,6 +3462,108 @@ $('#voice-channels').addEventListener('click', async (e) => {
 });
 
 // ============================================================
+// Value list / price guide
+// ============================================================
+const valueState = { category: '' };
+let valueEditId = null;
+const DEMAND_META = { low: ['Low', 'dm-low'], medium: ['Medium', 'dm-med'], high: ['High', 'dm-high'], insane: ['Insane', 'dm-insane'] };
+const TREND_META = { up: ['▲', 'tr-up', 'Rising'], down: ['▼', 'tr-down', 'Falling'], stable: ['▬', 'tr-stable', 'Stable'] };
+
+async function loadValues() {
+  $('#value-add-btn').style.display = (ME && ME.is_admin) ? '' : 'none';
+  const box = $('#values-list');
+  const params = new URLSearchParams();
+  if (valueState.category) params.set('game', valueState.category);
+  const q = $('#values-q').value.trim();
+  if (q) params.set('q', q);
+  const r = await api('/api/values?' + params);
+  const items = r.items || [];
+  if (!items.length) {
+    box.innerHTML = `<div class="empty-block">${ME && ME.is_admin ? 'No items yet — add the first one.' : 'No values listed yet — check back soon.'}</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="table-wrap"><table class="data value-table">
+    <tr><th>Item</th><th>Value</th><th>Demand</th><th>Trend</th><th>Community</th><th></th></tr>
+    ${items.map(it => {
+      const [dLabel, dCls] = DEMAND_META[it.demand] || DEMAND_META.medium;
+      const [tArrow, tCls, tLabel] = TREND_META[it.trend] || TREND_META.stable;
+      const total = it.v_accurate + it.v_low + it.v_high;
+      const pct = (n) => total ? Math.round(n / total * 100) : 0;
+      return `<tr>
+        <td><div class="vi-cell">
+          <div class="vi-thumb" style="${it.image_url ? `background-image:url('${escapeHtml(it.image_url)}')` : ''}">${it.image_url ? '' : '📦'}</div>
+          <div><b>${escapeHtml(it.name)}</b>${it.notes ? `<span class="vi-notes">${escapeHtml(it.notes)}</span>` : ''}<span class="vi-game">${escapeHtml(CATEGORY_LABELS[it.game] || it.game)}</span></div>
+        </div></td>
+        <td class="mono" style="font-weight:650;color:var(--gold)">${money(it.value_cents)}</td>
+        <td><span class="demand-badge ${dCls}">${dLabel}</span></td>
+        <td><span class="trend ${tCls}" title="${tLabel}">${tArrow}</span></td>
+        <td>
+          <div class="vote-row" data-vitem="${it.id}">
+            <button class="vote-pill ${it.my_vote === 'accurate' ? 'on' : ''}" data-v="accurate" title="Value looks right">✓ ${it.v_accurate}</button>
+            <button class="vote-pill ${it.my_vote === 'low' ? 'on' : ''}" data-v="low" title="Worth more than this">⬆ ${it.v_low}</button>
+            <button class="vote-pill ${it.my_vote === 'high' ? 'on' : ''}" data-v="high" title="Worth less than this">⬇ ${it.v_high}</button>
+          </div>
+          ${total ? `<div class="vote-meter"><i class="va" style="width:${pct(it.v_accurate)}%"></i><i class="vl" style="width:${pct(it.v_low)}%"></i><i class="vh" style="width:${pct(it.v_high)}%"></i></div>` : ''}
+        </td>
+        <td>${ME && ME.is_admin ? `<button class="btn btn-small" data-vedit='${escapeHtml(JSON.stringify({ id: it.id, name: it.name, game: it.game, value_cents: it.value_cents, demand: it.demand, trend: it.trend, image_url: it.image_url, notes: it.notes }))}'>Edit</button> <button class="btn btn-small" data-vdel="${it.id}" style="color:var(--danger)">✕</button>` : ''}</td>
+      </tr>`;
+    }).join('')}
+  </table></div>`;
+
+  box.querySelectorAll('.vote-row button').forEach(b => b.onclick = async () => {
+    if (!ME) return openModal('auth-overlay');
+    const id = b.closest('.vote-row').dataset.vitem;
+    const r2 = await api(`/api/values/${id}/vote`, { method: 'POST', body: JSON.stringify({ vote: b.dataset.v }) });
+    if (r2.error) return toast(r2.error, 'error');
+    loadValues();
+  });
+  box.querySelectorAll('[data-vedit]').forEach(b => b.onclick = () => openValueModal(JSON.parse(b.dataset.vedit)));
+  box.querySelectorAll('[data-vdel]').forEach(b => b.onclick = async () => {
+    if (!await vaultConfirm('Removes the item and all its community votes.', { title: 'Delete this value?', okText: 'Delete', danger: true, icon: '📦' })) return;
+    const r2 = await api(`/api/admin/values/${b.dataset.vdel}`, { method: 'DELETE' });
+    if (r2.error) return toast(r2.error, 'error');
+    toast('Item removed.', 'info');
+    loadValues();
+  });
+}
+$('#values-q').addEventListener('input', debounce(loadValues, 300));
+
+function openValueModal(item) {
+  valueEditId = item ? item.id : null;
+  $('#value-modal-title').textContent = item ? 'Edit item' : 'Add item';
+  $('#value-error').textContent = '';
+  $('#value-name').value = item ? item.name : '';
+  $('#value-usd').value = item ? (item.value_cents / 100).toFixed(2) : '';
+  $('#value-image').value = item && item.image_url ? item.image_url : '';
+  $('#value-notes').value = item && item.notes ? item.notes : '';
+  $('#value-game').value = item ? item.game : 'other';
+  $('#value-demand').value = item ? item.demand : 'medium';
+  $('#value-trend').value = item ? item.trend : 'stable';
+  openModal('value-overlay');
+}
+$('#value-add-btn').addEventListener('click', () => openValueModal(null));
+$('#value-save').addEventListener('click', async () => {
+  const err = $('#value-error');
+  err.textContent = '';
+  const body = {
+    name: $('#value-name').value.trim(),
+    game: $('#value-game').value,
+    value_usd: $('#value-usd').value,
+    demand: $('#value-demand').value,
+    trend: $('#value-trend').value,
+    image_url: $('#value-image').value.trim() || null,
+    notes: $('#value-notes').value.trim() || null,
+  };
+  const r = valueEditId
+    ? await api(`/api/admin/values/${valueEditId}`, { method: 'PATCH', body: JSON.stringify(body) })
+    : await api('/api/admin/values', { method: 'POST', body: JSON.stringify(body) });
+  if (r.error) { err.textContent = r.error; return; }
+  closeModal('value-overlay');
+  toast(valueEditId ? 'Item updated.' : 'Item added.', 'success');
+  loadValues();
+});
+
+// ============================================================
 // Lobbies — play together + voice chat
 // ============================================================
 const REGION_LABELS = { any: 'Any region', 'na-east': 'NA East', 'na-west': 'NA West', eu: 'Europe', asia: 'Asia', oceania: 'Oceania', sa: 'South America' };
@@ -3558,9 +3661,9 @@ async function openLobbyRoom(id) {
   lastLobbyMsgId = 0;
   $('#lr-box').innerHTML = '<div class="chat-empty">Loading…</div>';
   $('#lr-roster').innerHTML = '';
-  Voice.resetUi();
   openModal('lobbyroom-overlay');
   await refreshLobbyRoom();
+  Voice.syncModal();
   await pollLobbyChat(true);
   clearInterval(lobbyPollTimer); lobbyPollTimer = setInterval(refreshLobbyRoom, 6000);
   clearInterval(lobbyChatTimer); lobbyChatTimer = setInterval(() => pollLobbyChat(false), 4000);
@@ -3623,8 +3726,10 @@ $('#lr-send').onclick = sendLobbyMsg;
 $('#lr-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendLobbyMsg(); });
 $('#lr-leave').onclick = async () => {
   if (!activeLobbyId) return;
-  const r = await api(`/api/lobbies/${activeLobbyId}/leave`, { method: 'POST' });
+  const leavingId = activeLobbyId;
+  const r = await api(`/api/lobbies/${leavingId}/leave`, { method: 'POST' });
   if (r.error) return toast(r.error, 'error');
+  if (Voice.inLobby(leavingId)) Voice.stop(false); // leaving the lobby leaves its voice too
   closeModal('lobbyroom-overlay');
   toast('Left the lobby.', 'info');
   if ($('#view-lobbies').classList.contains('active')) loadLobbies();
@@ -3634,53 +3739,63 @@ $('#lr-leave').onclick = async () => {
 // Built-in voice — WebRTC mesh, signalled over the lobby polling API
 // ============================================================
 const Voice = (() => {
-  let lobbyId = null, selfId = null, localStream = null, muted = false;
+  let lobbyId = null, lobbyTitle = '', selfId = null, localStream = null, muted = false;
   let sigTimer = null, hbTimer = null, meterTimer = null;
   const pcs = new Map();     // peerId -> RTCPeerConnection
   if (typeof window !== 'undefined') window.__vpc = pcs; // debug/e2e hook
   const peerInfo = new Map(); // peerId -> {username, avatar_url}
   const streams = new Map(); // peerId -> MediaStream
   const meters = new Map();  // peerId|'self' -> { analyser, data }
+  const levels = new Map();  // peerId|'self' -> smoothed 0..1 level
   let iceServers = [{ urls: ['stun:stun.l.google.com:19302'] }];
   let audioCtx = null;
 
   api('/api/rtc-config').then(c => { if (c.iceServers) iceServers = c.iceServers; });
 
-  function resetUi() {
-    stop(true); // silent — no server leave (we may not have joined)
-    $('#lrv-join').hidden = false;
-    $('#lrv-mute').hidden = true;
-    $('#lrv-leave').hidden = true;
-    $('#lrv-peers').hidden = true;
-    $('#lrv-peers').innerHTML = '';
-    $('#lrv-status').textContent = 'Built-in voice — talk right here in the browser.';
+  const active = () => !!localStream;
+  const inLobby = (id) => active() && lobbyId === id;
+
+  // Reflect current voice state in an open lobby modal (join btn vs "in voice").
+  function syncModal() {
+    const inThis = activeLobbyId && lobbyId === activeLobbyId && active();
+    if ($('#lrv-join')) $('#lrv-join').hidden = !!inThis;
+    if ($('#lrv-inmsg')) $('#lrv-inmsg').hidden = !inThis;
   }
 
-  async function join() {
-    if (localStream) return;
+  async function join(id, title) {
+    id = id || activeLobbyId;
+    if (active()) { // already in a call — switching lobbies leaves the old one first
+      if (lobbyId === id) return;
+      stop(false);
+    }
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     } catch (e) {
       toast('Mic access denied — allow the microphone to use voice.', 'error');
       return;
     }
-    lobbyId = activeLobbyId;
-    $('#lrv-join').hidden = true;
-    $('#lrv-mute').hidden = false;
-    $('#lrv-leave').hidden = false;
-    $('#lrv-peers').hidden = false;
-    $('#lrv-status').textContent = 'Connected — you\'re live 🔴';
+    lobbyId = id;
+    lobbyTitle = title || (activeLobbyId === id ? ($('#lr-title') && $('#lr-title').textContent) : '') || 'Voice';
     meter('self', localStream);
+    showWidget();
+    syncModal();
 
     const r = await api(`/api/lobbies/${lobbyId}/voice/join`, { method: 'POST' });
-    if (r.error) { toast(r.error, 'error'); return stop(); }
+    if (r.error) { toast(r.error, 'error'); return stop(true); }
     selfId = r.self_id;
     (r.peers || []).forEach(p => { peerInfo.set(p.id, p); ensurePc(p.id, true); });
     render();
 
     clearInterval(sigTimer); sigTimer = setInterval(pollSignals, 1200);
     clearInterval(hbTimer); hbTimer = setInterval(heartbeat, 7000);
-    clearInterval(meterTimer); meterTimer = setInterval(paintMeters, 200);
+    clearInterval(meterTimer); meterTimer = setInterval(paintMeters, 90);
+  }
+
+  function showWidget() {
+    $('#voice-widget').hidden = false;
+    $('#vw-pill').hidden = true;
+    $('#vw-panel').hidden = false;
+    $('#vw-lobby').textContent = lobbyTitle;
   }
 
   // Deterministic initiator: the higher id makes the offer (no glare).
@@ -3764,40 +3879,58 @@ const Voice = (() => {
   function meter(key, stream) {
     try {
       audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
       const src = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
+      analyser.fftSize = 512;
       src.connect(analyser);
-      meters.set(key, { analyser, data: new Uint8Array(analyser.frequencyBinCount) });
+      meters.set(key, { analyser, data: new Uint8Array(analyser.fftSize) });
+      levels.set(key, 0);
     } catch (_) {}
   }
 
+  // Real loudness via time-domain RMS (0..1), smoothed for a natural meter.
   function paintMeters() {
     meters.forEach((m, key) => {
-      m.analyser.getByteFrequencyData(m.data);
-      let sum = 0; for (const v of m.data) sum += v;
-      const speaking = (sum / m.data.length) > 12;
-      const el = document.getElementById('vp-' + key);
-      if (el) el.classList.toggle('speaking', speaking && !(key === 'self' && muted));
+      m.analyser.getByteTimeDomainData(m.data);
+      let sum = 0;
+      for (const v of m.data) { const x = (v - 128) / 128; sum += x * x; }
+      let rms = Math.sqrt(sum / m.data.length);          // ~0..1
+      let level = Math.min(1, rms * 3.2);                 // gain so speech fills the bar
+      if (key === 'self' && muted) level = 0;
+      const prev = levels.get(key) || 0;
+      level = prev * 0.6 + level * 0.4;                   // smoothing
+      levels.set(key, level);
+      const bar = document.getElementById('vl-' + key);
+      if (bar) bar.style.width = Math.round(level * 100) + '%';
+      const chip = document.getElementById('vp-' + key);
+      if (chip) chip.classList.toggle('speaking', level > 0.12);
     });
   }
 
   function render() {
-    const box = $('#lrv-peers');
-    const chips = [];
-    chips.push(peerChip('self', (ME && ME.username) || 'You', ME && ME.avatar_url, muted ? 'muted' : ''));
+    const box = $('#vw-peers');
+    if (!box) return;
+    const chips = [peerChip('self', (ME && ME.username) || 'You', ME && ME.avatar_url, muted ? 'muted' : '')];
     peerInfo.forEach((info, id) => {
       if (!pcs.has(id)) return;
       const st = pcs.get(id).connectionState;
       chips.push(peerChip(id, info.username, info.avatar_url, st === 'connected' ? '' : 'connecting'));
     });
     box.innerHTML = chips.join('');
+    const n = 1 + [...pcs.keys()].length;
+    $('#vw-pill-count').textContent = n;
   }
   function peerChip(key, name, avatar, tag) {
     return `<div class="voice-peer ${tag}" id="vp-${key}" title="${escapeHtml(name)}">
-      ${avatar ? `<img src="${escapeHtml(avatar)}" alt="">` : `<span class="vp-fallback">${escapeHtml((name || '?')[0].toUpperCase())}</span>`}
-      <span class="vp-ring"></span>
-      <span class="vp-name">${escapeHtml(name)}${key === 'self' ? ' (you)' : ''}${tag === 'connecting' ? ' …' : ''}${tag === 'muted' ? ' 🔇' : ''}</span>
+      <div class="vp-av">
+        ${avatar ? `<img src="${escapeHtml(avatar)}" alt="">` : `<span class="vp-fallback">${escapeHtml((name || '?')[0].toUpperCase())}</span>`}
+        <span class="vp-ring"></span>
+      </div>
+      <div class="vp-info">
+        <span class="vp-name">${escapeHtml(name)}${key === 'self' ? ' (you)' : ''}${tag === 'muted' ? ' 🔇' : ''}${tag === 'connecting' ? ' …' : ''}</span>
+        <span class="vp-level"><i id="vl-${key}"></i></span>
+      </div>
     </div>`;
   }
 
@@ -3805,8 +3938,8 @@ const Voice = (() => {
     if (!localStream) return;
     muted = !muted;
     localStream.getAudioTracks().forEach(t => { t.enabled = !muted; });
-    $('#lrv-mute').textContent = muted ? '🔇' : '🎙';
-    $('#lrv-mute').classList.toggle('muted', muted);
+    $('#vw-mute').textContent = muted ? '🔇 Unmute' : '🎙 Mute';
+    $('#vw-mute').classList.toggle('muted', muted);
     render();
   }
 
@@ -3814,24 +3947,34 @@ const Voice = (() => {
     clearInterval(sigTimer); clearInterval(hbTimer); clearInterval(meterTimer);
     if (lobbyId && !silent) api(`/api/lobbies/${lobbyId}/voice/leave`, { method: 'POST' });
     pcs.forEach(pc => pc.close()); pcs.clear();
-    peerInfo.clear(); streams.clear(); meters.clear();
+    peerInfo.clear(); streams.clear(); meters.clear(); levels.clear();
     if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
     $('#lrv-audio').innerHTML = '';
     lobbyId = null; selfId = null; muted = false;
-    $('#lrv-mute').textContent = '🎙';
+    $('#voice-widget').hidden = true;
+    $('#vw-mute').textContent = '🎙 Mute';
+    syncModal();
   }
 
   function leave() {
     stop(false);
-    resetUi();
     toast('Left voice.', 'info');
   }
 
-  return { join, leave, stop, resetUi, toggleMute };
+  function minimize(min) {
+    $('#vw-panel').hidden = min;
+    $('#vw-pill').hidden = !min;
+  }
+
+  return { join, leave, stop, toggleMute, minimize, syncModal, inLobby, active, openLobby: () => lobbyId };
 })();
-$('#lrv-join').onclick = () => { if (!ME) return openModal('auth-overlay'); Voice.join(); };
-$('#lrv-mute').onclick = () => Voice.toggleMute();
-$('#lrv-leave').onclick = () => Voice.leave();
+
+$('#lrv-join').onclick = () => { if (!ME) return openModal('auth-overlay'); Voice.join(activeLobbyId); };
+$('#vw-mute').onclick = () => Voice.toggleMute();
+$('#vw-leave').onclick = () => Voice.leave();
+$('#vw-min').onclick = () => Voice.minimize(true);
+$('#vw-pill').onclick = () => Voice.minimize(false);
+$('#vw-open').onclick = () => { const id = Voice.openLobby(); if (id) openLobbyRoom(id); };
 
 // ============================================================
 // Traders Center — W / F / L
