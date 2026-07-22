@@ -887,8 +887,16 @@
     <h3 id="lr-title">Lobby</h3>
     <div class="sub" id="lr-sub"></div>
     <div class="lr-voice" id="lr-voice">
-      <div><b>🎙 Voice chat</b><span class="sub" style="display:block;margin:0">Free room — no account needed, works on mobile.</span></div>
-      <a class="btn btn-gold" id="lr-voice-btn" href="#" target="_blank" rel="noopener">Join voice →</a>
+      <div class="lrv-top">
+        <div><b>🎙 Voice chat</b><span class="sub" id="lrv-status" style="display:block;margin:0">Built-in voice — talk right here in the browser.</span></div>
+        <div class="lrv-actions">
+          <button class="btn btn-gold btn-small" id="lrv-join">Join voice</button>
+          <button class="icon-btn" id="lrv-mute" title="Mute" hidden>🎙</button>
+          <button class="btn btn-small" id="lrv-leave" style="color:var(--danger)" hidden>Leave voice</button>
+        </div>
+      </div>
+      <div class="lrv-peers" id="lrv-peers" hidden></div>
+      <div id="lrv-audio" style="display:none"></div>
     </div>
     <div class="lr-cols">
       <div class="lr-roster" id="lr-roster"></div>

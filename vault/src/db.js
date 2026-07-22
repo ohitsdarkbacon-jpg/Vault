@@ -472,6 +472,22 @@ ensureColumn('users', 'wallet_currency', 'wallet_currency TEXT');
 // Vault Server voice channels are lobbies tagged with a channel slug.
 ensureColumn('lobbies', 'channel', 'channel TEXT');
 
+// Built-in voice: per-member "in voice" heartbeat + a WebRTC signalling
+// mailbox (offers / answers / ICE candidates relayed between lobby peers).
+ensureColumn('lobby_members', 'voice_at', 'voice_at TEXT');
+db.exec(`
+CREATE TABLE IF NOT EXISTS lobby_signals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  lobby_id INTEGER NOT NULL REFERENCES lobbies(id),
+  from_id INTEGER NOT NULL REFERENCES users(id),
+  to_id INTEGER NOT NULL REFERENCES users(id),
+  kind TEXT NOT NULL,          -- offer | answer | ice
+  payload TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_lobby_signals_to ON lobby_signals(to_id, id);
+`);
+
 // Peer-to-peer balance transfers (5% fee kept by the platform).
 db.exec(`
 CREATE TABLE IF NOT EXISTS transfers (

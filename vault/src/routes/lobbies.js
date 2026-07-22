@@ -16,13 +16,24 @@ const IDLE_CLOSE_MIN = 30; // lobbies with no activity for 30 min auto-close
 const REGIONS = new Set(['any', 'na-east', 'na-west', 'eu', 'asia', 'oceania', 'sa']);
 const ROOM_MSG_LEN = 300;
 
-// Voice: each lobby gets its own Jitsi Meet room (free, no account, works
-// on mobile — real voice + optional video). The frontend just opens the URL.
-function voiceUrlFor(room) {
-  return `https://meet.jit.si/${room}`;
-}
+// Voice is built in (WebRTC mesh). voice_room stays as a stable per-lobby
+// id we can key on if needed; audio is peer-to-peer, relayed through the
+// signalling mailbox below.
 function newVoiceRoom() {
   return `VaultLobby-${crypto.randomBytes(6).toString('hex')}`;
+}
+const VOICE_WINDOW_S = 15; // "in voice" if heartbeat within this many seconds
+
+function voiceRoster(lobbyId, excludeUserId = 0) {
+  return db
+    .prepare(
+      `SELECT u.id, u.username, u.avatar_url
+       FROM lobby_members m JOIN users u ON u.id = m.user_id
+       WHERE m.lobby_id = ? AND m.user_id != ?
+         AND m.voice_at IS NOT NULL AND (julianday('now') - julianday(m.voice_at)) * 86400 <= ?
+       ORDER BY u.id ASC`
+    )
+    .all(lobbyId, excludeUserId, VOICE_WINDOW_S);
 }
 
 const lobbyQuery = `
@@ -46,9 +57,8 @@ function shape(l, userId) {
     host_id: l.host_id, host_name: l.host_name, host_pro: l.host_pro,
     private: !!l.join_code, joined, created_at: l.created_at,
   };
-  // The voice link + member roster are only exposed to people in the lobby.
+  // The member roster is only exposed to people in the lobby.
   if (joined) {
-    out.voice_url = voiceUrlFor(l.voice_room);
     out.members = db
       .prepare(
         `SELECT u.id, u.username, u.avatar_url,
@@ -217,12 +227,70 @@ router.post('/lobbies/:id/messages', requireAuth, (req, res) => {
   res.status(201).json({ ok: true, id: info.lastInsertRowid });
 });
 
+// ============================================================
+// Built-in voice — WebRTC mesh signalled over polling
+// ============================================================
+function requireMember(req, res) {
+  const l = db.prepare('SELECT * FROM lobbies WHERE id = ?').get(req.params.id);
+  if (!l || !isMember(l.id, req.user.id)) { res.status(404).json({ error: 'Lobby not found.' }); return null; }
+  return l;
+}
+
+// Announce you're in voice; returns everyone else currently in voice so the
+// newcomer knows who to negotiate with.
+router.post('/lobbies/:id/voice/join', requireAuth, (req, res) => {
+  const l = requireMember(req, res); if (!l) return;
+  db.prepare("UPDATE lobby_members SET voice_at = datetime('now') WHERE lobby_id = ? AND user_id = ?").run(l.id, req.user.id);
+  touch(l.id);
+  res.json({ ok: true, self_id: req.user.id, peers: voiceRoster(l.id, req.user.id) });
+});
+
+// Keep-alive; returns the live voice roster so clients add/drop peers.
+router.post('/lobbies/:id/voice/heartbeat', requireAuth, (req, res) => {
+  const l = requireMember(req, res); if (!l) return;
+  db.prepare("UPDATE lobby_members SET voice_at = datetime('now') WHERE lobby_id = ? AND user_id = ?").run(l.id, req.user.id);
+  res.json({ ok: true, peers: voiceRoster(l.id, req.user.id) });
+});
+
+router.post('/lobbies/:id/voice/leave', requireAuth, (req, res) => {
+  const l = requireMember(req, res); if (!l) return;
+  db.prepare('UPDATE lobby_members SET voice_at = NULL WHERE lobby_id = ? AND user_id = ?').run(l.id, req.user.id);
+  db.prepare('DELETE FROM lobby_signals WHERE lobby_id = ? AND (from_id = ? OR to_id = ?)').run(l.id, req.user.id, req.user.id);
+  res.json({ ok: true });
+});
+
+// Relay one signalling message (SDP offer/answer or ICE candidate) to a peer.
+router.post('/lobbies/:id/signal', requireAuth, (req, res) => {
+  const l = requireMember(req, res); if (!l) return;
+  const to = parseInt(req.body?.to, 10);
+  const kind = String(req.body?.kind || '');
+  if (!['offer', 'answer', 'ice'].includes(kind)) return res.status(400).json({ error: 'Bad signal kind.' });
+  if (!isMember(l.id, to)) return res.status(400).json({ error: 'Peer not in lobby.' });
+  const payload = JSON.stringify(req.body?.payload ?? null).slice(0, 20000);
+  db.prepare('INSERT INTO lobby_signals (lobby_id, from_id, to_id, kind, payload) VALUES (?, ?, ?, ?, ?)').run(l.id, req.user.id, to, kind, payload);
+  res.status(201).json({ ok: true });
+});
+
+// Drain my signalling mailbox (consumed on read).
+router.get('/lobbies/:id/signal', requireAuth, (req, res) => {
+  const l = requireMember(req, res); if (!l) return;
+  const rows = db
+    .prepare('SELECT id, from_id, kind, payload FROM lobby_signals WHERE lobby_id = ? AND to_id = ? ORDER BY id ASC LIMIT 100')
+    .all(l.id, req.user.id);
+  if (rows.length) {
+    db.prepare('DELETE FROM lobby_signals WHERE lobby_id = ? AND to_id = ? AND id <= ?').run(l.id, req.user.id, rows[rows.length - 1].id);
+  }
+  res.json({ signals: rows.map((s) => ({ id: s.id, from: s.from_id, kind: s.kind, payload: JSON.parse(s.payload) })) });
+});
+
 // ---------- Idle cleanup ----------
 function closeIdleLobbies() {
   db.prepare(
     `UPDATE lobbies SET status = 'closed'
      WHERE status = 'open' AND (julianday('now') - julianday(last_active_at)) * 24 * 60 >= ?`
   ).run(IDLE_CLOSE_MIN);
+  // Undelivered signals older than 2 min are stale (peer went away).
+  db.prepare("DELETE FROM lobby_signals WHERE (julianday('now') - julianday(created_at)) * 86400 >= 120").run();
 }
 let idleTimer = null;
 function startLobbyJob() {

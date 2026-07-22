@@ -49,8 +49,12 @@ app.use(
 );
 app.use(attachUser);
 
-// Basic abuse protection on write-heavy endpoints
-const writeLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });
+// Basic abuse protection. The site is polling-heavy by design (chat, DMs,
+// notifications, lobby + voice presence), so the ceiling accommodates a
+// legitimately active user; the real-time voice signalling path is exempt
+// entirely (it's already gated to lobby members) so audio never stalls.
+const realtimeVoice = (req) => /\/(voice\/|signal(\?|$))/.test(req.originalUrl || req.url);
+const writeLimiter = rateLimit({ windowMs: 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false, skip: realtimeVoice });
 app.use('/api', writeLimiter);
 
 // Tighter limit on bid spam
@@ -106,6 +110,16 @@ app.get('/api/health', (req, res) => {
     uptime_seconds: Math.floor((Date.now() - BOOT_TIME) / 1000),
     time: new Date().toISOString(),
   });
+});
+
+// WebRTC ICE servers for the built-in lobby voice. Public STUN by default;
+// set TURN_URL / TURN_USERNAME / TURN_PASSWORD for strict-NAT relaying.
+app.get('/api/rtc-config', (req, res) => {
+  const iceServers = [{ urls: (process.env.STUN_URLS || 'stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302').split(',') }];
+  if (process.env.TURN_URL) {
+    iceServers.push({ urls: process.env.TURN_URL, username: process.env.TURN_USERNAME, credential: process.env.TURN_PASSWORD });
+  }
+  res.json({ iceServers });
 });
 
 // robots.txt — allow crawling of public pages, keep the API + auth out.
