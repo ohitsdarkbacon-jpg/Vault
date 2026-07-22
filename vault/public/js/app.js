@@ -129,7 +129,7 @@ function closeModal(id) {
   if (id === 'bid-overlay') clearInterval(bidPollTimer);
   if (id === 'ticket-overlay') { clearInterval(ticketPollTimer); activeTicketId = null; }
   if (id === 'tchat-overlay') { clearInterval(tchatPollTimer); activeTourneyId = null; }
-  if (id === 'lobbyroom-overlay') { clearInterval(lobbyPollTimer); clearInterval(lobbyChatTimer); activeLobbyId = null; }
+  if (id === 'lobbyroom-overlay') { clearInterval(lobbyPollTimer); clearInterval(lobbyChatTimer); activeLobbyId = null; if (typeof Voice !== 'undefined') Voice.stop(false); }
 }
 // ---------- Custom confirm / prompt dialogs (replace native popups) ----------
 let dialogResolve = null;
@@ -3558,6 +3558,7 @@ async function openLobbyRoom(id) {
   lastLobbyMsgId = 0;
   $('#lr-box').innerHTML = '<div class="chat-empty">Loading…</div>';
   $('#lr-roster').innerHTML = '';
+  Voice.resetUi();
   openModal('lobbyroom-overlay');
   await refreshLobbyRoom();
   await pollLobbyChat(true);
@@ -3576,7 +3577,6 @@ async function refreshLobbyRoom() {
   }
   $('#lr-title').textContent = l.title;
   $('#lr-sub').innerHTML = `🎮 <b>${escapeHtml(l.game)}</b> · ${escapeHtml(REGION_LABELS[l.region] || l.region)} · ${l.player_count}/${l.max_players} players · host ${escapeHtml(l.host_name)}`;
-  if (l.voice_url) $('#lr-voice-btn').href = l.voice_url;
   $('#lr-roster').innerHTML = `<div class="lr-roster-head">In the lobby (${(l.members || []).length})</div>` + (l.members || []).map(m => `
     <a class="lr-member" href="#u/${encodeURIComponent(m.username)}">
       ${m.avatar_url ? `<img src="${escapeHtml(m.avatar_url)}" alt="">` : `<span class="lr-av-fallback">${escapeHtml(m.username[0].toUpperCase())}</span>`}
@@ -3629,6 +3629,209 @@ $('#lr-leave').onclick = async () => {
   toast('Left the lobby.', 'info');
   if ($('#view-lobbies').classList.contains('active')) loadLobbies();
 };
+
+// ============================================================
+// Built-in voice — WebRTC mesh, signalled over the lobby polling API
+// ============================================================
+const Voice = (() => {
+  let lobbyId = null, selfId = null, localStream = null, muted = false;
+  let sigTimer = null, hbTimer = null, meterTimer = null;
+  const pcs = new Map();     // peerId -> RTCPeerConnection
+  if (typeof window !== 'undefined') window.__vpc = pcs; // debug/e2e hook
+  const peerInfo = new Map(); // peerId -> {username, avatar_url}
+  const streams = new Map(); // peerId -> MediaStream
+  const meters = new Map();  // peerId|'self' -> { analyser, data }
+  let iceServers = [{ urls: ['stun:stun.l.google.com:19302'] }];
+  let audioCtx = null;
+
+  api('/api/rtc-config').then(c => { if (c.iceServers) iceServers = c.iceServers; });
+
+  function resetUi() {
+    stop(true); // silent — no server leave (we may not have joined)
+    $('#lrv-join').hidden = false;
+    $('#lrv-mute').hidden = true;
+    $('#lrv-leave').hidden = true;
+    $('#lrv-peers').hidden = true;
+    $('#lrv-peers').innerHTML = '';
+    $('#lrv-status').textContent = 'Built-in voice — talk right here in the browser.';
+  }
+
+  async function join() {
+    if (localStream) return;
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    } catch (e) {
+      toast('Mic access denied — allow the microphone to use voice.', 'error');
+      return;
+    }
+    lobbyId = activeLobbyId;
+    $('#lrv-join').hidden = true;
+    $('#lrv-mute').hidden = false;
+    $('#lrv-leave').hidden = false;
+    $('#lrv-peers').hidden = false;
+    $('#lrv-status').textContent = 'Connected — you\'re live 🔴';
+    meter('self', localStream);
+
+    const r = await api(`/api/lobbies/${lobbyId}/voice/join`, { method: 'POST' });
+    if (r.error) { toast(r.error, 'error'); return stop(); }
+    selfId = r.self_id;
+    (r.peers || []).forEach(p => { peerInfo.set(p.id, p); ensurePc(p.id, true); });
+    render();
+
+    clearInterval(sigTimer); sigTimer = setInterval(pollSignals, 1200);
+    clearInterval(hbTimer); hbTimer = setInterval(heartbeat, 7000);
+    clearInterval(meterTimer); meterTimer = setInterval(paintMeters, 200);
+  }
+
+  // Deterministic initiator: the higher id makes the offer (no glare).
+  function ensurePc(peerId, mayOffer) {
+    if (pcs.has(peerId)) return pcs.get(peerId);
+    const pc = new RTCPeerConnection({ iceServers });
+    pcs.set(peerId, pc);
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+    pc.onicecandidate = (e) => { if (e.candidate) sendSignal(peerId, 'ice', e.candidate); };
+    pc.ontrack = (e) => {
+      const stream = e.streams[0];
+      streams.set(peerId, stream);
+      let el = document.getElementById('aud-' + peerId);
+      if (!el) { el = document.createElement('audio'); el.id = 'aud-' + peerId; el.autoplay = true; $('#lrv-audio').appendChild(el); }
+      el.srcObject = stream;
+      meter(peerId, stream);
+      render();
+    };
+    pc.onconnectionstatechange = () => {
+      console.log('[voice] peer', peerId, pc.connectionState);
+      render();
+    };
+    if (mayOffer && selfId > peerId) makeOffer(peerId);
+    return pc;
+  }
+
+  async function makeOffer(peerId) {
+    const pc = pcs.get(peerId);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    sendSignal(peerId, 'offer', offer);
+  }
+
+  function sendSignal(to, kind, payload) {
+    api(`/api/lobbies/${lobbyId}/signal`, { method: 'POST', body: JSON.stringify({ to, kind, payload }) });
+  }
+
+  async function pollSignals() {
+    if (!lobbyId) return;
+    const r = await api(`/api/lobbies/${lobbyId}/signal`);
+    let sawNew = false;
+    for (const s of (r.signals || [])) {
+      if (!peerInfo.has(s.from)) { peerInfo.set(s.from, { username: '…', avatar_url: null }); sawNew = true; }
+      const pc = ensurePc(s.from, false);
+      try {
+        if (s.kind === 'offer') {
+          await pc.setRemoteDescription(new RTCSessionDescription(s.payload));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          sendSignal(s.from, 'answer', answer);
+        } else if (s.kind === 'answer') {
+          await pc.setRemoteDescription(new RTCSessionDescription(s.payload));
+        } else if (s.kind === 'ice') {
+          await pc.addIceCandidate(new RTCIceCandidate(s.payload));
+        }
+      } catch (err) { /* ignore out-of-order candidates */ }
+    }
+    if (sawNew) heartbeat(); // pull real names/avatars for freshly-seen peers
+  }
+
+  async function heartbeat() {
+    if (!lobbyId) return;
+    const r = await api(`/api/lobbies/${lobbyId}/voice/heartbeat`, { method: 'POST' });
+    if (r.error) return;
+    const live = new Set((r.peers || []).map(p => p.id));
+    (r.peers || []).forEach(p => { peerInfo.set(p.id, p); if (!pcs.has(p.id)) ensurePc(p.id, true); });
+    // Drop peers who left voice.
+    for (const id of [...pcs.keys()]) {
+      if (!live.has(id)) dropPeer(id);
+    }
+  }
+
+  function dropPeer(id) {
+    const pc = pcs.get(id);
+    if (pc) pc.close();
+    pcs.delete(id); streams.delete(id); meters.delete(id);
+    const el = document.getElementById('aud-' + id); if (el) el.remove();
+    render();
+  }
+
+  function meter(key, stream) {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const src = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      src.connect(analyser);
+      meters.set(key, { analyser, data: new Uint8Array(analyser.frequencyBinCount) });
+    } catch (_) {}
+  }
+
+  function paintMeters() {
+    meters.forEach((m, key) => {
+      m.analyser.getByteFrequencyData(m.data);
+      let sum = 0; for (const v of m.data) sum += v;
+      const speaking = (sum / m.data.length) > 12;
+      const el = document.getElementById('vp-' + key);
+      if (el) el.classList.toggle('speaking', speaking && !(key === 'self' && muted));
+    });
+  }
+
+  function render() {
+    const box = $('#lrv-peers');
+    const chips = [];
+    chips.push(peerChip('self', (ME && ME.username) || 'You', ME && ME.avatar_url, muted ? 'muted' : ''));
+    peerInfo.forEach((info, id) => {
+      if (!pcs.has(id)) return;
+      const st = pcs.get(id).connectionState;
+      chips.push(peerChip(id, info.username, info.avatar_url, st === 'connected' ? '' : 'connecting'));
+    });
+    box.innerHTML = chips.join('');
+  }
+  function peerChip(key, name, avatar, tag) {
+    return `<div class="voice-peer ${tag}" id="vp-${key}" title="${escapeHtml(name)}">
+      ${avatar ? `<img src="${escapeHtml(avatar)}" alt="">` : `<span class="vp-fallback">${escapeHtml((name || '?')[0].toUpperCase())}</span>`}
+      <span class="vp-ring"></span>
+      <span class="vp-name">${escapeHtml(name)}${key === 'self' ? ' (you)' : ''}${tag === 'connecting' ? ' …' : ''}${tag === 'muted' ? ' 🔇' : ''}</span>
+    </div>`;
+  }
+
+  function toggleMute() {
+    if (!localStream) return;
+    muted = !muted;
+    localStream.getAudioTracks().forEach(t => { t.enabled = !muted; });
+    $('#lrv-mute').textContent = muted ? '🔇' : '🎙';
+    $('#lrv-mute').classList.toggle('muted', muted);
+    render();
+  }
+
+  function stop(silent) {
+    clearInterval(sigTimer); clearInterval(hbTimer); clearInterval(meterTimer);
+    if (lobbyId && !silent) api(`/api/lobbies/${lobbyId}/voice/leave`, { method: 'POST' });
+    pcs.forEach(pc => pc.close()); pcs.clear();
+    peerInfo.clear(); streams.clear(); meters.clear();
+    if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+    $('#lrv-audio').innerHTML = '';
+    lobbyId = null; selfId = null; muted = false;
+    $('#lrv-mute').textContent = '🎙';
+  }
+
+  function leave() {
+    stop(false);
+    resetUi();
+    toast('Left voice.', 'info');
+  }
+
+  return { join, leave, stop, resetUi, toggleMute };
+})();
+$('#lrv-join').onclick = () => { if (!ME) return openModal('auth-overlay'); Voice.join(); };
+$('#lrv-mute').onclick = () => Voice.toggleMute();
+$('#lrv-leave').onclick = () => Voice.leave();
 
 // ============================================================
 // Traders Center — W / F / L

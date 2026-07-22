@@ -55,7 +55,7 @@ withdrawals, notifications, public profiles, and an admin panel.
 
 **🎮 Play with others (lobbies + voice)**
 - Spin up a lobby for whatever you're playing (Rivals, Blade Ball, anything) — set a title, game, region, and player cap (2–20)
-- Anyone browses open lobbies and joins; **each lobby gets its own free voice room** (Jitsi Meet — no account, works on mobile) so the roster can talk and play together
+- Anyone browses open lobbies and joins; **each lobby has built-in voice chat** (native WebRTC — talk right in the browser, no downloads or accounts) with live speaking indicators and a mute toggle so the roster can talk and play together
 - Members-only lobby text chat + live roster (host wears a 👑); the voice link and roster are hidden from non-members
 - **Private lobbies** issue a 6-char join code to share out-of-band; hosts can close any time, and idle lobbies auto-close after 30 min. Two active lobbies per host
 
@@ -73,7 +73,7 @@ withdrawals, notifications, public profiles, and an admin panel.
 
 **💬 Vault Server (Discord-style hub, `#server`)**
 - **Text channels** — `#general`, `#giveaways`, `#clips`, `#help`, `#off-topic` — one community-wide chat each with 5s slowmode, bot protection, and moderation
-- **Voice channels** — General / Games / Trading / Chill VC. Clicking one drops you into the lobby-backed voice room (free Jitsi voice, roster, and text) with live occupancy counts; they persist Discord-style until empty
+- **Voice channels** — General / Games / Trading / Chill VC. Clicking one drops you into the lobby-backed **built-in voice** (native WebRTC, roster, and text) with live occupancy counts; they persist Discord-style until empty
 - Live **online members** sidebar with presence dots and Pro badges
 
 **💸 Send balance (P2P transfers)**
