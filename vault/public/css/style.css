@@ -109,7 +109,7 @@ header::after {
   background: linear-gradient(90deg, transparent, var(--gold-glow) 50%, transparent);
   opacity: 0.6;
 }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.28rem; letter-spacing: -0.02em; font-family: 'Space Grotesk', sans-serif; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.28rem; letter-spacing: -0.02em; font-family: 'Space Grotesk', sans-serif; flex-shrink: 0; }
 .brand .logo {
   width: 32px; height: 32px; border-radius: 9px;
   filter: drop-shadow(0 0 12px rgba(139,92,246,0.45));
@@ -125,8 +125,8 @@ header::after {
   transition: transform .3s var(--ease-spring), box-shadow .3s;
 }
 .brand:hover .mark { transform: rotate(-8deg) scale(1.08); box-shadow: 0 0 26px var(--gold-glow), inset 0 1px 0 rgba(255,255,255,0.35); }
-nav { display: flex; gap: 6px; font-size: 0.92rem; color: var(--muted); }
-nav a { position: relative; padding: 7px 12px; border-radius: 8px; transition: color .18s, background .18s; }
+nav { display: flex; gap: 2px; font-size: 0.88rem; color: var(--muted); flex-wrap: nowrap; }
+nav a { position: relative; padding: 7px 10px; border-radius: 8px; white-space: nowrap; transition: color .18s, background .18s; }
 nav a::after {
   content: ''; position: absolute; left: 12px; right: 12px; bottom: 3px; height: 2px; border-radius: 2px;
   background: linear-gradient(90deg, var(--gold), var(--gold-2));
@@ -456,9 +456,14 @@ footer {
   font-size: 0.76rem; opacity: 0.8;
 }
 
-@media (max-width: 640px) {
+/* Below ~1160px the 9-item nav can't sit on one row without cramming, so
+   swap to the clean hamburger sheet instead of letting links wrap. */
+@media (max-width: 1160px) {
   nav { display: none; }
   .nav-toggle { display: block; }
+}
+
+@media (max-width: 640px) {
   header { padding: 11px 14px; gap: 8px; }
   .brand { font-size: 1.12rem; }
   /* Compact hero on phones so the marketplace is right there, not a
@@ -598,7 +603,7 @@ footer {
 .menu-item:hover { background: rgba(148,163,184,0.06); padding-left: 19px; }
 .menu-item:last-child { border-bottom: none; }
 .menu-item.danger { color: var(--danger); }
-.header-right { position: relative; display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.header-right { position: relative; display: flex; align-items: center; gap: 10px; margin-left: auto; flex-shrink: 0; }
 
 /* ---------- Page shells ---------- */
 .page { max-width: 1160px; margin: 0 auto; padding: 38px 28px 80px; }
