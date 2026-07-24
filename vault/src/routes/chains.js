@@ -20,6 +20,22 @@ const MAX_CHAIN = 4;
 const MIN_CHAIN = 3;
 const DISCOVER_POOL = 250;   // newest opted-in posts considered
 const MAX_SUGGESTIONS = 8;
+const ONLINE_WINDOW_MIN = 5; // matches the middleman-network "online" window
+
+// Pick an online, approved middleman who isn't one of the chain's members.
+function pickChainMiddleman(memberIds) {
+  const placeholders = memberIds.map(() => '?').join(',');
+  return db
+    .prepare(
+      `SELECT id, username FROM users
+       WHERE middleman_status = 'approved' AND is_banned = 0
+         AND id NOT IN (${placeholders})
+         AND last_seen_at IS NOT NULL
+         AND (julianday('now') - julianday(last_seen_at)) * 24 * 60 <= ${ONLINE_WINDOW_MIN}
+       ORDER BY RANDOM() LIMIT 1`
+    )
+    .get(...memberIds);
+}
 
 // Directed edge P→Q: Q's post wants something P is offering (P can give to Q).
 function edge(p, q) {
@@ -152,10 +168,13 @@ function chainView(c, viewerId) {
        JOIN users u ON u.id = m.user_id WHERE m.chain_id = ? ORDER BY m.position`
     )
     .all(c.id);
+  const mm = c.middleman_id ? db.prepare('SELECT username FROM users WHERE id = ?').get(c.middleman_id) : null;
   return {
     id: c.id,
     status: c.status,
     created_at: c.created_at,
+    mm_state: c.mm_state,
+    middleman: mm ? mm.username : null,
     members: members.map((m) => ({
       username: m.username,
       avatar_url: m.avatar_url,
@@ -204,10 +223,49 @@ router.post('/chains/:id/confirm', requireAuth, (req, res) => {
   if (left === 0) {
     db.prepare("UPDATE trade_chains SET status = 'confirmed', updated_at = datetime('now') WHERE id = ?").run(chain.id);
     for (const m of members) {
-      notify(m.user_id, 'chain_confirmed', `🔗 Everyone confirmed your trade chain — coordinate the hand-offs, then mark your part done. Use a middleman for high-value items.`, '#trading');
+      notify(m.user_id, 'chain_confirmed', `🔗 Everyone confirmed your trade chain — request a middleman to oversee the hand-offs, then mark your part done.`, '#trading');
     }
   }
   res.json({ ok: true, all_confirmed: left === 0 });
+});
+
+// ---------- Request a middleman to oversee the hand-offs ----------
+// A confirmed chain must have a middleman requested before anyone can mark
+// their hand-off done. Reuses the approved-middleman network; the assigned
+// MM is never one of the traders in the chain.
+router.post('/chains/:id/request-mm', requireAuth, (req, res) => {
+  const chain = db.prepare('SELECT * FROM trade_chains WHERE id = ?').get(req.params.id);
+  if (!chain || !memberOf(chain.id, req.user.id)) return res.status(404).json({ error: 'Chain not found.' });
+  if (chain.status !== 'confirmed') return res.status(400).json({ error: 'Everyone must confirm the chain first.' });
+  if (chain.mm_state === 'assigned') {
+    const cur = db.prepare('SELECT username FROM users WHERE id = ?').get(chain.middleman_id);
+    return res.json({ ok: true, middleman: cur ? cur.username : null, already: true });
+  }
+  const members = db.prepare('SELECT user_id FROM trade_chain_members WHERE chain_id = ?').all(chain.id).map((m) => m.user_id);
+  const mm = pickChainMiddleman(members);
+  if (!mm) {
+    return res.status(200).json({ ok: false, error: 'No middlemen are online right now — try again shortly, or waive the middleman if you all trust each other.' });
+  }
+  db.prepare("UPDATE trade_chains SET middleman_id = ?, mm_state = 'assigned', updated_at = datetime('now') WHERE id = ?").run(mm.id, chain.id);
+  notify(mm.id, 'chain_mm', `⚖️ You've been requested to middleman a ${members.length}-person trade chain (#${chain.id}). Coordinate the hand-offs in order so everyone gets their item safely.`, '#trading');
+  for (const uid of members) {
+    if (uid !== req.user.id) notify(uid, 'chain_mm', `⚖️ ${mm.username} is middlemanning your trade chain — wait for their go-ahead before handing anything over.`, '#trading');
+  }
+  res.status(201).json({ ok: true, middleman: mm.username });
+});
+
+// ---------- Waive the middleman (only when none are online) ----------
+router.post('/chains/:id/waive-mm', requireAuth, (req, res) => {
+  const chain = db.prepare('SELECT * FROM trade_chains WHERE id = ?').get(req.params.id);
+  if (!chain || !memberOf(chain.id, req.user.id)) return res.status(404).json({ error: 'Chain not found.' });
+  if (chain.status !== 'confirmed') return res.status(400).json({ error: 'Everyone must confirm the chain first.' });
+  if (chain.mm_state !== 'none') return res.status(400).json({ error: 'A middleman decision was already made.' });
+  db.prepare("UPDATE trade_chains SET mm_state = 'waived', updated_at = datetime('now') WHERE id = ?").run(chain.id);
+  const members = db.prepare('SELECT user_id FROM trade_chain_members WHERE chain_id = ?').all(chain.id);
+  for (const m of members) {
+    if (m.user_id !== req.user.id) notify(m.user_id, 'chain_mm', `⚠️ ${req.user.username} chose to proceed without a middleman on your trade chain — only continue if you trust everyone involved.`, '#trading');
+  }
+  res.json({ ok: true });
 });
 
 // ---------- Cancel (any member, any time before completion) ----------
@@ -228,6 +286,8 @@ router.post('/chains/:id/done', requireAuth, (req, res) => {
   const chain = db.prepare('SELECT * FROM trade_chains WHERE id = ?').get(req.params.id);
   if (!chain || !memberOf(chain.id, req.user.id)) return res.status(404).json({ error: 'Chain not found.' });
   if (chain.status !== 'confirmed') return res.status(400).json({ error: 'The chain must be fully confirmed first.' });
+  // A middleman must be requested (or explicitly waived) before hand-offs.
+  if (chain.mm_state === 'none') return res.status(400).json({ error: 'Request a middleman for the hand-offs first.' });
   db.prepare('UPDATE trade_chain_members SET done = 1 WHERE chain_id = ? AND user_id = ?').run(chain.id, req.user.id);
   const left = db.prepare('SELECT COUNT(*) n FROM trade_chain_members WHERE chain_id = ? AND done = 0').get(chain.id).n;
   if (left === 0) {

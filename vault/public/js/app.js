@@ -4480,16 +4480,45 @@ async function loadMyChains() {
   if (!chains.length) { box.innerHTML = '<div class="sub">No chains yet — find one above.</div>'; return; }
   box.innerHTML = chains.map(c => {
     const [label, cls] = CHAIN_STATUS[c.status] || CHAIN_STATUS.proposed;
+    // Middleman banner on a confirmed chain: request one before hand-offs.
+    let mmRow = '';
+    if (c.status === 'confirmed') {
+      if (c.mm_state === 'assigned') {
+        mmRow = `<div class="chain-mm ok">⚖️ Middleman: <b>${escapeHtml(c.middleman)}</b> — wait for their go-ahead before handing anything over.</div>`;
+      } else if (c.mm_state === 'waived') {
+        mmRow = `<div class="chain-mm warn">⚠️ Proceeding without a middleman — only continue if you trust everyone.</div>`;
+      } else {
+        mmRow = `<div class="chain-mm"><span>⚖️ A middleman keeps the hand-offs safe. Request one to continue.</span>
+          <span class="chain-mm-actions"><button class="btn btn-gold btn-small" data-cmm="${c.id}">Request a middleman</button></span></div>`;
+      }
+    }
+    const canDone = c.status === 'confirmed' && !c.my_done && c.mm_state !== 'none';
     return `<div class="chain-card">
       <div class="chain-card-head"><span class="chain-status ${cls}">${label}</span><span class="sub">${timeAgo(c.created_at)}</span></div>
       ${chainDiagram(c.members)}
+      ${mmRow}
       <div class="chain-actions">
         ${c.status === 'proposed' && !c.my_confirmed ? `<button class="btn btn-gold btn-small" data-cconfirm="${c.id}">✔ Confirm my part</button>` : ''}
-        ${c.status === 'confirmed' && !c.my_done ? `<button class="btn btn-gold btn-small" data-cdone="${c.id}">✅ Mark my hand-off done</button>` : ''}
+        ${canDone ? `<button class="btn btn-gold btn-small" data-cdone="${c.id}">✅ Mark my hand-off done</button>` : ''}
         ${['proposed', 'confirmed'].includes(c.status) ? `<button class="btn btn-small" style="color:var(--danger)" data-ccancel="${c.id}">Cancel chain</button>` : ''}
       </div>
     </div>`;
   }).join('');
+  box.querySelectorAll('[data-cmm]').forEach(b => b.onclick = async () => {
+    const r2 = await api(`/api/chains/${b.dataset.cmm}/request-mm`, { method: 'POST' });
+    if (r2.error) return toast(r2.error, 'error');
+    if (r2.ok === false) {
+      // None online — offer to waive.
+      if (await vaultConfirm('No middlemen are online right now. Proceed without one? Only do this if you trust everyone in the chain.', { title: 'No middleman available', okText: 'Proceed without', danger: true, icon: '⚖️' })) {
+        const w = await api(`/api/chains/${b.dataset.cmm}/waive-mm`, { method: 'POST' });
+        if (w.error) return toast(w.error, 'error');
+        toast('Proceeding without a middleman.', 'info');
+      }
+      return loadMyChains();
+    }
+    toast(`⚖️ ${r2.middleman} was requested to middleman your chain.`, 'success');
+    loadMyChains();
+  });
   box.querySelectorAll('[data-cconfirm]').forEach(b => b.onclick = async () => {
     const r2 = await api(`/api/chains/${b.dataset.cconfirm}/confirm`, { method: 'POST' });
     if (r2.error) { toast(r2.error, 'error'); return loadMyChains(); }

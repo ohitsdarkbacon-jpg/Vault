@@ -293,13 +293,23 @@ nav a.active::after { transform: scaleX(1); }
   border: 1px solid var(--border); border-radius: var(--radius);
   backdrop-filter: blur(10px);
 }
-.search-bar .search-input-wrap { position: relative; flex: 2 1 220px; min-width: 180px; }
-.search-bar .search-input-wrap svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); opacity: 0.5; pointer-events: none; }
-.search-bar input[type="search"] {
-  width: 100%; padding: 10px 12px 10px 34px; border-radius: 9px; border: 1px solid var(--border);
+/* Base theming for EVERY search box on the site — a .search-input-wrap
+   always renders a dark, themed input with the magnifier icon, never a
+   native white bar, regardless of which section it lives in. */
+.search-input-wrap { position: relative; }
+.search-input-wrap svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: 0.5; pointer-events: none; }
+.search-input-wrap input {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; padding: 10px 12px 10px 36px; border-radius: 9px; border: 1px solid var(--border);
   background: rgba(10, 13, 20, 0.6); color: var(--text); font-size: 0.88rem;
   transition: border-color .2s, box-shadow .2s;
 }
+.search-input-wrap input::placeholder { color: var(--muted); }
+.search-input-wrap input:focus { outline: none; border-color: var(--gold-dim); box-shadow: 0 0 0 3px rgba(139,92,246,0.1); }
+
+.search-bar .search-input-wrap { flex: 2 1 220px; min-width: 180px; }
+.search-bar .search-input-wrap svg { left: 11px; }
+.search-bar input[type="search"] { padding-left: 34px; }
 .search-bar input[type="number"] {
   width: 92px; padding: 10px; border-radius: 9px; border: 1px solid var(--border);
   background: rgba(10, 13, 20, 0.6); color: var(--text); font-size: 0.88rem;
@@ -1952,10 +1962,13 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
 /* ---------- Trading tools (finder + chains) ---------- */
 .tool-cards { display: grid; gap: 12px; margin-bottom: 18px; }
 .tool-card { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); overflow: hidden; }
-.tool-head { display: flex; align-items: center; gap: 10px; padding: 13px 16px; cursor: pointer; transition: background .15s; }
+/* Title on top, subtitle beneath, chevron pinned right — reads cleanly at
+   any width instead of cramming three things onto one line. */
+.tool-head { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; row-gap: 1px; padding: 13px 16px; cursor: pointer; transition: background .15s; }
 .tool-head:hover { background: rgba(139,92,246,0.06); }
-.tool-head b { font-size: 0.95rem; }
-.tool-chev { margin-left: auto; color: var(--muted); }
+.tool-head b { grid-area: 1 / 1; font-size: 0.95rem; }
+.tool-head .sub { grid-area: 2 / 1; margin: 0; }
+.tool-chev { grid-area: 1 / 2 / 3 / 3; align-self: center; color: var(--muted); font-size: 0.9rem; }
 .tool-body { padding: 4px 16px 16px; border-top: 1px dashed var(--border); }
 .finder-suggestions { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
 .finder-sug { text-align: left; padding: 8px 11px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); font-size: 0.85rem; transition: border-color .15s; }
@@ -1995,6 +2008,10 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
 .cn-get { color: var(--gold-2); }
 .cn-state { font-size: 0.68rem; margin-top: 3px; }
 .chain-arrow { align-self: center; color: var(--gold-dim); font-weight: 700; }
+.chain-mm { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 10px; padding: 9px 12px; border-radius: 10px; font-size: 0.82rem; background: rgba(139,92,246,0.1); border: 1px solid var(--gold-dim); }
+.chain-mm.ok { background: rgba(52,199,123,0.1); border-color: rgba(52,199,123,0.4); }
+.chain-mm.warn { background: rgba(245,178,66,0.1); border-color: rgba(245,178,66,0.4); }
+.chain-mm-actions { display: flex; gap: 6px; }
 .chain-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 
 /* ---------- Trade-Up events ---------- */
