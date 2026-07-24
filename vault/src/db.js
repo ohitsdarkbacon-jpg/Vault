@@ -675,6 +675,8 @@ CREATE TABLE IF NOT EXISTS trade_chains (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   created_by INTEGER NOT NULL REFERENCES users(id),
   status TEXT NOT NULL DEFAULT 'proposed', -- proposed | confirmed | completed | cancelled
+  middleman_id INTEGER REFERENCES users(id),          -- assigned MM overseeing the hand-offs
+  mm_state TEXT NOT NULL DEFAULT 'none',               -- none | assigned | waived
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -690,7 +692,20 @@ CREATE TABLE IF NOT EXISTS trade_chain_members (
   PRIMARY KEY (chain_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_chain_members_user ON trade_chain_members(user_id);
+
+-- Group chat room for a chain: all members + the assigned middleman.
+CREATE TABLE IF NOT EXISTS trade_chain_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chain_id INTEGER NOT NULL REFERENCES trade_chains(id),
+  sender_id INTEGER NOT NULL REFERENCES users(id),
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_chain_messages ON trade_chain_messages(chain_id, id);
 `);
+// Middleman columns arrived after trade_chains shipped — upgrade older DBs.
+ensureColumn('trade_chains', 'middleman_id', 'middleman_id INTEGER REFERENCES users(id)');
+ensureColumn('trade_chains', 'mm_state', "mm_state TEXT NOT NULL DEFAULT 'none'");
 
 // Trade-up events: admin-created challenges. Every step must be confirmed
 // by the trade partner (a real account) before it counts anywhere.
