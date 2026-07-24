@@ -36,6 +36,10 @@ function loadListingForCheckout(req) {
   const listing = db.prepare('SELECT * FROM listings WHERE id = ?').get(req.params.id);
   if (!listing) return { error: [404, 'Listing not found.'] };
   if (listing.status !== 'active') return { error: [400, 'This listing is no longer available.'] };
+  // Flash listings can't be bought past their expiry, even before the sweep runs.
+  if (listing.expires_at && Date.parse(listing.expires_at + 'Z') <= Date.now()) {
+    return { error: [400, 'This flash listing has expired.'] };
+  }
   if (!listing.price_cents) return { error: [400, 'This item is auction-only.'] };
   if (listing.seller_id === req.user.id) return { error: [400, "You can't buy your own listing."] };
   // An accepted offer overrides the sticker price for this buyer.

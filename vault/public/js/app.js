@@ -293,8 +293,8 @@ async function route() {
     showView('admin'); loadAdmin(); return;
   }
   if (h === 'traders') { showView('traders'); loadTraders(); return; }
-  if (h === 'trading') { showView('trading'); renderCatChips('#trades-cats', tradeState, loadTradePosts); loadTradePosts(); return; }
-  if (h === 'tournaments') { showView('tournaments'); loadTournaments(); return; }
+  if (h === 'trading') { showView('trading'); renderCatChips('#trades-cats', tradeState, loadTradePosts); loadTradePosts(); if (ME) loadMyChains(); return; }
+  if (h === 'tournaments') { showView('tournaments'); loadTournaments(); loadEvents(); return; }
   if (h === 'traders-center') { showView('wfl'); loadWfl(); return; }
   if (h === 'lobbies') { showView('lobbies'); loadLobbies(); return; }
   if (h === 'server') { showView('server'); loadServer(); return; }
@@ -580,6 +580,7 @@ function buildSearchParams(state) {
   if (state.maxPrice) params.set('max_price', state.maxPrice);
   if (state.sort) params.set('sort', state.sort);
   if (state.category) params.set('category', state.category);
+  if (state.flash) params.set('flash', '1');
   params.set('page', state.page);
   return params;
 }
@@ -773,7 +774,15 @@ $('#auctions-load-more').addEventListener('click', () => { auctionState.page += 
 // ============================================================
 // Listings (browse)
 // ============================================================
-const listingState = { q: '', minPrice: '', maxPrice: '', sort: 'newest', category: '', page: 1, total: 0, totalPages: 1 };
+const listingState = { q: '', minPrice: '', maxPrice: '', sort: 'newest', category: '', page: 1, total: 0, totalPages: 1, flash: false };
+
+$('#listings-flash').addEventListener('click', () => {
+  listingState.flash = !listingState.flash;
+  $('#listings-flash').classList.toggle('on', listingState.flash);
+  if (listingState.flash && listingState.sort === 'newest') { listingState.sort = 'ending_soon'; $('#listings-sort').value = 'ending_soon'; }
+  listingState.page = 1;
+  loadListings();
+});
 
 async function loadListings({ append = false } = {}) {
   if (!append) showSkeletons('#listings-grid');
@@ -795,10 +804,27 @@ function renderListingsMeta() {
   $('#listings-load-more-wrap').style.display = listingState.page < listingState.totalPages ? 'flex' : 'none';
 }
 
+// Flash countdown: expires_at is SQLite "YYYY-MM-DD HH:MM:SS" (UTC).
+function flashLeft(exp) { return timeLeft(exp.replace(' ', 'T') + 'Z'); }
+function flashBadge(l) {
+  if (!l.expires_at) return '';
+  const t = flashLeft(l.expires_at);
+  return `<span class="flash-badge ${t.urgent ? 'urgent' : ''}" data-expires="${escapeHtml(l.expires_at)}">⚡ ${t.text}</span>`;
+}
+// One shared ticker keeps every visible flash countdown fresh.
+setInterval(() => {
+  document.querySelectorAll('.flash-badge[data-expires]').forEach(el => {
+    const t = flashLeft(el.dataset.expires);
+    el.innerHTML = '⚡ ' + t.text;
+    el.classList.toggle('urgent', t.urgent);
+    if (t.text === 'Ended') { el.textContent = '⚡ Expired'; const card = el.closest('.card'); if (card) card.classList.add('flash-expired'); }
+  });
+}, 1000);
+
 function listingCardHtml(l) {
   return `
     <div class="card ${l.seller_pro ? 'pro-featured' : ''}" data-listing-id="${l.id}">
-      <div class="thumb" style="${l.image_url ? `background-image:url('${escapeHtml(l.image_url)}')` : ''}">${l.image_url ? '' : 'No image'}${catTag(l.category)}</div>
+      <div class="thumb" style="${l.image_url ? `background-image:url('${escapeHtml(l.image_url)}')` : ''}">${l.image_url ? '' : 'No image'}${catTag(l.category)}${flashBadge(l)}</div>
       <div class="card-body">
         <div class="card-title">${escapeHtml(l.title)}</div>
         <div class="card-meta">Seller: <a class="seller-link" href="#u/${encodeURIComponent(l.seller_name)}" onclick="event.stopPropagation()">${escapeHtml(l.seller_name)}</a> ${vbadge(l.seller_verified)}${probadge(l.seller_pro)}</div>
@@ -1302,7 +1328,7 @@ $('#sell-submit').onclick = async () => {
   } else if (sellType === 'fixed') {
     const price = parseFloat($('#sell-price').value);
     if (!price || price <= 0) { $('#sell-error').textContent = 'Enter a valid price.'; $('#sell-submit').classList.remove('loading'); return; }
-    r = await api('/api/listings', { method: 'POST', body: JSON.stringify({ title, description, image_url, price_cents: Math.round(price * 100), category: $('#sell-category').value }) });
+    r = await api('/api/listings', { method: 'POST', body: JSON.stringify({ title, description, image_url, price_cents: Math.round(price * 100), category: $('#sell-category').value, flash_minutes: $('#sell-flash').value || undefined }) });
   } else {
     const start = parseFloat($('#sell-start-bid').value);
     const inc = parseFloat($('#sell-increment').value) || 1;
@@ -2178,6 +2204,12 @@ $('#post-trade-btn').onclick = () => {
   }
   openModal('trade-overlay');
 };
+let tradeChainOk = false;
+$('#trade-chain-toggle').onclick = () => {
+  tradeChainOk = !tradeChainOk;
+  $('#trade-chain-toggle').classList.toggle('on', tradeChainOk);
+  $('#trade-chain-toggle').setAttribute('aria-checked', String(tradeChainOk));
+};
 $('#trade-submit').onclick = async () => {
   const offering = $('#trade-offering').value.trim();
   const wants = $('#trade-wants').value.trim();
@@ -2188,6 +2220,7 @@ $('#trade-submit').onclick = async () => {
     category: $('#trade-category').value,
     notes: $('#trade-notes').value.trim() || undefined,
     image_url: $('#trade-image').value.trim() || undefined,
+    chain_ok: tradeChainOk,
   }) });
   $('#trade-submit').classList.remove('loading');
   if (r.error) { $('#trade-error').textContent = r.error; return; }
@@ -4317,6 +4350,382 @@ document.addEventListener('mousemove', (e) => {
 // ============================================================
 // Init
 // ============================================================
+// ============================================================
+// Trading tools — "What can I get?" + multi-person trade chains
+// ============================================================
+$$('.tool-head').forEach(h => h.addEventListener('click', () => {
+  const body = $('#' + h.dataset.tool + '-body');
+  body.hidden = !body.hidden;
+  h.querySelector('.tool-chev').textContent = body.hidden ? '▾' : '▴';
+}));
+
+// ---------- What can I get? ----------
+const finderPicked = new Map(); // listing id -> {id,title,price_cents,image_url}
+const FAIR_META = {
+  fair: ['Fair', 'fx-fair'],
+  slightly_favorable: ['Slightly in your favor', 'fx-good'],
+  slightly_unfavorable: ['Slightly against you', 'fx-bad'],
+};
+
+function renderFinderPicked() {
+  const box = $('#finder-picked');
+  box.innerHTML = [...finderPicked.values()].map(l =>
+    `<span class="finder-chip">${escapeHtml(l.title)} <b>${money(l.price_cents)}</b><button data-funpick="${l.id}">✕</button></span>`
+  ).join('');
+  box.querySelectorAll('[data-funpick]').forEach(b => b.onclick = () => { finderPicked.delete(parseInt(b.dataset.funpick, 10)); renderFinderPicked(); });
+  const total = [...finderPicked.values()].reduce((s, l) => s + l.price_cents, 0);
+  $('#finder-total').hidden = !finderPicked.size;
+  $('#finder-total').innerHTML = `Your bundle: <b>${money(total)}</b> across ${finderPicked.size} item${finderPicked.size === 1 ? '' : 's'}`;
+  $('#finder-go').disabled = !finderPicked.size;
+}
+
+const finderSearch = debounce(async () => {
+  const q = $('#finder-q').value.trim();
+  const box = $('#finder-suggestions');
+  if (q.length < 2) { box.innerHTML = ''; return; }
+  const r = await api('/api/listings?q=' + encodeURIComponent(q) + '&limit=6');
+  const items = (r.listings || []).filter(l => l.price_cents && !finderPicked.has(l.id)).slice(0, 6);
+  box.innerHTML = items.length
+    ? items.map(l => `<button class="finder-sug" data-fadd='${escapeHtml(JSON.stringify({ id: l.id, title: l.title, price_cents: l.price_cents }))}'>${escapeHtml(l.title)} <b>${money(l.price_cents)}</b></button>`).join('')
+    : '<div class="sub" style="padding:6px 2px">No priced listings match — try another item name.</div>';
+  box.querySelectorAll('[data-fadd]').forEach(b => b.onclick = () => {
+    const l = JSON.parse(b.dataset.fadd);
+    finderPicked.set(l.id, l);
+    $('#finder-q').value = ''; box.innerHTML = '';
+    renderFinderPicked();
+  });
+}, 300);
+$('#finder-q').addEventListener('input', finderSearch);
+
+$('#finder-go').addEventListener('click', async () => {
+  if (!ME) return openModal('auth-overlay');
+  const box = $('#finder-results');
+  box.innerHTML = '<div class="empty" style="padding:18px">Crunching marketplace data…</div>';
+  const r = await api('/api/trade-finder', { method: 'POST', body: JSON.stringify({ listing_ids: [...finderPicked.keys()] }) });
+  if (r.error) { box.innerHTML = ''; return toast(r.error, 'error'); }
+  const L = r.listings || [], T = r.trade_posts || [];
+  box.innerHTML = `
+    <div class="sub" style="margin:12px 0 8px">Estimates are based on live marketplace prices — actual trades depend on the other trader. Nothing here is guaranteed.</div>
+    ${L.length ? `<h4 style="margin:10px 0 8px">Listings you could realistically swap toward</h4><div class="finder-matches">${L.map(l => {
+      const [label, cls] = FAIR_META[l.fairness] || FAIR_META.fair;
+      return `<div class="finder-match">
+        <div class="fm-thumb" style="${l.image_url ? `background-image:url('${escapeHtml(l.image_url)}')` : ''}"></div>
+        <div class="fm-main"><b>${escapeHtml(l.title)}</b><span class="sub">${money(l.price_cents)} · ${escapeHtml(l.seller_name)} ${vbadge(l.seller_verified)}</span></div>
+        <span class="fair-badge ${cls}">${label}</span>
+        <span class="fm-actions"><button class="btn btn-small" data-fview="${l.id}">View</button><button class="btn btn-small" data-fdm="${escapeHtml(l.seller_name)}">DM</button></span>
+      </div>`;
+    }).join('')}</div>` : '<div class="empty-block">No listings in a comparable price band right now — check back soon.</div>'}
+    ${T.length ? `<h4 style="margin:14px 0 8px">Traders already looking for items like yours</h4><div class="finder-matches">${T.map(t => `
+      <div class="finder-match">
+        <div class="fm-thumb">🔁</div>
+        <div class="fm-main"><b>${escapeHtml(t.username)}</b> wants <b>${escapeHtml(t.wants)}</b><span class="sub">offering: ${escapeHtml(t.offering)}</span></div>
+        <span class="fm-actions"><button class="btn btn-small btn-gold" data-fdm="${escapeHtml(t.username)}">Message</button></span>
+      </div>`).join('')}</div>` : ''}`;
+  box.querySelectorAll('[data-fview]').forEach(b => b.onclick = () => openBuyModal(b.dataset.fview));
+  box.querySelectorAll('[data-fdm]').forEach(b => b.onclick = () => {
+    if (!ME) return openModal('auth-overlay');
+    location.hash = 'messages/' + encodeURIComponent(b.dataset.fdm);
+  });
+});
+
+// ---------- Trade chains ----------
+const CHAIN_STATUS = {
+  proposed: ['Waiting for participants', 'cs-wait'],
+  confirmed: ['Everyone confirmed ✔', 'cs-ok'],
+  completed: ['Completed 🎉', 'cs-done'],
+  cancelled: ['Cancelled', 'cs-no'],
+};
+
+function chainDiagram(members) {
+  return `<div class="chain-flow">${members.map(m => `
+    <div class="chain-node ${m.confirmed ? 'ok' : ''}">
+      <b>${escapeHtml(m.username)}${m.is_me ? ' (you)' : ''}</b>
+      <span class="cn-give">gives ${escapeHtml(m.gives)}</span>
+      <span class="cn-get">gets ${escapeHtml(m.receives)}</span>
+      <span class="cn-state">${m.done ? '✅ done' : m.confirmed ? '✔ confirmed' : '⏳ pending'}</span>
+    </div>`).join('<span class="chain-arrow">→</span>')}<span class="chain-arrow">↩</span></div>`;
+}
+
+$('#chains-find').addEventListener('click', async () => {
+  if (!ME) return openModal('auth-overlay');
+  const box = $('#chains-found');
+  box.innerHTML = '<div class="empty" style="padding:14px">Searching for compatible chains…</div>';
+  const r = await api('/api/chains/discover');
+  if (r.reason === 'no_posts') {
+    box.innerHTML = '<div class="empty-block">You need an open trade post with 🔗 chain matching turned on first.</div>';
+    return;
+  }
+  const chains = r.chains || [];
+  if (!chains.length) { box.innerHTML = '<div class="empty-block">No complete chains right now — chains appear when 3–4 opted-in posts line up. Check back later!</div>'; return; }
+  box.innerHTML = `<div class="sub" style="margin:10px 0 6px">Chain found! Every hop matches what that trader asked for. Proposing sends it to everyone for confirmation.</div>` +
+    chains.map((c, i) => `<div class="chain-card">
+      ${chainDiagram(c.posts.map(p => ({ username: p.username, gives: p.gives, receives: p.receives, is_me: p.user_id === ME.id })))}
+      <button class="btn btn-gold btn-small" data-cpropose="${i}">Propose this chain</button>
+    </div>`).join('');
+  box.querySelectorAll('[data-cpropose]').forEach(b => b.onclick = async () => {
+    const c = chains[parseInt(b.dataset.cpropose, 10)];
+    const r2 = await api('/api/chains', { method: 'POST', body: JSON.stringify({ post_ids: c.posts.map(p => p.post_id) }) });
+    if (r2.error) return toast(r2.error, 'error');
+    toast('Chain proposed — everyone in it has been notified.', 'success');
+    box.innerHTML = '';
+    loadMyChains();
+  });
+});
+
+async function loadMyChains() {
+  const box = $('#chains-mine');
+  if (!box || !ME) return;
+  const r = await api('/api/chains/mine');
+  const chains = r.chains || [];
+  if (!chains.length) { box.innerHTML = '<div class="sub">No chains yet — find one above.</div>'; return; }
+  box.innerHTML = chains.map(c => {
+    const [label, cls] = CHAIN_STATUS[c.status] || CHAIN_STATUS.proposed;
+    return `<div class="chain-card">
+      <div class="chain-card-head"><span class="chain-status ${cls}">${label}</span><span class="sub">${timeAgo(c.created_at)}</span></div>
+      ${chainDiagram(c.members)}
+      <div class="chain-actions">
+        ${c.status === 'proposed' && !c.my_confirmed ? `<button class="btn btn-gold btn-small" data-cconfirm="${c.id}">✔ Confirm my part</button>` : ''}
+        ${c.status === 'confirmed' && !c.my_done ? `<button class="btn btn-gold btn-small" data-cdone="${c.id}">✅ Mark my hand-off done</button>` : ''}
+        ${['proposed', 'confirmed'].includes(c.status) ? `<button class="btn btn-small" style="color:var(--danger)" data-ccancel="${c.id}">Cancel chain</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  box.querySelectorAll('[data-cconfirm]').forEach(b => b.onclick = async () => {
+    const r2 = await api(`/api/chains/${b.dataset.cconfirm}/confirm`, { method: 'POST' });
+    if (r2.error) { toast(r2.error, 'error'); return loadMyChains(); }
+    toast(r2.all_confirmed ? 'Everyone confirmed — coordinate the hand-offs!' : 'Confirmed — waiting on the others.', 'success');
+    loadMyChains();
+  });
+  box.querySelectorAll('[data-cdone]').forEach(b => b.onclick = async () => {
+    const r2 = await api(`/api/chains/${b.dataset.cdone}/done`, { method: 'POST' });
+    if (r2.error) return toast(r2.error, 'error');
+    toast(r2.completed ? 'Chain completed 🎉' : 'Marked done — waiting on the others.', 'success');
+    loadMyChains();
+  });
+  box.querySelectorAll('[data-ccancel]').forEach(b => b.onclick = async () => {
+    if (!await vaultConfirm('Everyone in the chain will be notified.', { title: 'Cancel this chain?', okText: 'Cancel chain', danger: true, icon: '🔗' })) return;
+    const r2 = await api(`/api/chains/${b.dataset.ccancel}/cancel`, { method: 'POST' });
+    if (r2.error) return toast(r2.error, 'error');
+    loadMyChains();
+  });
+}
+
+// ============================================================
+// Trade-Up Events
+// ============================================================
+let activeEventId = null;
+
+function eventPhaseChip(ev) {
+  if (ev.phase === 'live') { const t = flashLeft(ev.ends_at); return `<span class="ev-chip ev-live">🔴 LIVE · ${t.text}</span>`; }
+  if (ev.phase === 'upcoming') { const t = flashLeft(ev.starts_at); return `<span class="ev-chip ev-soon">Starts in ${t.text.replace(' left', '')}</span>`; }
+  return '<span class="ev-chip ev-ended">Ended</span>';
+}
+
+async function loadEvents() {
+  const grid = $('#events-grid');
+  if (!grid) return;
+  $('#event-create-btn').style.display = ME && ME.is_admin ? '' : 'none';
+  const r = await api('/api/events');
+  const events = r.events || [];
+  if (!events.length) { grid.innerHTML = '<div class="empty-block">No events yet — check back soon.</div>'; return; }
+  grid.innerHTML = events.map(ev => `
+    <div class="event-card" data-ev="${ev.id}">
+      <div class="ev-head">${eventPhaseChip(ev)}<span class="sub">${ev.players} player${ev.players === 1 ? '' : 's'}</span></div>
+      <h3>${escapeHtml(ev.title)}</h3>
+      ${ev.description ? `<div class="sub" style="margin-top:4px">${escapeHtml(ev.description)}</div>` : ''}
+      ${ev.start_value_max_cents ? `<div class="ev-cap">Start with an item worth ≤ ${money(ev.start_value_max_cents)}</div>` : ''}
+      <div class="ev-foot">
+        ${ev.joined ? '<span class="ev-joined">✔ Joined</span>' : ''}
+        <button class="btn btn-small btn-gold" data-evopen="${ev.id}">${ev.joined ? 'My journey' : 'Open event'}</button>
+      </div>
+    </div>`).join('');
+  grid.querySelectorAll('[data-evopen]').forEach(b => b.onclick = () => openEvent(parseInt(b.dataset.evopen, 10)));
+}
+
+async function openEvent(id) {
+  activeEventId = id;
+  openModal('event-overlay');
+  const box = $('#event-detail');
+  box.innerHTML = '<div class="empty">Loading…</div>';
+  const r = await api(`/api/events/${id}`);
+  if (r.error) { box.innerHTML = `<div class="empty">${escapeHtml(r.error)}</div>`; return; }
+  const ev = r.event, boards = r.boards;
+  const journey = r.my_journey;
+  const toConfirm = r.to_confirm || [];
+  const boardRow = (p, i, val) => `
+    <div class="lb-row"><span class="lb-rank">${i + 1}</span>
+      <span class="lb-name">${escapeHtml(p.username)}</span>
+      <span class="lb-journey sub">${escapeHtml(p.start_item)} → ${escapeHtml(p.final_item)}</span>
+      <span class="lb-val">${val}</span></div>`;
+  box.innerHTML = `
+    <div class="ev-detail-head">${eventPhaseChip(ev)}<h3 style="margin:6px 0 2px">${escapeHtml(ev.title)}</h3>
+      <div class="sub">${escapeHtml(ev.description || '')}${ev.rules ? ` · Rules: ${escapeHtml(ev.rules)}` : ''} · hosted by ${escapeHtml(ev.host)}</div></div>
+    ${toConfirm.length ? `<div class="ev-confirms"><h4>⚠ Trades waiting on YOUR confirmation</h4>${toConfirm.map(s => `
+      <div class="ev-confirm-row"><span><b>${escapeHtml(s.player)}</b> says they traded you "${escapeHtml(s.gave)}" for "${escapeHtml(s.got)}" (${money(s.value_cents)})</span>
+      <span><button class="btn btn-small btn-gold" data-sok="${s.id}">Confirm</button><button class="btn btn-small" style="color:var(--danger)" data-sno="${s.id}">Reject</button></span></div>`).join('')}</div>` : ''}
+    ${journey ? `<div class="ev-journey"><div class="ev-journey-head"><h4>Your journey</h4>
+        <span>${ev.phase === 'live' ? '<button class="btn btn-small btn-gold" id="ev-log-step">+ Log a trade</button>' : ''}
+        <button class="btn btn-small" id="ev-share">Share</button></span></div>
+      <div class="journey-line">
+        <div class="j-step"><b>${escapeHtml(journey.start_item)}</b><span>${money(journey.start_value_cents)} · start</span></div>
+        ${journey.steps.map(s => `<div class="j-step ${s.confirmed ? '' : 'pending'}"><b>${escapeHtml(s.got)}</b><span>${money(s.value_cents)} · ${s.confirmed ? 'via ' + escapeHtml(s.partner) : '⏳ waiting for ' + escapeHtml(s.partner)}</span></div>`).join('')}
+      </div></div>`
+    : ev.phase !== 'ended' ? `<button class="btn btn-gold" id="ev-join" style="margin:12px 0">🎲 Join this event</button>` : ''}
+    <div class="ev-boards">
+      <h4>Leaderboards <span class="sub" style="font-weight:400">(${boards.player_count} players — verified trades only)</span></h4>
+      <div class="lb-cols">
+        <div class="lb-col"><h5>💰 Highest value</h5>${boards.by_value.map((p, i) => boardRow(p, i, money(p.final_cents))).join('') || '<div class="sub">Nobody yet.</div>'}</div>
+        <div class="lb-col"><h5>📈 Biggest climb</h5>${boards.by_gain.map((p, i) => boardRow(p, i, (p.gain_pct >= 0 ? '+' : '') + p.gain_pct + '%')).join('') || '<div class="sub">Nobody yet.</div>'}</div>
+        <div class="lb-col"><h5>🔁 Most trades</h5>${boards.by_steps.map((p, i) => boardRow(p, i, p.steps + ' trades')).join('') || '<div class="sub">Nobody yet.</div>'}</div>
+      </div>
+    </div>`;
+  const joinBtn = $('#ev-join');
+  if (joinBtn) joinBtn.onclick = () => {
+    if (!ME) return openModal('auth-overlay');
+    $('#event-join-sub').textContent = ev.start_value_max_cents
+      ? `Starting item must be worth ${money(ev.start_value_max_cents)} or less.`
+      : 'Declare your starting item — you trade up from here.';
+    $('#event-start-item').value = ''; $('#event-start-value').value = ''; $('#event-join-error').textContent = '';
+    openModal('event-join-overlay');
+  };
+  const logBtn = $('#ev-log-step');
+  if (logBtn) logBtn.onclick = () => {
+    const hold = journey.steps.filter(s => s.confirmed).slice(-1)[0];
+    $('#event-step-holding').textContent = hold ? hold.got : journey.start_item;
+    $('#event-step-got').value = ''; $('#event-step-value').value = ''; $('#event-step-partner').value = ''; $('#event-step-error').textContent = '';
+    openModal('event-step-overlay');
+  };
+  const shareBtn = $('#ev-share');
+  if (shareBtn) shareBtn.onclick = async () => {
+    const steps = journey.steps.filter(s => s.confirmed);
+    const last = steps.slice(-1)[0];
+    const text = `🎲 ${ev.title} — my trade-up journey on Vault:\n${journey.start_item} (${money(journey.start_value_cents)})${steps.map(s => ` → ${s.got} (${money(s.value_cents)})`).join('')}\n${steps.length} verified trades${last ? `, now holding ${money(last.value_cents)}` : ''}!`;
+    try { await navigator.clipboard.writeText(text); toast('Journey copied — paste it anywhere!', 'success'); } catch (_) { toast('Could not copy.', 'error'); }
+  };
+  box.querySelectorAll('[data-sok]').forEach(b => b.onclick = async () => {
+    const r2 = await api(`/api/events/steps/${b.dataset.sok}/confirm`, { method: 'POST' });
+    if (r2.error) return toast(r2.error, 'error');
+    toast('Trade confirmed.', 'success'); openEvent(id);
+  });
+  box.querySelectorAll('[data-sno]').forEach(b => b.onclick = async () => {
+    const r2 = await api(`/api/events/steps/${b.dataset.sno}/reject`, { method: 'POST' });
+    if (r2.error) return toast(r2.error, 'error');
+    toast('Trade rejected.', 'info'); openEvent(id);
+  });
+}
+
+$('#event-join-submit').addEventListener('click', async () => {
+  const err = $('#event-join-error');
+  err.textContent = '';
+  const r = await api(`/api/events/${activeEventId}/join`, { method: 'POST', body: JSON.stringify({
+    start_item: $('#event-start-item').value.trim(),
+    start_value_usd: $('#event-start-value').value,
+  }) });
+  if (r.error) { err.textContent = r.error; return; }
+  closeModal('event-join-overlay');
+  toast("You're in — trade up! 🎲", 'success');
+  openEvent(activeEventId); loadEvents();
+});
+
+$('#event-step-submit').addEventListener('click', async () => {
+  const err = $('#event-step-error');
+  err.textContent = '';
+  const r = await api(`/api/events/${activeEventId}/steps`, { method: 'POST', body: JSON.stringify({
+    got: $('#event-step-got').value.trim(),
+    value_usd: $('#event-step-value').value,
+    partner: $('#event-step-partner').value.trim(),
+  }) });
+  if (r.error) { err.textContent = r.error; return; }
+  closeModal('event-step-overlay');
+  toast('Logged — your partner has been asked to confirm.', 'success');
+  openEvent(activeEventId);
+});
+
+$('#event-create-btn').addEventListener('click', () => {
+  $('#event-title').value = ''; $('#event-desc').value = ''; $('#event-rules').value = ''; $('#event-cap').value = '';
+  $('#event-create-error').textContent = '';
+  openModal('event-create-overlay');
+});
+$('#event-create-submit').addEventListener('click', async () => {
+  const err = $('#event-create-error');
+  err.textContent = '';
+  const r = await api('/api/admin/events', { method: 'POST', body: JSON.stringify({
+    title: $('#event-title').value.trim(),
+    description: $('#event-desc').value.trim() || undefined,
+    rules: $('#event-rules').value.trim() || undefined,
+    start_value_max_usd: $('#event-cap').value || undefined,
+    starts_in_hours: $('#event-starts').value,
+    duration_hours: parseInt($('#event-duration').value, 10),
+  }) });
+  if (r.error) { err.textContent = r.error; return; }
+  closeModal('event-create-overlay');
+  toast('Event created!', 'success');
+  loadEvents();
+});
+
+// ============================================================
+// Global activity board (privacy-safe, aggregated by country)
+// ============================================================
+function flagEmoji(cc) {
+  return cc.toUpperCase().replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
+}
+const COUNTRY_NAMES = { US: 'United States', CA: 'Canada', MX: 'Mexico', BR: 'Brazil', AR: 'Argentina', CL: 'Chile', CO: 'Colombia', PE: 'Peru', VE: 'Venezuela', UY: 'Uruguay', EC: 'Ecuador', BO: 'Bolivia', GB: 'United Kingdom', IE: 'Ireland', FR: 'France', DE: 'Germany', ES: 'Spain', IT: 'Italy', NL: 'Netherlands', BE: 'Belgium', PT: 'Portugal', CH: 'Switzerland', AT: 'Austria', SE: 'Sweden', NO: 'Norway', DK: 'Denmark', FI: 'Finland', PL: 'Poland', CZ: 'Czechia', HU: 'Hungary', RO: 'Romania', BG: 'Bulgaria', GR: 'Greece', TR: 'Türkiye', UA: 'Ukraine', RU: 'Russia', RS: 'Serbia', HR: 'Croatia', SK: 'Slovakia', LT: 'Lithuania', LV: 'Latvia', EE: 'Estonia', JP: 'Japan', KR: 'South Korea', CN: 'China', HK: 'Hong Kong', TW: 'Taiwan', SG: 'Singapore', MY: 'Malaysia', TH: 'Thailand', ID: 'Indonesia', PH: 'Philippines', VN: 'Vietnam', IN: 'India', PK: 'Pakistan', BD: 'Bangladesh', AE: 'UAE', SA: 'Saudi Arabia', QA: 'Qatar', KW: 'Kuwait', IL: 'Israel', JO: 'Jordan', IQ: 'Iraq', IR: 'Iran', EG: 'Egypt', NG: 'Nigeria', ZA: 'South Africa', KE: 'Kenya', MA: 'Morocco', DZ: 'Algeria', TN: 'Tunisia', GH: 'Ghana', AU: 'Australia', NZ: 'New Zealand' };
+
+let regionHidden = false;
+async function reportRegion() {
+  if (!ME) return;
+  let tz = '';
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) {}
+  const r = await api('/api/my/region', { method: 'POST', body: JSON.stringify({ tz }) });
+  regionHidden = !!r.hidden;
+  const opt = $('#map-optout');
+  if (opt) {
+    opt.hidden = false;
+    $('#region-toggle').classList.toggle('on', !regionHidden);
+    $('#region-toggle').setAttribute('aria-checked', String(!regionHidden));
+  }
+}
+if ($('#region-toggle')) $('#region-toggle').onclick = async () => {
+  regionHidden = !regionHidden;
+  let tz = '';
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) {}
+  await api('/api/my/region', { method: 'POST', body: JSON.stringify({ hidden: regionHidden, tz }) });
+  $('#region-toggle').classList.toggle('on', !regionHidden);
+  $('#region-toggle').setAttribute('aria-checked', String(!regionHidden));
+  toast(regionHidden ? 'Your country is no longer included.' : 'Your country is included in the anonymous counts.', 'info');
+  loadActivityMap();
+};
+
+async function loadActivityMap() {
+  const sec = $('#activity-map-section');
+  if (!sec) return;
+  const r = await api('/api/activity-map');
+  if (r.error) return;
+  sec.style.display = '';
+  $('#map-stats').innerHTML = `
+    <div class="map-stat"><b>${r.online_total}</b><span>traders online</span></div>
+    <div class="map-stat"><b>${r.sales_24h}</b><span>sales · 24h</span></div>
+    <div class="map-stat"><b>${r.listings_24h}</b><span>new listings · 24h</span></div>
+    <div class="map-stat"><b>${r.trades_open}</b><span>open trades</span></div>`;
+  const regions = r.regions || [];
+  const box = $('#map-regions');
+  if (!regions.length) {
+    box.innerHTML = '<div class="sub" style="padding:8px 2px">Regional stats appear once enough traders in a country share it (3+ per country, opt-out any time).</div>';
+    return;
+  }
+  const max = Math.max(...regions.map(x => x.traders), 1);
+  box.innerHTML = regions.map(x => `
+    <div class="pc-row" title="${x.traders} traders · ${x.online} online now · ${x.listings_24h} listings and ${x.sales_24h} sales in 24h">
+      <div class="pc-label"><span class="pc-name">${flagEmoji(x.region)} ${escapeHtml(COUNTRY_NAMES[x.region] || x.region)}</span>
+        <span class="pc-meta">${x.online} online · ${x.sales_24h} sales 24h</span></div>
+      <div class="pc-track"><i class="pc-fill" data-w="${Math.max(2, x.traders / max * 100)}"></i></div>
+      <div class="pc-value">${x.traders} traders</div>
+    </div>`).join('');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    box.querySelectorAll('.pc-fill').forEach(el => { el.style.width = el.dataset.w + '%'; });
+  }));
+}
+
 (async function init() {
   const params = new URLSearchParams(location.search);
   api('/api/config').then(c => { if (c.fee_bps) FEE = c; if (c.transfer_fee_bps != null) TRANSFER_FEE_BPS = c.transfer_fee_bps; });
@@ -4335,6 +4744,8 @@ document.addEventListener('mousemove', (e) => {
   loadListings();
   loadWanted();
   loadGameStats();
+  loadActivityMap();
+  reportRegion();
   route();
 
   if (params.get('checkout') === 'success') {

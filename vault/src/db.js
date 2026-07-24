@@ -651,6 +651,85 @@ CREATE INDEX IF NOT EXISTS idx_offers_listing ON offers(listing_id, status);
 CREATE INDEX IF NOT EXISTS idx_offers_buyer ON offers(buyer_id, status);
 `);
 
+// ============================================================
+// v6 schema — flash listings, trade chains, trade-up events,
+// global activity regions
+// ============================================================
+
+// Flash listings: optional expiry set at creation and never editable after.
+ensureColumn('listings', 'expires_at', 'expires_at TEXT');
+db.exec('CREATE INDEX IF NOT EXISTS idx_listings_expires ON listings(expires_at)');
+
+// Coarse country (ISO-3166 alpha-2) derived from the browser timezone —
+// never precise coordinates. region_hidden opts the user out entirely.
+ensureColumn('users', 'region', 'region TEXT');
+ensureColumn('users', 'region_hidden', 'region_hidden INTEGER NOT NULL DEFAULT 0');
+
+// Multi-person trade chains: a proposed cycle over open trade posts where
+// every member individually confirms before anything is considered agreed.
+// Terms (gives/receives) are snapshotted at proposal time so they can't be
+// changed after people start confirming.
+ensureColumn('trade_posts', 'chain_ok', 'chain_ok INTEGER NOT NULL DEFAULT 0');
+db.exec(`
+CREATE TABLE IF NOT EXISTS trade_chains (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'proposed', -- proposed | confirmed | completed | cancelled
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS trade_chain_members (
+  chain_id INTEGER NOT NULL REFERENCES trade_chains(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  post_id INTEGER NOT NULL REFERENCES trade_posts(id),
+  position INTEGER NOT NULL,           -- order around the cycle
+  gives TEXT NOT NULL,                 -- snapshot of what this member hands off
+  receives TEXT NOT NULL,              -- snapshot of what they get in return
+  confirmed INTEGER NOT NULL DEFAULT 0,
+  done INTEGER NOT NULL DEFAULT 0,     -- marked after the real-world hand-off
+  PRIMARY KEY (chain_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_chain_members_user ON trade_chain_members(user_id);
+`);
+
+// Trade-up events: admin-created challenges. Every step must be confirmed
+// by the trade partner (a real account) before it counts anywhere.
+db.exec(`
+CREATE TABLE IF NOT EXISTS trade_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  admin_id INTEGER NOT NULL REFERENCES users(id),
+  title TEXT NOT NULL,
+  description TEXT,
+  rules TEXT,
+  start_value_max_cents INTEGER,       -- optional cap on the starting item's value
+  starts_at TEXT NOT NULL,
+  ends_at TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open', -- open | cancelled (live/ended derived from times)
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS trade_event_players (
+  event_id INTEGER NOT NULL REFERENCES trade_events(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  start_item TEXT NOT NULL,
+  start_value_cents INTEGER NOT NULL,
+  joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (event_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS trade_event_steps (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL REFERENCES trade_events(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  partner_id INTEGER NOT NULL REFERENCES users(id), -- must confirm before it counts
+  gave TEXT NOT NULL,
+  got TEXT NOT NULL,
+  value_cents INTEGER NOT NULL,        -- declared value of what they now hold
+  confirmed INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_event_steps ON trade_event_steps(event_id, user_id, id);
+CREATE INDEX IF NOT EXISTS idx_event_steps_partner ON trade_event_steps(partner_id, confirmed);
+`);
+
 // Seed admins from env: comma-separated Roblox user IDs
 const adminIds = (process.env.ADMIN_DISCORD_IDS || process.env.ADMIN_ROBLOX_IDS || '')
   .split(',')

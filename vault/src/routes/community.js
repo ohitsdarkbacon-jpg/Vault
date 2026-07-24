@@ -299,4 +299,83 @@ router.get('/server/summary', (req, res) => {
   res.json({ online, voice: voiceMap, members });
 });
 
+// ============================================================
+// Global activity board — privacy-safe, aggregated by country.
+// We only ever store a coarse ISO country code derived from the browser's
+// timezone (never coordinates, never IP lookups), users can opt out
+// entirely, and regions with fewer than K_ANON users are never shown.
+// ============================================================
+const K_ANON = 3;
+
+// Compact IANA timezone → ISO-3166 country map covering common zones.
+// Unknown zones simply leave the user unplaced — that's fine.
+const TZ_COUNTRY = {
+  'america/new_york': 'US', 'america/chicago': 'US', 'america/denver': 'US', 'america/phoenix': 'US',
+  'america/los_angeles': 'US', 'america/anchorage': 'US', 'pacific/honolulu': 'US', 'america/detroit': 'US',
+  'america/toronto': 'CA', 'america/vancouver': 'CA', 'america/edmonton': 'CA', 'america/winnipeg': 'CA', 'america/halifax': 'CA',
+  'america/mexico_city': 'MX', 'america/tijuana': 'MX', 'america/monterrey': 'MX',
+  'america/sao_paulo': 'BR', 'america/fortaleza': 'BR', 'america/manaus': 'BR', 'america/bahia': 'BR',
+  'america/argentina/buenos_aires': 'AR', 'america/santiago': 'CL', 'america/bogota': 'CO', 'america/lima': 'PE',
+  'america/caracas': 'VE', 'america/montevideo': 'UY', 'america/guayaquil': 'EC', 'america/la_paz': 'BO',
+  'europe/london': 'GB', 'europe/dublin': 'IE', 'europe/paris': 'FR', 'europe/berlin': 'DE',
+  'europe/madrid': 'ES', 'europe/rome': 'IT', 'europe/amsterdam': 'NL', 'europe/brussels': 'BE',
+  'europe/lisbon': 'PT', 'europe/zurich': 'CH', 'europe/vienna': 'AT', 'europe/stockholm': 'SE',
+  'europe/oslo': 'NO', 'europe/copenhagen': 'DK', 'europe/helsinki': 'FI', 'europe/warsaw': 'PL',
+  'europe/prague': 'CZ', 'europe/budapest': 'HU', 'europe/bucharest': 'RO', 'europe/sofia': 'BG',
+  'europe/athens': 'GR', 'europe/istanbul': 'TR', 'europe/kyiv': 'UA', 'europe/kiev': 'UA',
+  'europe/moscow': 'RU', 'europe/belgrade': 'RS', 'europe/zagreb': 'HR', 'europe/bratislava': 'SK',
+  'europe/vilnius': 'LT', 'europe/riga': 'LV', 'europe/tallinn': 'EE',
+  'asia/tokyo': 'JP', 'asia/seoul': 'KR', 'asia/shanghai': 'CN', 'asia/hong_kong': 'HK',
+  'asia/taipei': 'TW', 'asia/singapore': 'SG', 'asia/kuala_lumpur': 'MY', 'asia/bangkok': 'TH',
+  'asia/jakarta': 'ID', 'asia/manila': 'PH', 'asia/ho_chi_minh': 'VN', 'asia/kolkata': 'IN', 'asia/calcutta': 'IN',
+  'asia/karachi': 'PK', 'asia/dhaka': 'BD', 'asia/dubai': 'AE', 'asia/riyadh': 'SA', 'asia/qatar': 'QA',
+  'asia/kuwait': 'KW', 'asia/jerusalem': 'IL', 'asia/amman': 'JO', 'asia/baghdad': 'IQ', 'asia/tehran': 'IR',
+  'africa/cairo': 'EG', 'africa/lagos': 'NG', 'africa/johannesburg': 'ZA', 'africa/nairobi': 'KE',
+  'africa/casablanca': 'MA', 'africa/algiers': 'DZ', 'africa/tunis': 'TN', 'africa/accra': 'GH',
+  'australia/sydney': 'AU', 'australia/melbourne': 'AU', 'australia/brisbane': 'AU', 'australia/perth': 'AU',
+  'australia/adelaide': 'AU', 'pacific/auckland': 'NZ',
+};
+
+// Client reports its timezone; we store only the mapped country (or clear it).
+router.post('/my/region', requireAuth, (req, res) => {
+  if (req.body?.hidden != null) {
+    db.prepare('UPDATE users SET region_hidden = ? WHERE id = ?').run(req.body.hidden ? 1 : 0, req.user.id);
+    if (req.body.hidden) db.prepare('UPDATE users SET region = NULL WHERE id = ?').run(req.user.id);
+  }
+  const tz = String(req.body?.tz || '').toLowerCase().slice(0, 60);
+  const country = TZ_COUNTRY[tz] || null;
+  const hidden = db.prepare('SELECT region_hidden FROM users WHERE id = ?').get(req.user.id).region_hidden;
+  if (!hidden && country) db.prepare('UPDATE users SET region = ? WHERE id = ?').run(country, req.user.id);
+  res.json({ ok: true, region: hidden ? null : country, hidden: !!hidden });
+});
+
+// Aggregated board. Every per-region figure respects opt-out + k-anonymity.
+router.get('/activity-map', (req, res) => {
+  const online_total = db
+    .prepare("SELECT COUNT(*) n FROM users WHERE last_seen_at IS NOT NULL AND (julianday('now') - julianday(last_seen_at)) * 24 * 60 <= 5 AND is_banned = 0")
+    .get().n;
+  const sales_24h = db.prepare("SELECT COUNT(*) n FROM orders WHERE status IN ('paid','delivered','completed') AND julianday(created_at) > julianday('now', '-1 day')").get().n;
+  const listings_24h = db.prepare("SELECT COUNT(*) n FROM listings WHERE julianday(created_at) > julianday('now', '-1 day')").get().n;
+  const trades_open = db.prepare("SELECT COUNT(*) n FROM trade_posts WHERE status = 'open'").get().n;
+
+  const regions = db
+    .prepare(
+      `SELECT region,
+        COUNT(*) AS traders,
+        SUM(CASE WHEN last_seen_at IS NOT NULL AND (julianday('now') - julianday(last_seen_at)) * 24 * 60 <= 5 THEN 1 ELSE 0 END) AS online,
+        (SELECT COUNT(*) FROM listings l JOIN users lu ON lu.id = l.seller_id
+          WHERE lu.region = users.region AND lu.region_hidden = 0 AND julianday(l.created_at) > julianday('now', '-1 day')) AS listings_24h,
+        (SELECT COUNT(*) FROM orders o JOIN users su ON su.id = o.seller_id
+          WHERE su.region = users.region AND su.region_hidden = 0 AND o.status IN ('paid','delivered','completed')
+            AND julianday(o.created_at) > julianday('now', '-1 day')) AS sales_24h
+       FROM users
+       WHERE region IS NOT NULL AND region_hidden = 0 AND is_banned = 0
+       GROUP BY region HAVING COUNT(*) >= ${K_ANON}
+       ORDER BY traders DESC LIMIT 30`
+    )
+    .all();
+
+  res.json({ online_total, sales_24h, listings_24h, trades_open, regions });
+});
+
 module.exports = router;

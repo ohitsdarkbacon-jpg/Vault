@@ -70,6 +70,28 @@ withdrawals, notifications, public profiles, and an admin panel.
 - **Admins set the verified verdict** (scammer / trusted / clear) with an optional public note, and can dismiss false reports — auto-flagged names fall back to clean once the last open report is cleared
 - A public **known-scammer watchlist** ranks confirmed and most-reported accounts, worst first — click any row to pull up its full record. Endpoints: `GET /api/trust/lookup?u=`, `GET /api/trust/watchlist`, `POST /api/trust/report`
 
+**⚡ Flash listings**
+- Sellers can put a fixed-price listing on a **5 / 10 / 30 / 60-minute** timer with a live countdown badge on the card. The **⚡ Flash only** filter + **Time remaining** sort surface them
+- Expiry is **authoritative server-side**: the timer is set once at creation and can never be edited; purchase, credit-buy, and offer paths all reject an expired listing directly, and a sweep in the auction-closer job flips lapsed listings to `expired` and pings the seller. Nothing can be bought in the gap between expiry and the sweep
+
+**🔮 "What can I get?" trade finder (`#trading`)**
+- Pick marketplace items that stand in for what you own; the finder totals their value and surfaces realistic swaps — active listings in a **±25% price band** (each tagged **Fair / slightly in your favor / slightly against you**) plus open trade posts whose "wants" overlap your items
+- Estimates are drawn from live marketplace data and clearly labelled as **not guaranteed**; results link straight to the listing, a DM, or a trade request. `POST /api/trade-finder`
+
+**🔗 Multi-person trade chains (`#trading`)**
+- When no straight swap exists, Vault finds **3–4 person cycles** (A→B→C→A) over trade posts opted into chain matching, where every person receives an item their post asked for
+- **Discovery only suggests**; the server re-validates the whole cycle from live data at proposal and at every confirmation. Terms (who gives/receives what) are **snapshotted at proposal** so they can't change once people start confirming
+- Status flows **Searching → Chain found → Waiting for participants → Everyone confirmed → Completed / Cancelled**. Nothing is agreed until every member individually confirms; any member can cancel; completing closes the underlying posts. `GET /api/chains/discover`, `POST /api/chains`, `/confirm`, `/done`, `/cancel`
+
+**🎲 Trade-Up Events (`#tournaments`)**
+- Admin-created challenges ("start with a common item and trade up as far as you can before the deadline") with a title, description, entry rules, optional starting-value cap, and a start/duration window
+- **Every step is partner-confirmed**: you name the Vault user you traded with, they must confirm before it counts, you can only trade away the exact item you currently hold, and a single hop can't claim an absurd value jump — so journeys are one verified line and progress can't be faked
+- **Three leaderboards** (highest final value, biggest % climb, most trades), a visible trade-up journey timeline, a one-click shareable summary, and 🎲/🏆 profile achievements. `GET /api/events`, `POST /api/events/:id/join`, `/steps`, `POST /api/events/steps/:id/confirm`
+
+**🌍 Global activity board (home)**
+- Privacy-safe, **aggregated by country only** — derived from the browser timezone, never IP lookups or coordinates. Site-wide totals (online, 24h sales, new listings, open trades) plus a per-country bar chart
+- **k-anonymity**: a country is only shown once **3+ opted-in traders** share it, and users can **opt out** entirely (which also clears their stored country). `POST /api/my/region`, `GET /api/activity-map`
+
 **Tournaments (community events)**
 - **Anyone can host**: title, game, description, player limit (4–128), and a signup deadline (1h–3 days)
 - **Prize transparency**: every tournament states its prize situation up front — 🛡 **held by middleman** (an online middleman is auto-assigned at start to hold the prize → guaranteed payout), ⚠ **held by the host** (no guaranteed payout), or 🎉 **no prize, just for fun**
