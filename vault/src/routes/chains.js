@@ -12,6 +12,7 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { notify } = require('../lib/notify');
+const { moderateField } = require('../lib/moderation');
 const { tokens, overlap } = require('../lib/matching');
 
 const router = express.Router();
@@ -175,6 +176,9 @@ function chainView(c, viewerId) {
     created_at: c.created_at,
     mm_state: c.mm_state,
     middleman: mm ? mm.username : null,
+    room_open: ['confirmed', 'completed'].includes(c.status), // group chat available
+    is_middleman: c.middleman_id === viewerId,
+    is_member: members.some((m) => m.user_id === viewerId),
     members: members.map((m) => ({
       username: m.username,
       avatar_url: m.avatar_url,
@@ -190,13 +194,15 @@ function chainView(c, viewerId) {
 }
 
 router.get('/chains/mine', requireAuth, (req, res) => {
+  // Chains I'm a trader in, plus any I've been assigned to middleman.
   const chains = db
     .prepare(
       `SELECT c.* FROM trade_chains c
-       JOIN trade_chain_members m ON m.chain_id = c.id AND m.user_id = ?
+       WHERE EXISTS (SELECT 1 FROM trade_chain_members m WHERE m.chain_id = c.id AND m.user_id = ?)
+          OR c.middleman_id = ?
        ORDER BY c.id DESC LIMIT 30`
     )
-    .all(req.user.id);
+    .all(req.user.id, req.user.id);
   res.json({ chains: chains.map((c) => chainView(c, req.user.id)) });
 });
 
@@ -302,6 +308,62 @@ router.post('/chains/:id/done', requireAuth, (req, res) => {
     })();
   }
   res.json({ ok: true, completed: left === 0 });
+});
+
+// ---------- Group chat room (traders + the assigned middleman) ----------
+// Opens once the chain is confirmed so everyone — including the middleman —
+// can agree on a server, the hand-off order, and confirm receipts together.
+function canAccessRoom(chain, userId) {
+  if (chain.middleman_id === userId) return true;
+  return !!db.prepare('SELECT 1 FROM trade_chain_members WHERE chain_id = ? AND user_id = ?').get(chain.id, userId);
+}
+
+router.get('/chains/:id/messages', requireAuth, (req, res) => {
+  const chain = db.prepare('SELECT * FROM trade_chains WHERE id = ?').get(req.params.id);
+  if (!chain || !canAccessRoom(chain, req.user.id)) return res.status(404).json({ error: 'Chain not found.' });
+  if (!['confirmed', 'completed'].includes(chain.status)) {
+    return res.status(400).json({ error: 'The chat opens once everyone confirms the chain.' });
+  }
+  const after = parseInt(req.query.after, 10) || 0;
+  const messages = db
+    .prepare(
+      `SELECT m.id, m.sender_id, m.body, m.created_at, u.username AS sender_name,
+        (m.sender_id = ?) AS mine, (m.sender_id = ?) AS from_mm
+       FROM trade_chain_messages m JOIN users u ON u.id = m.sender_id
+       WHERE m.chain_id = ? AND m.id > ? ORDER BY m.id ASC LIMIT 200`
+    )
+    .all(req.user.id, chain.middleman_id || 0, chain.id, after);
+  const memberNames = db
+    .prepare('SELECT u.username FROM trade_chain_members m JOIN users u ON u.id = m.user_id WHERE m.chain_id = ? ORDER BY m.position')
+    .all(chain.id)
+    .map((r) => r.username);
+  const mm = chain.middleman_id ? db.prepare('SELECT username FROM users WHERE id = ?').get(chain.middleman_id) : null;
+  res.json({
+    messages,
+    room: {
+      id: chain.id,
+      status: chain.status,
+      members: memberNames,
+      middleman: mm ? mm.username : null,
+      can_post: chain.status === 'confirmed',
+    },
+  });
+});
+
+router.post('/chains/:id/messages', requireAuth, (req, res) => {
+  const chain = db.prepare('SELECT * FROM trade_chains WHERE id = ?').get(req.params.id);
+  if (!chain || !canAccessRoom(chain, req.user.id)) return res.status(404).json({ error: 'Chain not found.' });
+  if (chain.status !== 'confirmed') {
+    return res.status(400).json({ error: 'This chat is read-only now.' });
+  }
+  const body = String(req.body?.body || '').trim().slice(0, 1000);
+  if (!body) return res.status(400).json({ error: 'Message is empty.' });
+  const mod = moderateField(body, 'message');
+  if (!mod.ok) return res.status(400).json({ error: mod.error });
+  const info = db
+    .prepare('INSERT INTO trade_chain_messages (chain_id, sender_id, body) VALUES (?, ?, ?)')
+    .run(chain.id, req.user.id, mod.clean);
+  res.status(201).json({ ok: true, id: info.lastInsertRowid });
 });
 
 module.exports = router;

@@ -129,6 +129,7 @@ function closeModal(id) {
   if (id === 'bid-overlay') clearInterval(bidPollTimer);
   if (id === 'ticket-overlay') { clearInterval(ticketPollTimer); activeTicketId = null; }
   if (id === 'tchat-overlay') { clearInterval(tchatPollTimer); activeTourneyId = null; }
+  if (id === 'chainchat-overlay') { clearInterval(chainRoomTimer); activeChainRoomId = null; }
   if (id === 'lobbyroom-overlay') { clearInterval(lobbyPollTimer); clearInterval(lobbyChatTimer); activeLobbyId = null; /* voice keeps running in the widget */ }
 }
 // ---------- Custom confirm / prompt dialogs (replace native popups) ----------
@@ -4492,18 +4493,20 @@ async function loadMyChains() {
           <span class="chain-mm-actions"><button class="btn btn-gold btn-small" data-cmm="${c.id}">Request a middleman</button></span></div>`;
       }
     }
-    const canDone = c.status === 'confirmed' && !c.my_done && c.mm_state !== 'none';
+    const canDone = c.is_member && c.status === 'confirmed' && !c.my_done && c.mm_state !== 'none';
     return `<div class="chain-card">
-      <div class="chain-card-head"><span class="chain-status ${cls}">${label}</span><span class="sub">${timeAgo(c.created_at)}</span></div>
+      <div class="chain-card-head"><span class="chain-status ${cls}">${label}</span>${c.is_middleman ? '<span class="chain-mm-tag">⚖️ You middleman this</span>' : ''}<span class="sub">${timeAgo(c.created_at)}</span></div>
       ${chainDiagram(c.members)}
-      ${mmRow}
+      ${c.is_member ? mmRow : ''}
       <div class="chain-actions">
-        ${c.status === 'proposed' && !c.my_confirmed ? `<button class="btn btn-gold btn-small" data-cconfirm="${c.id}">✔ Confirm my part</button>` : ''}
+        ${c.room_open ? `<button class="btn btn-small btn-gold" data-croom="${c.id}">💬 Group chat</button>` : ''}
+        ${c.is_member && c.status === 'proposed' && !c.my_confirmed ? `<button class="btn btn-gold btn-small" data-cconfirm="${c.id}">✔ Confirm my part</button>` : ''}
         ${canDone ? `<button class="btn btn-gold btn-small" data-cdone="${c.id}">✅ Mark my hand-off done</button>` : ''}
-        ${['proposed', 'confirmed'].includes(c.status) ? `<button class="btn btn-small" style="color:var(--danger)" data-ccancel="${c.id}">Cancel chain</button>` : ''}
+        ${c.is_member && ['proposed', 'confirmed'].includes(c.status) ? `<button class="btn btn-small" style="color:var(--danger)" data-ccancel="${c.id}">Cancel chain</button>` : ''}
       </div>
     </div>`;
   }).join('');
+  box.querySelectorAll('[data-croom]').forEach(b => b.onclick = () => openChainRoom(parseInt(b.dataset.croom, 10)));
   box.querySelectorAll('[data-cmm]').forEach(b => b.onclick = async () => {
     const r2 = await api(`/api/chains/${b.dataset.cmm}/request-mm`, { method: 'POST' });
     if (r2.error) return toast(r2.error, 'error');
@@ -4538,6 +4541,69 @@ async function loadMyChains() {
     loadMyChains();
   });
 }
+
+// ---------- Trade-chain group chat room ----------
+let activeChainRoomId = null, lastChainMsgId = 0, chainRoomTimer = null, chainRoomBusy = false, chainSending = false;
+async function openChainRoom(chainId) {
+  activeChainRoomId = chainId;
+  lastChainMsgId = 0;
+  $('#chainchat-box').innerHTML = '<div class="chat-empty">Loading…</div>';
+  openModal('chainchat-overlay');
+  await pollChainRoom(true);
+  clearInterval(chainRoomTimer);
+  chainRoomTimer = setInterval(() => pollChainRoom(false), 4000);
+}
+async function pollChainRoom(initial) {
+  if (!activeChainRoomId || chainRoomBusy) return;
+  chainRoomBusy = true;
+  try {
+    const r = await api(`/api/chains/${activeChainRoomId}/messages?after=${lastChainMsgId}`);
+    if (r.error) { if (initial) $('#chainchat-box').innerHTML = `<div class="chat-empty">${escapeHtml(r.error)}</div>`; return; }
+    if (initial) {
+      const room = r.room;
+      $('#chainchat-title').textContent = `Trade chain #${room.id} room`;
+      $('#chainchat-sub').innerHTML = `${room.members.map(escapeHtml).join(' → ')}${room.middleman ? ` · Middleman <b>⚖️ ${escapeHtml(room.middleman)}</b>` : ''}`;
+      $('#chainchat-input-row').style.display = room.can_post ? 'flex' : 'none';
+      $('#chainchat-box').innerHTML = '';
+    }
+    const box = $('#chainchat-box');
+    const msgs = (r.messages || []).filter(m => m.id > lastChainMsgId);
+    if (initial && !msgs.length) {
+      box.innerHTML = '<div class="chat-empty">Everyone in the chain — plus the middleman — sees this room. Agree on the hand-off order and confirm each swap here.</div>';
+      return;
+    }
+    if (msgs.length && box.querySelector('.chat-empty')) box.innerHTML = '';
+    msgs.forEach(m => {
+      lastChainMsgId = Math.max(lastChainMsgId, m.id);
+      const el = document.createElement('div');
+      el.className = 'chat-msg ' + (m.mine ? 'mine' : 'theirs') + (m.from_mm ? ' from-mm' : '');
+      el.innerHTML = `${escapeHtml(m.body)}<div class="m-meta">${m.from_mm ? '⚖️ ' : ''}${escapeHtml(m.sender_name)} · ${timeAgo(m.created_at)}</div>`;
+      box.appendChild(el);
+    });
+    if (msgs.length) box.scrollTop = box.scrollHeight;
+  } finally {
+    chainRoomBusy = false;
+  }
+}
+async function sendChainMsg() {
+  const input = $('#chainchat-input');
+  const body = input.value.trim();
+  if (!body || !activeChainRoomId || chainSending) return;
+  chainSending = true;
+  $('#chainchat-send').disabled = true;
+  input.value = '';
+  try {
+    const r = await api(`/api/chains/${activeChainRoomId}/messages`, { method: 'POST', body: JSON.stringify({ body }) });
+    if (r.error) { toast(r.error, 'error'); input.value = body; return; }
+    await pollChainRoom(false);
+  } finally {
+    chainSending = false;
+    $('#chainchat-send').disabled = false;
+    input.focus();
+  }
+}
+$('#chainchat-send').onclick = sendChainMsg;
+$('#chainchat-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChainMsg(); });
 
 // ============================================================
 // Trade-Up Events

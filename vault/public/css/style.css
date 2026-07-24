@@ -2017,6 +2017,7 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
 .chain-mm.ok { background: rgba(52,199,123,0.1); border-color: rgba(52,199,123,0.4); }
 .chain-mm.warn { background: rgba(245,178,66,0.1); border-color: rgba(245,178,66,0.4); }
 .chain-mm-actions { display: flex; gap: 6px; }
+.chain-mm-tag { font-size: 0.72rem; font-weight: 700; padding: 4px 10px; border-radius: 12px; background: rgba(52,199,123,0.14); color: var(--live); margin-left: 8px; }
 .chain-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 
 /* ---------- Trade-Up events ---------- */

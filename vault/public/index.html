@@ -785,6 +785,20 @@
   </div>
 </div>
 
+<!-- Trade-chain group chat: all traders + the assigned middleman -->
+<div class="overlay" id="chainchat-overlay">
+  <div class="modal modal-wrap" style="max-width:540px">
+    <button class="modal-close" data-close="chainchat-overlay">✕</button>
+    <h3 id="chainchat-title">Trade chain room</h3>
+    <div class="sub" id="chainchat-sub"></div>
+    <div class="chat-box" id="chainchat-box"><div class="chat-empty">Loading…</div></div>
+    <div class="chat-input-row" id="chainchat-input-row">
+      <input id="chainchat-input" placeholder="Message the chain…" maxlength="1000" autocomplete="off">
+      <button class="btn btn-gold" id="chainchat-send">Send</button>
+    </div>
+  </div>
+</div>
+
 <!-- Dispute modal -->
 <div class="overlay" id="dispute-overlay">
   <div class="modal modal-wrap">
