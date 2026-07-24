@@ -143,6 +143,21 @@
   <div class="pulse-chart" id="game-pulse"></div>
 </section>
 
+<section class="section" id="activity-map-section" style="display:none;padding-top:0;padding-bottom:10px">
+  <div class="section-head">
+    <div><span class="eyebrow">Global activity</span><h2 style="font-size:1.2rem">🌍 Traders around the world</h2></div>
+    <span class="sub" style="margin:0">Aggregated by country — never precise locations</span>
+  </div>
+  <div class="map-stats" id="map-stats"></div>
+  <div class="map-regions" id="map-regions"></div>
+  <div class="map-optout" id="map-optout" hidden>
+    <label class="pro-renew-row" style="margin:0">
+      <button type="button" class="toggle" id="region-toggle" role="switch" aria-checked="false"><span class="knob"></span></button>
+      Include my country in these anonymous counts
+    </label>
+  </div>
+</section>
+
 <section class="section" id="recent-trades-section" style="display:none;padding-top:0;padding-bottom:34px">
   <div class="section-head"><div><span class="eyebrow">Live activity</span><h2 style="font-size:1.2rem">Recently traded</h2></div></div>
   <div class="recent-strip" id="recent-strip"></div>
@@ -207,8 +222,10 @@
         <div class="cs-option active" data-value="newest">Newest</div>
         <div class="cs-option" data-value="price_asc">Price: low to high</div>
         <div class="cs-option" data-value="price_desc">Price: high to low</div>
+        <div class="cs-option" data-value="ending_soon">⚡ Time remaining</div>
       </div>
     </div>
+    <button class="clear-btn flash-toggle" id="listings-flash">⚡ Flash only</button>
     <button class="clear-btn" id="listings-clear">Clear</button>
   </div>
   <div class="cat-chips" id="listings-cats"></div>
@@ -302,6 +319,38 @@
       <div><h2>In-game trading</h2><div class="sub">Item-for-item trades — no money involved. Match through DMs, then trade directly in game or request a middleman for safety.</div></div>
       <button class="btn btn-gold" id="post-trade-btn">+ Post a trade</button>
     </div>
+
+    <div class="tool-cards">
+      <div class="tool-card" id="finder-card">
+        <div class="tool-head" data-tool="finder"><b>🔮 What can I get?</b><span class="sub" style="margin:0">Pick items like yours, see realistic trades</span><span class="tool-chev">▾</span></div>
+        <div class="tool-body" id="finder-body" hidden>
+          <div class="sub" style="margin-bottom:8px">Search the marketplace for items matching what you own, add them, and we'll estimate what your bundle could realistically get. Estimates come from live marketplace data — never a guarantee.</div>
+          <div class="finder-pick-row">
+            <div class="search-input-wrap" style="flex:1">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="search" id="finder-q" placeholder="Search items like yours…" autocomplete="off">
+            </div>
+          </div>
+          <div id="finder-suggestions" class="finder-suggestions"></div>
+          <div class="finder-picked" id="finder-picked"></div>
+          <div class="finder-total" id="finder-total" hidden></div>
+          <button class="btn btn-gold" id="finder-go" disabled>See what I can get</button>
+          <div id="finder-results"></div>
+        </div>
+      </div>
+
+      <div class="tool-card" id="chains-card">
+        <div class="tool-head" data-tool="chains"><b>🔗 Trade chains</b><span class="sub" style="margin:0">3–4 person trades where everyone wins</span><span class="tool-chev">▾</span></div>
+        <div class="tool-body" id="chains-body" hidden>
+          <div class="sub" style="margin-bottom:10px">When no one wants a straight swap, a chain routes items around a circle so every person gets something they asked for. Opt a trade post into chain matching, then search. Every member must confirm before anything is agreed.</div>
+          <button class="btn" id="chains-find">🔍 Find chains for my posts</button>
+          <div id="chains-found"></div>
+          <h4 class="chains-mine-head" style="margin:16px 0 8px">My chains</h4>
+          <div id="chains-mine"><div class="sub">Nothing yet.</div></div>
+        </div>
+      </div>
+    </div>
+
     <div class="search-bar" style="margin-bottom:14px">
       <div class="search-input-wrap" style="flex:1">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
@@ -321,6 +370,12 @@
       <button class="btn btn-gold" id="host-tourney-btn">+ Host a tournament</button>
     </div>
     <div class="tourney-grid" id="tourney-grid"><div class="empty">Loading tournaments…</div></div>
+
+    <div class="page-head" style="margin-top:34px">
+      <div><h2>🎲 Trade-Up Events</h2><div class="sub">Start with a common item and trade up as far as you can before the clock runs out. Every trade must be confirmed by your trade partner — only verified trades count on the leaderboard.</div></div>
+      <button class="btn btn-gold" id="event-create-btn" style="display:none">+ Create event</button>
+    </div>
+    <div class="event-grid" id="events-grid"><div class="empty">Loading events…</div></div>
   </div>
 </div>
 
@@ -525,6 +580,20 @@
           <small>Buyers need to see what they're getting. Paste a screenshot (Ctrl+V), drag &amp; drop, or upload — any image format, up to 20&nbsp;MB.</small>
         </div>
         <div class="field" id="sell-price-field"><label>Price (USD)</label><input id="sell-price" type="number" min="1" step="0.01" placeholder="25.00"></div>
+        <div class="field" id="sell-flash-field">
+          <label>⚡ Flash sale (optional)</label>
+          <div class="custom-select" id="sell-flash" data-value="">
+            <div class="cs-trigger"><span class="cs-label">No time limit</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <div class="cs-dropdown">
+              <div class="cs-option active" data-value="">No time limit</div>
+              <div class="cs-option" data-value="5">⚡ 5 minutes</div>
+              <div class="cs-option" data-value="10">⚡ 10 minutes</div>
+              <div class="cs-option" data-value="30">⚡ 30 minutes</div>
+              <div class="cs-option" data-value="60">⚡ 1 hour</div>
+            </div>
+          </div>
+          <small>Flash listings expire automatically — the timer can't be changed after posting.</small>
+        </div>
         <div id="sell-auction-fields" style="display:none">
           <div class="field-row">
             <div class="field"><label>Starting bid (USD)</label><input id="sell-start-bid" type="number" min="1" step="0.01" placeholder="10.00"></div>
@@ -849,8 +918,89 @@
     </div>
     <div class="field"><label>Notes (optional)</label><input id="trade-notes" placeholder="e.g. NFR only, no adds" maxlength="500"></div>
     <div class="field"><label>Image URL (optional)</label><input id="trade-image" placeholder="https://… or /uploads/…"></div>
+    <label class="pro-renew-row" style="margin-top:4px">
+      <button type="button" class="toggle" id="trade-chain-toggle" role="switch" aria-checked="false"><span class="knob"></span></button>
+      🔗 Include in trade-chain matching (3–4 person trades)
+    </label>
     <div class="error-text" id="trade-error"></div>
     <div class="modal-actions"><button class="btn btn-gold" id="trade-submit" style="flex:1">Post trade</button></div>
+  </div>
+</div>
+
+<!-- Trade-Up Event: admin create -->
+<div class="overlay" id="event-create-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="event-create-overlay">✕</button>
+    <h3>Create a Trade-Up Event</h3>
+    <div class="sub">Players start with a cheap item and trade up. Partner-confirmed trades only.</div>
+    <div class="field"><label>Title</label><input id="event-title" placeholder="Weekend Trade-Up Challenge" maxlength="120"></div>
+    <div class="field"><label>Description (optional)</label><textarea id="event-desc" rows="3" placeholder="What's the vibe? Any prize?" maxlength="1000"></textarea></div>
+    <div class="field"><label>Entry rules (optional)</label><input id="event-rules" placeholder="e.g. Adopt Me items only" maxlength="500"></div>
+    <div class="field-row">
+      <div class="field"><label>Max starting value (USD, optional)</label><input id="event-cap" type="number" min="0.01" step="0.01" placeholder="5.00"></div>
+      <div class="field">
+        <label>Starts</label>
+        <div class="custom-select" id="event-starts" data-value="0">
+          <div class="cs-trigger"><span class="cs-label">Now</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="cs-dropdown">
+            <div class="cs-option active" data-value="0">Now</div>
+            <div class="cs-option" data-value="1">In 1 hour</div>
+            <div class="cs-option" data-value="6">In 6 hours</div>
+            <div class="cs-option" data-value="24">In 24 hours</div>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Duration</label>
+        <div class="custom-select" id="event-duration" data-value="24">
+          <div class="cs-trigger"><span class="cs-label">24 hours</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="cs-dropdown">
+            <div class="cs-option" data-value="6">6 hours</div>
+            <div class="cs-option" data-value="12">12 hours</div>
+            <div class="cs-option active" data-value="24">24 hours</div>
+            <div class="cs-option" data-value="48">2 days</div>
+            <div class="cs-option" data-value="168">1 week</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="error-text" id="event-create-error"></div>
+    <div class="modal-actions"><button class="btn btn-gold" id="event-create-submit" style="flex:1">Create event</button></div>
+  </div>
+</div>
+
+<!-- Trade-Up Event: join -->
+<div class="overlay" id="event-join-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="event-join-overlay">✕</button>
+    <h3>Join the event</h3>
+    <div class="sub" id="event-join-sub">Declare your starting item — you'll trade up from here.</div>
+    <div class="field"><label>Starting item</label><input id="event-start-item" placeholder="e.g. Common Egg" maxlength="120"></div>
+    <div class="field"><label>Its value (USD)</label><input id="event-start-value" type="number" min="0.01" step="0.01" placeholder="1.00"></div>
+    <div class="error-text" id="event-join-error"></div>
+    <div class="modal-actions"><button class="btn btn-gold" id="event-join-submit" style="flex:1">Join event</button></div>
+  </div>
+</div>
+
+<!-- Trade-Up Event: log a trade step -->
+<div class="overlay" id="event-step-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="event-step-overlay">✕</button>
+    <h3>Log a trade</h3>
+    <div class="sub">You're trading away <b id="event-step-holding">…</b>. Your partner must confirm before it counts.</div>
+    <div class="field"><label>What did you get?</label><input id="event-step-got" placeholder="e.g. Rare Unicorn" maxlength="120"></div>
+    <div class="field"><label>Its value (USD)</label><input id="event-step-value" type="number" min="0.01" step="0.01" placeholder="4.00"></div>
+    <div class="field"><label>Trade partner (Vault username)</label><input id="event-step-partner" placeholder="Their exact username" maxlength="40"></div>
+    <div class="error-text" id="event-step-error"></div>
+    <div class="modal-actions"><button class="btn btn-gold" id="event-step-submit" style="flex:1">Submit for confirmation</button></div>
+  </div>
+</div>
+
+<!-- Trade-Up Event: detail (journey + leaderboards) -->
+<div class="overlay" id="event-overlay">
+  <div class="modal modal-wrap modal-lg">
+    <button class="modal-close" data-close="event-overlay">✕</button>
+    <div id="event-detail"><div class="empty">Loading…</div></div>
   </div>
 </div>
 

@@ -29,7 +29,17 @@ const LISTING_SORTS = {
   newest: 'l.created_at DESC',
   price_asc: 'l.price_cents ASC',
   price_desc: 'l.price_cents DESC',
+  ending_soon: 'l.expires_at ASC', // flash listings: least time left first
 };
+
+// Flash listings: allowed lifetimes (minutes) and an is-still-live guard.
+// Expiry is authoritative server-side: set once at creation, never editable,
+// checked at purchase time, and swept to status 'expired' by the closer job.
+const FLASH_MINUTES = new Set([5, 10, 30, 60]);
+const NOT_EXPIRED = "(l.expires_at IS NULL OR l.expires_at > datetime('now'))";
+function listingExpired(listing) {
+  return listing.expires_at && Date.parse(listing.expires_at + 'Z') <= Date.now();
+}
 
 function isValidImageUrl(url) {
   if (!url) return true; // optional field
@@ -50,12 +60,13 @@ router.get('/', (req, res) => {
   const minPrice = parsePriceCents(req.query.min_price);
   const maxPrice = parsePriceCents(req.query.max_price);
 
-  const conditions = ["l.status = 'active'"];
+  const conditions = ["l.status = 'active'", NOT_EXPIRED];
   const params = [];
   if (minPrice != null) { conditions.push('l.price_cents >= ?'); params.push(minPrice); }
   if (maxPrice != null) { conditions.push('l.price_cents <= ?'); params.push(maxPrice); }
   const category = parseCategory(req.query.category);
   if (category) { conditions.push('l.category = ?'); params.push(category); }
+  if (req.query.flash === '1') conditions.push('l.expires_at IS NOT NULL');
 
   const sortKey = req.query.sort && LISTING_SORTS[req.query.sort] ? req.query.sort : (q ? 'relevance' : 'newest');
   const orderBy = LISTING_SORTS[sortKey] || LISTING_SORTS.newest;
@@ -137,9 +148,19 @@ router.post('/', requireAuth, (req, res) => {
   const modDesc = moderateField(description ? String(description).trim() : null, 'description');
   if (!modDesc.ok) return res.status(400).json({ error: modDesc.error });
 
+  // Optional flash sale: fixed expiry set here and immutable afterwards.
+  let expiresAt = null;
+  if (req.body?.flash_minutes != null && req.body.flash_minutes !== '') {
+    const mins = parseInt(req.body.flash_minutes, 10);
+    if (!FLASH_MINUTES.has(mins)) return res.status(400).json({ error: 'Flash duration must be 5, 10, 30, or 60 minutes.' });
+    if (!price_cents) return res.status(400).json({ error: 'Flash listings need a price.' });
+    expiresAt = { mins };
+  }
+
   const info = db
     .prepare(
-      "INSERT INTO listings (seller_id, title, description, image_url, price_cents, category) VALUES (?, ?, ?, ?, ?, ?)"
+      `INSERT INTO listings (seller_id, title, description, image_url, price_cents, category, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ${expiresAt ? "datetime('now', '+' || ? || ' minutes')" : 'NULL'})`
     )
     .run(
       req.user.id,
@@ -147,7 +168,8 @@ router.post('/', requireAuth, (req, res) => {
       modDesc.clean || null,
       image_url || null,
       price_cents || null,
-      parseCategory(req.body?.category) || 'other'
+      parseCategory(req.body?.category) || 'other',
+      ...(expiresAt ? [expiresAt.mins] : [])
     );
   const listing = db.prepare(`${listingQuery} WHERE l.id = ?`).get(info.lastInsertRowid);
   res.status(201).json({ listing });
@@ -175,7 +197,7 @@ router.get('/:id', (req, res) => {
 // Instant purchase using site credit balance
 router.post('/:id/buy-with-credit', requireAuth, (req, res) => {
   const listing = db.prepare('SELECT * FROM listings WHERE id = ?').get(req.params.id);
-  if (!listing || listing.status !== 'active') {
+  if (!listing || listing.status !== 'active' || listingExpired(listing)) {
     return res.status(400).json({ error: 'This listing is no longer available.' });
   }
   if (!listing.price_cents) {
@@ -229,6 +251,12 @@ router.patch('/:id', requireAuth, (req, res) => {
 
   const body = req.body || {};
   const updates = {};
+
+  // The flash timer is immutable — set at creation, never editable, so a
+  // seller can't extend or shrink it after buyers have started watching.
+  if (body.expires_at !== undefined || body.flash_minutes !== undefined) {
+    return res.status(400).json({ error: "A flash listing's timer can't be changed after creation." });
+  }
 
   if (body.title != null) {
     const title = String(body.title).trim();

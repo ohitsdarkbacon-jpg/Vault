@@ -13,6 +13,9 @@ function money(cents) { return `$${(cents / 100).toFixed(2)}`; }
 router.post('/listings/:id/offers', requireAuth, (req, res) => {
   const listing = db.prepare('SELECT * FROM listings WHERE id = ?').get(req.params.id);
   if (!listing || listing.status !== 'active') return res.status(400).json({ error: 'This listing is no longer available.' });
+  if (listing.expires_at && Date.parse(listing.expires_at + 'Z') <= Date.now()) {
+    return res.status(400).json({ error: 'This flash listing has expired.' });
+  }
   if (!listing.price_cents) return res.status(400).json({ error: 'This item is auction-only.' });
   if (listing.seller_id === req.user.id) return res.status(400).json({ error: "You can't make an offer on your own listing." });
 

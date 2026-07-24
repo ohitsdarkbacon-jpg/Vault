@@ -176,6 +176,12 @@ router.get('/users/:username', (req, res) => {
   if (stats.avg_rating >= 4.5 && stats.review_count >= 5) achievements.push({ icon: '🌟', label: 'Top Rated', desc: '4.5★+ across 5+ reviews' });
   if (trade.biggest >= 10000) achievements.push({ icon: '🐋', label: 'Big Fish', desc: 'Completed a $100+ trade' });
   if (ageDays >= 30) achievements.push({ icon: '🏛', label: 'Vault Veteran', desc: 'Trading for 30+ days' });
+  // Trade-Up Events: participated with at least one partner-confirmed step.
+  const eventSteps = db
+    .prepare('SELECT COUNT(*) n FROM trade_event_steps WHERE user_id = ? AND confirmed = 1')
+    .get(user.id).n;
+  if (eventSteps >= 1) achievements.push({ icon: '🎲', label: 'Event Trader', desc: 'Verified trade in a Trade-Up Event' });
+  if (eventSteps >= 10) achievements.push({ icon: '🏆', label: 'Trade-Up Grinder', desc: '10+ verified event trades' });
 
   const { last_seen_at, ...pub } = user;
   res.json({ user: { ...pub, ...stats, online, blocked_by_me }, listings, auctions, reviews, histogram, achievements });

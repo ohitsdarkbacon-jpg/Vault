@@ -66,8 +66,8 @@ router.post('/trades', requireAuth, (req, res) => {
   if (open >= cap) return res.status(400).json({ error: `You already have ${cap} open trade posts — close some first.` });
 
   const info = db
-    .prepare('INSERT INTO trade_posts (user_id, offering, wants, category, image_url, notes) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(req.user.id, modOffering.clean, modWants.clean, parseCategory(req.body?.category) || 'other', image_url, modNotes.clean || null);
+    .prepare('INSERT INTO trade_posts (user_id, offering, wants, category, image_url, notes, chain_ok) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(req.user.id, modOffering.clean, modWants.clean, parseCategory(req.body?.category) || 'other', image_url, modNotes.clean || null, req.body?.chain_ok ? 1 : 0);
   res.status(201).json({ ok: true, id: info.lastInsertRowid });
 });
 
@@ -309,5 +309,66 @@ function rotateStaleTickets() {
 function startTicketRotator(intervalMs = 15000) {
   return setInterval(rotateStaleTickets, intervalMs);
 }
+
+// ============ "What can I get?" trade finder ============
+// Pick up to 10 marketplace listings that stand in for the items you own;
+// we total their prices and surface realistic matches: active listings in a
+// comparable price band, plus open trade posts whose "wants" overlap your
+// items. Estimates come from marketplace data and are never guaranteed.
+const { tokens, overlap } = require('../lib/matching');
+
+function fairness(targetCents, myTotalCents) {
+  const r = targetCents / myTotalCents;
+  if (r >= 0.95 && r <= 1.05) return 'fair';
+  if (r > 1.05) return 'slightly_favorable';      // you'd receive more value
+  return 'slightly_unfavorable';                  // you'd receive less value
+}
+
+router.post('/trade-finder', requireAuth, (req, res) => {
+  const ids = Array.isArray(req.body?.listing_ids)
+    ? [...new Set(req.body.listing_ids.map((n) => parseInt(n, 10)).filter(Number.isInteger))].slice(0, 10)
+    : [];
+  if (!ids.length) return res.status(400).json({ error: 'Pick at least one item.' });
+
+  const placeholders = ids.map(() => '?').join(',');
+  const selected = db
+    .prepare(`SELECT id, title, image_url, price_cents, category FROM listings WHERE id IN (${placeholders}) AND price_cents IS NOT NULL`)
+    .all(...ids);
+  if (!selected.length) return res.status(400).json({ error: 'None of those items have a price to estimate from.' });
+
+  const total = selected.reduce((s, l) => s + l.price_cents, 0);
+  const lo = Math.floor(total * 0.75);
+  const hi = Math.ceil(total * 1.25);
+
+  // Comparable listings: active, live, priced within ±25%, not mine.
+  const listings = db
+    .prepare(
+      `SELECT l.id, l.title, l.image_url, l.price_cents, l.category, l.expires_at,
+              u.username AS seller_name, u.is_verified AS seller_verified
+       FROM listings l JOIN users u ON u.id = l.seller_id
+       WHERE l.status = 'active' AND (l.expires_at IS NULL OR l.expires_at > datetime('now'))
+         AND l.seller_id != ? AND l.price_cents BETWEEN ? AND ?
+         AND l.id NOT IN (${placeholders})
+       ORDER BY ABS(l.price_cents - ?) ASC LIMIT 20`
+    )
+    .all(req.user.id, lo, hi, ...ids, total)
+    .map((l) => ({ ...l, fairness: fairness(l.price_cents, total) }));
+
+  // Open trade posts that want something like what you're holding.
+  const mine = tokens(selected.map((l) => l.title).join(' '));
+  const tradePosts = db
+    .prepare(
+      `SELECT t.id, t.offering, t.wants, t.category, t.image_url, u.username, u.is_verified
+       FROM trade_posts t JOIN users u ON u.id = t.user_id
+       WHERE t.status = 'open' AND t.user_id != ? ORDER BY t.id DESC LIMIT 300`
+    )
+    .all(req.user.id)
+    .map((t) => ({ ...t, match_score: overlap(tokens(t.wants), mine) }))
+    .filter((t) => t.match_score > 0)
+    .sort((a, b) => b.match_score - a.match_score)
+    .slice(0, 10);
+
+  res.json({ total_cents: total, selected, listings, trade_posts: tradePosts });
+});
 
 module.exports = { router, startTicketRotator, rotateStaleTickets };

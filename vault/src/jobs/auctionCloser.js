@@ -65,9 +65,27 @@ function sendEndingSoonAlerts() {
   console.log(`[auctionCloser] sent ending-soon alerts for ${closing.length} auction(s)`);
 }
 
+// Flash listings: flip past-expiry actives to 'expired' so they drop out of
+// browse/search. Purchase paths also check expires_at directly, so nothing
+// can be bought in the window between real expiry and this sweep.
+function expireFlashListings() {
+  const expired = db
+    .prepare("SELECT id, seller_id, title FROM listings WHERE status = 'active' AND expires_at IS NOT NULL AND julianday(expires_at) <= julianday('now')")
+    .all();
+  if (!expired.length) return;
+  const stmt = db.prepare("UPDATE listings SET status = 'expired' WHERE id = ? AND status = 'active'");
+  const tx = db.transaction((rows) => rows.forEach((r) => stmt.run(r.id)));
+  tx(expired);
+  for (const l of expired) {
+    notify(l.seller_id, 'flash_expired', `⚡ Your flash listing "${l.title}" expired without selling.`, '#dashboard');
+  }
+  console.log(`[auctionCloser] expired ${expired.length} flash listing(s)`);
+}
+
 function tick() {
   closeExpiredAuctions();
   sendEndingSoonAlerts();
+  expireFlashListings();
 }
 
 function startAuctionCloser(intervalMs = 30000) {
