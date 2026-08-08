@@ -745,6 +745,83 @@ CREATE INDEX IF NOT EXISTS idx_event_steps ON trade_event_steps(event_id, user_i
 CREATE INDEX IF NOT EXISTS idx_event_steps_partner ON trade_event_steps(partner_id, confirmed);
 `);
 
+// ============================================================
+// v7 schema — growth: referrals, creator partners, feature flags
+// ============================================================
+
+// Referrals. Every user gets a short shareable code (assigned lazily on
+// first use); a new signup that arrives with a code is attributed once and
+// only pays out after that user completes a real order — so invites can't
+// be farmed with throwaway accounts.
+ensureColumn('users', 'referral_code', 'referral_code TEXT');
+ensureColumn('users', 'referred_by', 'referred_by INTEGER REFERENCES users(id)');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users(referral_code) WHERE referral_code IS NOT NULL');
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS referrals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  referrer_id INTEGER NOT NULL REFERENCES users(id),
+  referred_id INTEGER NOT NULL UNIQUE REFERENCES users(id), -- one referrer per account, ever
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','qualified')),
+  referrer_reward_cents INTEGER NOT NULL DEFAULT 0,
+  referred_reward_cents INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  qualified_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_id, status);
+`);
+
+// Content-creator partner programme: apply with your channel, admins review,
+// approved creators get a badge, a vanity referral code, and a directory spot.
+ensureColumn('users', 'is_creator', 'is_creator INTEGER NOT NULL DEFAULT 0');
+ensureColumn('users', 'creator_platform', 'creator_platform TEXT');
+ensureColumn('users', 'creator_handle', 'creator_handle TEXT');
+ensureColumn('users', 'creator_url', 'creator_url TEXT');
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS creator_applications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  platform TEXT NOT NULL,              -- youtube | tiktok | twitch | x | discord | other
+  handle TEXT NOT NULL,
+  url TEXT NOT NULL,
+  followers INTEGER NOT NULL DEFAULT 0,
+  pitch TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  admin_note TEXT,
+  reviewed_by INTEGER REFERENCES users(id),
+  reviewed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_creator_apps_status ON creator_applications(status, id);
+`);
+
+// Feature flags — every optional section of the site is a row here, so new
+// features can ship dark and be switched on from the admin panel without a
+// deploy. Unknown/missing keys default to ON so nothing breaks on upgrade.
+db.exec(`
+CREATE TABLE IF NOT EXISTS site_flags (
+  key TEXT PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  label TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`);
+{
+  const seed = db.prepare('INSERT OR IGNORE INTO site_flags (key, label, enabled) VALUES (?, ?, 1)');
+  [
+    ['referrals', 'Referral programme'],
+    ['creators', 'Creator partner programme'],
+    ['trust', 'Trust check / scammer watchlist'],
+    ['chains', 'Multi-person trade chains'],
+    ['events', 'Trade-Up events'],
+    ['flash', 'Flash listings'],
+    ['activity_map', 'Global activity board'],
+    ['tournaments', 'Tournaments'],
+    ['lobbies', 'Play with others / voice'],
+  ].forEach(([k, l]) => seed.run(k, l));
+}
+
 // Seed admins from env: comma-separated Roblox user IDs
 const adminIds = (process.env.ADMIN_DISCORD_IDS || process.env.ADMIN_ROBLOX_IDS || '')
   .split(',')

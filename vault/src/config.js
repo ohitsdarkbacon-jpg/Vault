@@ -43,6 +43,12 @@ module.exports = {
   transferFeeBps: parseInt(process.env.TRANSFER_FEE_BPS || '500', 10),
   minTransferCents: parseInt(process.env.MIN_TRANSFER_CENTS || '100', 10),
 
+  // Referral programme. Both sides are paid in site credit only once the
+  // invited trader completes their first real order, so invites can't be
+  // farmed with throwaway accounts. Set either to 0 to disable that side.
+  referralReferrerRewardCents: parseInt(process.env.REFERRAL_REFERRER_REWARD_CENTS || '200', 10), // $2.00 to the inviter
+  referralSignupBonusCents: parseInt(process.env.REFERRAL_SIGNUP_BONUS_CENTS || '100', 10),       // $1.00 to the invitee
+
   // Content moderation on user-authored text (listings, auctions, chat, bios).
   // On by default; set MODERATION=0 to disable. Extend the word lists with
   // MOD_BLOCKLIST / MOD_MASKLIST (comma-separated). See lib/moderation.js.

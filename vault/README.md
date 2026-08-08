@@ -138,9 +138,49 @@ withdrawals, notifications, public profiles, and an admin panel.
 - **Content tab**: browse/search live listings & auctions and take any of them down (seller + bidders are notified)
 - Grant or deduct **site credit** on any account (including your own) from the Users tab
 
+**🔗 Referral programme (Dashboard → Invite & earn)**
+- Every trader gets a shareable invite link (`/?ref=CODE`). A visitor who lands on it has the code stashed locally, and it rides through Discord OAuth so a brand-new account is attributed to the inviter
+- **Rewards are earned, not farmed**: nothing pays at signup. Both sides are credited only once the invited trader **completes their first real order** — the inviter gets `REFERRAL_REFERRER_REWARD_CENTS` (default $2.00) and the newcomer `REFERRAL_SIGNUP_BONUS_CENTS` (default $1.00), as site credit. A code is attributed once per account ever, self-referral is blocked, and the reward can never pay twice
+- Dashboard tab shows your link, live stats (invited / traded / pending / earned) and each invited trader's payout status. **↗ Share** buttons on marketplace cards copy a link with your code already in it, so every share is an invite
+- Public **top-inviters leaderboard** counts only qualified referrals. `GET /api/my/referrals`, `GET /api/referrals/leaderboard`
+
+**🎬 Creator partner programme (`#creators`)**
+- Creators apply with their platform, handle, channel link and follower count; admins approve or reject from **Admin → Creators** (with an optional note sent back to the applicant), and can revoke partner status later
+- Approved partners get a **creator badge**, a **custom vanity invite code** (`/?ref=YOURNAME` instead of a random one), referral earnings, and a spot in the public **partner directory** that links straight to their channel
+- `POST /api/creator/apply`, `GET /api/creators`, `POST /api/admin/creator-applications/:id/review`
+
+**🚩 Feature flags (Admin → Features)**
+- Every optional section of the site is a flag row. Toggling one off instantly removes it from the nav **and** makes its API return 404 — so you can ship the next feature dark and flip it live when it's ready, with no deploy. See "Adding a feature" below
+
 **Content moderation**
 - User-authored text (listing/auction titles + descriptions, order chat, profile bios) runs through a filter: hate slurs and other hard-blocked terms are rejected on submit; ordinary profanity is starred out (`f***`). Matching is done on a normalized copy so leetspeak/spacing (`n1gger`, `f a g`) doesn't slip through, while it stays clear of false positives (`peacock`, `classic`, `assassin` are left alone).
 - On by default. `MODERATION=0` disables it; `MOD_BLOCKLIST` / `MOD_MASKLIST` (comma-separated) extend the built-in lists. See `src/lib/moderation.js`.
+
+## Adding a feature
+
+The codebase is deliberately modular — a new section is ~4 predictable edits and
+can ship behind a flag. The existing features (trust check, trade chains,
+trade-up events, referrals) all follow this exact shape:
+
+1. **Schema** — append an additive block at the end of `src/db.js`. Use
+   `ensureColumn(table, col, ddl)` for new columns and `CREATE TABLE IF NOT
+   EXISTS` for new tables, so old databases upgrade themselves on boot. Never
+   rewrite an existing block.
+2. **Routes** — add `src/routes/<feature>.js` exporting an Express router, then
+   mount it in `src/index.js` with `app.use('/api', myRouter)`. Reuse the shared
+   helpers: `requireAuth`, `moderateField` (user text), `notify` / `notifyAdmins`,
+   `parseCategory`, and `requireFlag('my_feature')` to gate the whole feature.
+3. **Flag** — seed a row in the `site_flags` block in `src/db.js`. It appears in
+   Admin → Features automatically and is exposed to the client via `/api/config`.
+4. **Frontend** — add the view/section to `public/index.html`, a route line in
+   `route()` and a `load…()` renderer in `public/js/app.js`, and gate the nav
+   entry in `applyFlags()`. Style with the existing tokens (`--surface`,
+   `--border`, `--gold`, `.btn`, `.card`, `.tabs`) so it matches without new
+   design work. Use the `.custom-select` component rather than a native `<select>`,
+   and `vaultConfirm` / `vaultPrompt` rather than native dialogs.
+
+Admin-only endpoints follow the `requireAdmin` pattern in any existing route
+file, and anything an admin changes should append to `admin_log`.
 
 ## Stack
 - Node.js 18+ / Express, SQLite (better-sqlite3, with automatic fallback to Node's built-in `node:sqlite` if the native module can't build)
@@ -177,6 +217,7 @@ Visit `http://localhost:3000`. The DB schema (including all v2 tables) is create
    - `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI=<BASE_URL>/auth/discord/callback`
    - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
    - `NOWPAYMENTS_API_KEY`, `NOWPAYMENTS_IPN_SECRET`, `NOWPAYMENTS_API_BASE=https://api.nowpayments.io/v1`
+   - Optional growth tuning: `REFERRAL_REFERRER_REWARD_CENTS` (default `200`) and `REFERRAL_SIGNUP_BONUS_CENTS` (default `100`) — set either to `0` to switch off that side of the referral payout.
    - Do **not** set `PORT` (Railway injects it) and do **not** set `DEV_LOGIN`.
 5. Point the external services at your Railway URL:
    - Discord OAuth app ([discord.com/developers/applications](https://discord.com/developers/applications) → OAuth2) → add redirect → `<BASE_URL>/auth/discord/callback`

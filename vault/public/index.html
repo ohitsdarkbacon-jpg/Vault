@@ -77,6 +77,7 @@
     <a href="#tournaments">Tournaments</a>
     <a href="#lobbies">Play with others</a>
     <a href="#server">Server</a>
+    <a href="#creators">Creators</a>
     <a href="#dashboard">Dashboard</a>
     <a href="#" id="nav-sell">Sell an item</a>
   </nav>
@@ -104,6 +105,7 @@
   <a href="#tournaments">Tournaments</a>
   <a href="#lobbies">Play with others</a>
   <a href="#server">Server</a>
+  <a href="#creators">Creators</a>
   <a href="#traders-center">Traders center</a>
   <a href="#traders">Traders</a>
   <a href="#messages">Messages</a>
@@ -284,6 +286,7 @@
       <button class="tab" data-tab="trades">Trades <span class="count" id="tc-trades"></span></button>
       <button class="tab" data-tab="bids">My bids</button>
       <button class="tab" data-tab="wallet">Wallet</button>
+      <button class="tab" data-tab="referrals">Invite &amp; earn</button>
       <button class="tab" data-tab="favorites">Favorites</button>
       <button class="tab" data-tab="developer">Developer</button>
     </div>
@@ -401,6 +404,35 @@
   </div>
 </div>
 
+<!-- ================= CREATORS VIEW ================= -->
+<div class="view" id="view-creators">
+  <div class="page">
+    <div class="page-head">
+      <div><h2>🎬 Creator partners</h2><div class="sub">Make Roblox trading content? Partner with Vault — get a creator badge, your own invite code, and a spot in this directory in front of every trader on the site.</div></div>
+      <button class="btn btn-gold" id="creator-apply-btn">Apply to the programme</button>
+    </div>
+
+    <div class="perk-grid">
+      <div class="perk-card"><span class="perk-ico">🎬</span><b>Creator badge</b><span>Your name carries a creator badge everywhere you appear on Vault.</span></div>
+      <div class="perk-card"><span class="perk-ico">🔗</span><b>Custom invite code</b><span>Claim a memorable code — vault.gg/?ref=YOURNAME — instead of a random one.</span></div>
+      <div class="perk-card"><span class="perk-ico">💰</span><b>Referral earnings</b><span>Earn site credit every time someone you bring in completes their first trade.</span></div>
+      <div class="perk-card"><span class="perk-ico">⭐</span><b>Directory spotlight</b><span>Featured on this page with a link straight to your channel.</span></div>
+    </div>
+
+    <div id="creator-status"></div>
+
+    <div class="page-head" style="margin-top:30px">
+      <div><h3 style="margin:0">Our partnered creators</h3><div class="sub">Go support the people covering Vault.</div></div>
+    </div>
+    <div id="creators-list"><div class="empty">Loading…</div></div>
+
+    <div class="page-head" style="margin-top:30px">
+      <div><h3 style="margin:0">🏆 Top inviters</h3><div class="sub">Ranked by invited traders who actually completed a trade.</div></div>
+    </div>
+    <div id="referral-leaderboard"><div class="empty">Loading…</div></div>
+  </div>
+</div>
+
 <!-- ================= VAULT SERVER VIEW ================= -->
 <div class="view" id="view-server">
   <div class="page" style="max-width:1180px">
@@ -494,6 +526,8 @@
       <button class="tab active" data-tab="disputes">Disputes</button>
       <button class="tab" data-tab="withdrawals">Withdrawals</button>
       <button class="tab" data-tab="content">Content</button>
+      <button class="tab" data-tab="creators">Creators <span class="count" id="tc-creators"></span></button>
+      <button class="tab" data-tab="features">Features</button>
       <button class="tab" data-tab="middlemen">Middlemen <span class="count" id="tc-mm"></span></button>
       <button class="tab" data-tab="reports">Reports <span class="count" id="tc-reports"></span></button>
       <button class="tab" data-tab="users">Users</button>
@@ -782,6 +816,37 @@
       <input id="ticket-input" placeholder="Message the room…" maxlength="1000" autocomplete="off">
       <button class="btn btn-gold" id="ticket-send">Send</button>
     </div>
+  </div>
+</div>
+
+<!-- Creator partner application -->
+<div class="overlay" id="creator-overlay">
+  <div class="modal modal-wrap">
+    <button class="modal-close" data-close="creator-overlay">✕</button>
+    <h3>Apply as a creator partner</h3>
+    <div class="sub">Tell us where you post. Admins review every application — you'll get a notification either way.</div>
+    <div class="field">
+      <label>Platform</label>
+      <div class="custom-select" id="creator-platform" data-value="youtube">
+        <div class="cs-trigger"><span class="cs-label">YouTube</span><svg class="cs-chevron" width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="cs-dropdown">
+          <div class="cs-option active" data-value="youtube">YouTube</div>
+          <div class="cs-option" data-value="tiktok">TikTok</div>
+          <div class="cs-option" data-value="twitch">Twitch</div>
+          <div class="cs-option" data-value="x">X / Twitter</div>
+          <div class="cs-option" data-value="discord">Discord</div>
+          <div class="cs-option" data-value="other">Other</div>
+        </div>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Handle</label><input id="creator-handle" placeholder="@yourchannel" maxlength="60"></div>
+      <div class="field"><label>Followers / subs</label><input id="creator-followers" type="number" min="0" step="1" placeholder="25000"></div>
+    </div>
+    <div class="field"><label>Channel link</label><input id="creator-url" placeholder="https://youtube.com/@yourchannel"></div>
+    <div class="field"><label>What do you make? (optional)</label><textarea id="creator-pitch" rows="3" placeholder="e.g. Adopt Me trade-up videos, 3× a week" maxlength="800"></textarea></div>
+    <div class="error-text" id="creator-error"></div>
+    <div class="modal-actions"><button class="btn btn-gold" id="creator-submit" style="flex:1">Submit application</button></div>
   </div>
 </div>
 

@@ -28,6 +28,8 @@ const { keysRouter, v1Router } = require('./routes/api');
 const trustRouter = require('./routes/trust');
 const chainsRouter = require('./routes/chains');
 const eventsRouter = require('./routes/events');
+const growthRouter = require('./routes/growth');
+const { publicFlags } = require('./lib/flags');
 const { isPro } = require('./lib/fees');
 const { startAuctionCloser } = require('./jobs/auctionCloser');
 const { startAutoComplete } = require('./jobs/autoCompleteOrders');
@@ -82,6 +84,9 @@ app.get('/api/config', (req, res) => {
   res.json({
     fee_bps: config.platformFeeBps, fee_mode: config.feeMode, transfer_fee_bps: config.transferFeeBps,
     pro_fee_bps: config.proFeeBps, pro_price_cents: config.proPriceCents,
+    referral_referrer_cents: config.referralReferrerRewardCents,
+    referral_signup_cents: config.referralSignupBonusCents,
+    flags: publicFlags(), // drives which sections the frontend shows
   });
 });
 
@@ -200,6 +205,7 @@ app.use('/api', lobbiesRouter);         // /api/lobbies/* — play-together lobb
 app.use('/api', trustRouter);           // /api/trust/* — scammer watchlist / trust check
 app.use('/api', chainsRouter);          // /api/chains/* — multi-person trade chains
 app.use('/api', eventsRouter);          // /api/events/* — trade-up events
+app.use('/api', growthRouter);          // /api/my/referrals, /api/creators, /api/admin/flags
 app.use('/api', keysRouter);            // /api/keys — developer API key management (session)
 app.use('/api/v1', v1Router);           // /api/v1/* — developer API (key-authed commands)
 app.use('/api/uploads', uploadsRoutes); // image uploads for listings/auctions

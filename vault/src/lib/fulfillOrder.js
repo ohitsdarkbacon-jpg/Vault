@@ -1,5 +1,6 @@
 const db = require('../db');
 const { notify } = require('./notify');
+const { qualifyReferral } = require('./referrals');
 
 /**
  * Returns the buyer's ACCEPTED offer on a listing, if any — checkout paths use
@@ -150,6 +151,10 @@ function releaseEscrow(orderId, { reason = 'buyer_confirmed' } = {}) {
     `Order for "${item}" is complete. You can leave the seller a review.`,
     `#order-${order.id}`
   );
+  // A completed order is the proof-of-life that qualifies a referral: both
+  // the invited buyer and their inviter get paid here, never at signup.
+  try { qualifyReferral(order.buyer_id); } catch (e) { console.error('[referral] qualify failed:', e.message); }
+
   console.log(`[releaseEscrow] order ${order.id} (${reason}) — seller ${order.seller_id} credited ${order.seller_proceeds_cents}c`);
   return true;
 }
