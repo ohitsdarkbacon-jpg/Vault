@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const axios = require('axios');
 const db = require('../db');
 const config = require('../config');
+const { applyReferral } = require('../lib/referrals');
 
 const router = express.Router();
 
@@ -44,6 +45,9 @@ router.get('/discord/login', (req, res) => {
 
   req.session.oauthState = state;
   req.session.oauthVerifier = verifier;
+  // Carry an invite code through the OAuth round-trip so it can be attributed
+  // if this login creates a brand-new account.
+  if (req.query.ref) req.session.refCode = String(req.query.ref).trim().slice(0, 20);
 
   const params = new URLSearchParams({
     client_id: config.discord.clientId,
@@ -101,6 +105,8 @@ router.get('/discord/callback', async (req, res) => {
         .prepare('INSERT INTO users (provider_id, username, avatar_url) VALUES (?, ?, ?)')
         .run(providerId, displayName || `user_${providerId}`, avatar || null);
       user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+      // Invite attribution happens once, only for a genuinely new account.
+      if (req.session.refCode) applyReferral(user.id, req.session.refCode);
     } else {
       db.prepare('UPDATE users SET username = ?, avatar_url = ? WHERE id = ?').run(
         displayName || user.username,
@@ -128,6 +134,8 @@ router.post('/dev-login', (req, res) => {
       .prepare('INSERT INTO users (provider_id, username) VALUES (?, ?)')
       .run('dev_' + username, username);
     user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+    const ref = req.body?.ref || req.session.refCode;
+    if (ref) applyReferral(user.id, ref);
   }
   req.session.userId = user.id;
   res.json({ user });

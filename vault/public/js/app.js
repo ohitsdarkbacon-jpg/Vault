@@ -65,6 +65,64 @@ function vbadge(isVerified) {
 function probadge(isPro) {
   return isPro ? '<span class="pro-badge" title="Vault Pro subscriber">PRO</span>' : '';
 }
+// Approved creator-partner badge.
+function cbadge(isCreator) {
+  return isCreator ? '<span class="creator-badge" title="Vault creator partner">🎬</span>' : '';
+}
+
+// ---------- Feature flags ----------
+// Server-driven switches so a section can be turned off without a deploy.
+// Unknown keys default to ON so nothing disappears on an older backend.
+let FLAGS = {};
+function flagOn(key) { return FLAGS[key] !== false; }
+// Hides nav links + sections whose feature is switched off.
+function applyFlags() {
+  const map = {
+    trust: ['#trust'], tournaments: ['#tournaments'], lobbies: ['#lobbies'],
+    creators: ['#creators'], trading: ['#trading'],
+  };
+  Object.entries(map).forEach(([key, hrefs]) => {
+    hrefs.forEach(href => {
+      document.querySelectorAll(`#main-nav a[href="${href}"], #mobile-nav a[href="${href}"]`)
+        .forEach(a => { a.style.display = flagOn(key) ? '' : 'none'; });
+    });
+  });
+  const sec = $('#activity-map-section');
+  if (sec && !flagOn('activity_map')) sec.style.display = 'none';
+  const flash = $('#listings-flash');
+  if (flash) flash.style.display = flagOn('flash') ? '' : 'none';
+}
+
+// ---------- Referral capture ----------
+// A visitor arriving on /?ref=CODE has the code stashed until they sign up;
+// it rides along to Discord OAuth so a brand-new account gets attributed.
+function captureRefCode() {
+  const code = new URLSearchParams(location.search).get('ref');
+  if (code) {
+    try { localStorage.setItem('vault-ref', code.trim().slice(0, 20)); } catch (_) {}
+    // Keep the URL clean once captured.
+    const url = new URL(location.href);
+    url.searchParams.delete('ref');
+    history.replaceState({}, '', url.pathname + url.search + url.hash);
+  }
+}
+function storedRefCode() {
+  try { return localStorage.getItem('vault-ref') || ''; } catch (_) { return ''; }
+}
+function loginUrl() {
+  const ref = storedRefCode();
+  return '/auth/discord/login' + (ref ? '?ref=' + encodeURIComponent(ref) : '');
+}
+// My personal invite link — used by every Share button on the site.
+let MY_REF_LINK = '';
+function shareUrlFor(hash) {
+  const base = MY_REF_LINK || location.origin + '/';
+  return base + (hash ? (base.includes('?') ? '' : '') + hash : '');
+}
+async function copyText(text, okMsg = 'Link copied!') {
+  try { await navigator.clipboard.writeText(text); toast(okMsg, 'success'); return true; }
+  catch (_) { toast('Could not copy — long-press to copy manually.', 'error'); return false; }
+}
 // The buyer fee rate that applies to the signed-in user (Pro pays less).
 function myFeeBps() {
   return ME && ME.pro && ME.pro.active ? (FEE.pro_fee_bps ?? FEE.fee_bps) : FEE.fee_bps;
@@ -300,6 +358,7 @@ async function route() {
   if (h === 'lobbies') { showView('lobbies'); loadLobbies(); return; }
   if (h === 'server') { showView('server'); loadServer(); return; }
   if (h === 'trust') { showView('trust'); loadTrustList(); return; }
+  if (h === 'creators') { showView('creators'); loadCreatorsPage(); return; }
   if (h === 'messages' || h.startsWith('messages/')) {
     if (!ME) { showView('home'); return openModal('auth-overlay'); }
     showView('messages');
@@ -369,7 +428,7 @@ function renderAuth() {
     $('#login-btn').onclick = () => openModal('auth-overlay');
   }
 }
-$('#do-login').onclick = () => { window.location.href = '/auth/discord/login'; };
+$('#do-login').onclick = () => { window.location.href = loginUrl(); };
 $('#menu-logout').onclick = async () => { await api('/auth/logout', { method: 'POST' }); location.hash = ''; location.reload(); };
 $('#menu-profile').onclick = () => { closeDropdowns(); if (ME) location.hash = 'u/' + encodeURIComponent(ME.username); };
 $('#menu-pro').onclick = () => { closeDropdowns(); openProModal(); };
@@ -829,7 +888,10 @@ function listingCardHtml(l) {
       <div class="card-body">
         <div class="card-title">${escapeHtml(l.title)}</div>
         <div class="card-meta">Seller: <a class="seller-link" href="#u/${encodeURIComponent(l.seller_name)}" onclick="event.stopPropagation()">${escapeHtml(l.seller_name)}</a> ${vbadge(l.seller_verified)}${probadge(l.seller_pro)}</div>
-        <div class="card-foot"><span class="price">${l.price_cents ? money(l.price_cents) : 'Auction only'}</span></div>
+        <div class="card-foot">
+          <span class="price">${l.price_cents ? money(l.price_cents) : 'Auction only'}</span>
+          <button class="share-btn" data-share-listing="${l.id}" data-share-title="${escapeHtml(l.title)}" title="Share this item">↗</button>
+        </div>
         <button class="btn btn-gold btn-full" data-buy="${l.id}" ${l.price_cents ? '' : 'disabled'}>Buy now</button>
       </div>
     </div>`;
@@ -845,6 +907,10 @@ function renderListings() {
     return;
   }
   grid.innerHTML = LISTINGS.map(listingCardHtml).join('');
+  grid.querySelectorAll('[data-share-listing]').forEach(btn => btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    shareWithRef('#listing-' + btn.dataset.shareListing, btn.dataset.shareTitle);
+  }));
   grid.querySelectorAll('[data-buy]:not([disabled])').forEach(btn => btn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (!ME) return openModal('auth-overlay');
@@ -1831,6 +1897,56 @@ async function renderDashTab() {
       const l = listings.find(x => String(x.id) === String(btn.dataset.buy));
       openBuyModal(btn.dataset.buy, l);
     }));
+    return;
+  }
+
+  if (dashTab === 'referrals') {
+    const r = await api('/api/my/referrals');
+    if (r.error) { c.innerHTML = `<div class="empty-block">${escapeHtml(r.error)}</div>`; return; }
+    MY_REF_LINK = r.link;
+    const s = r.stats;
+    const rw = r.rewards || {};
+    c.innerHTML = `
+      <div class="ref-hero">
+        <div class="ref-copy">
+          <h3>Invite traders, earn credit</h3>
+          <p class="sub">Share your link. When someone signs up through it and completes their first trade, you get <b>${money(rw.referrer_cents || 0)}</b> and they get <b>${money(rw.referred_cents || 0)}</b> — both as site credit.</p>
+          <div class="share-row">
+            <input class="share-link" id="ref-link" readonly value="${escapeHtml(r.link)}">
+            <button class="btn btn-gold btn-small" id="ref-copy">Copy link</button>
+            <button class="btn btn-small" id="ref-share">Share</button>
+          </div>
+          <div class="ref-code-line">Your code: <b class="mono">${escapeHtml(r.code)}</b>${r.can_customize ? ' <button class="linkish" id="ref-vanity">customize</button>' : ''}</div>
+        </div>
+        <div class="ref-stats">
+          <div class="ref-stat"><b>${s.total}</b><span>invited</span></div>
+          <div class="ref-stat"><b>${s.qualified}</b><span>traded</span></div>
+          <div class="ref-stat"><b>${s.pending}</b><span>pending</span></div>
+          <div class="ref-stat earn"><b>${money(s.earned_cents)}</b><span>earned</span></div>
+        </div>
+      </div>
+      ${r.invited.length ? `<div class="table-wrap"><table class="data">
+        <tr><th>Trader</th><th>Joined</th><th>Status</th><th>You earned</th></tr>
+        ${r.invited.map(i => `<tr>
+          <td>${escapeHtml(i.username)}</td>
+          <td class="sub">${timeAgo(i.created_at)}</td>
+          <td>${i.status === 'qualified'
+            ? '<span class="ref-pill ok">✔ Completed a trade</span>'
+            : '<span class="ref-pill wait">⏳ Yet to trade</span>'}</td>
+          <td class="mono">${i.referrer_reward_cents ? money(i.referrer_reward_cents) : '—'}</td>
+        </tr>`).join('')}
+      </table></div>`
+      : '<div class="empty-block">Nobody yet — share your link in your Discord, a video description, or a trading server. 🚀</div>'}`;
+    $('#ref-copy').onclick = () => copyText($('#ref-link').value, 'Invite link copied!');
+    $('#ref-share').onclick = () => shareWithRef('', 'Trade Roblox items safely with escrow');
+    if ($('#ref-vanity')) $('#ref-vanity').onclick = async () => {
+      const code = await vaultPrompt('3–20 characters: letters, numbers, - or _.', { title: 'Claim a custom invite code', okText: 'Claim code', placeholder: 'YOURNAME', icon: '🔗' });
+      if (!code) return;
+      const res = await api('/api/my/referral-code', { method: 'POST', body: JSON.stringify({ code: code.trim() }) });
+      if (res.error) return toast(res.error, 'error');
+      toast('Code claimed! 🎉', 'success');
+      renderDashTab();
+    };
     return;
   }
 
@@ -2874,6 +2990,7 @@ async function loadAdmin() {
   `;
   $('#tc-reports').textContent = r.open_reports || '';
   api('/api/admin/middlemen').then(m => { $('#tc-mm').textContent = (m.pending || []).length || ''; });
+  api('/api/admin/creator-applications').then(a => { $('#tc-creators').textContent = (a.applications || []).length || ''; });
   renderAdminTab();
 }
 
@@ -3175,6 +3292,80 @@ async function renderAdminTab() {
     };
     $('#admin-user-q').addEventListener('input', debounce(renderUsers, 300));
     renderUsers();
+    return;
+  }
+
+  if (adminTab === 'creators') {
+    const r = await api('/api/admin/creator-applications');
+    const apps = r.applications || [];
+    const dir = await api('/api/creators');
+    const partners = dir.creators || [];
+    c.innerHTML = `
+      ${apps.length ? `<div class="order-list">${apps.map(a => {
+        const [ico, label] = PLATFORM_META[a.platform] || PLATFORM_META.other;
+        return `<div class="order-card" style="align-items:flex-start">
+          <div class="order-main">
+            <div class="order-title">${ico} ${escapeHtml(a.handle)} · ${label}</div>
+            <div class="order-sub"><a href="#u/${encodeURIComponent(a.username)}">${escapeHtml(a.username)}</a> · ${a.followers.toLocaleString()} followers · ${a.qualified_referrals} qualified referral${a.qualified_referrals === 1 ? '' : 's'} · ${timeAgo(a.created_at)}</div>
+            <div class="order-sub"><a href="${escapeHtml(a.url)}" target="_blank" rel="noopener nofollow">${escapeHtml(a.url)}</a></div>
+            ${a.pitch ? `<div class="order-sub" style="margin-top:4px">"${escapeHtml(a.pitch)}"</div>` : ''}
+          </div>
+          <div class="order-actions">
+            <button class="btn btn-small btn-gold" data-capprove="${a.id}">Approve</button>
+            <button class="btn btn-small" style="color:var(--danger)" data-creject="${a.id}">Reject</button>
+          </div>
+        </div>`;
+      }).join('')}</div>` : '<div class="empty-block">No pending creator applications.</div>'}
+      <h4 style="margin:22px 0 8px">Current partners (${partners.length})</h4>
+      ${partners.length ? `<div class="table-wrap"><table class="data">
+        <tr><th>Creator</th><th>Channel</th><th></th></tr>
+        ${partners.map(p => `<tr>
+          <td>${escapeHtml(p.username)}</td>
+          <td class="sub">${escapeHtml(p.handle)} · ${escapeHtml(p.platform)}</td>
+          <td><button class="btn btn-small" style="color:var(--danger)" data-crevoke="${escapeHtml(p.username)}">Revoke</button></td>
+        </tr>`).join('')}
+      </table></div>` : '<div class="sub">No partners yet.</div>'}`;
+    const review = async (id, decision) => {
+      let note;
+      if (decision === 'rejected') {
+        note = await vaultPrompt('Optional note sent to the applicant.', { title: 'Reject application', okText: 'Reject', placeholder: 'e.g. grow a bit more and reapply', icon: '🎬' });
+        if (note === null) return;
+      }
+      const res = await api(`/api/admin/creator-applications/${id}/review`, { method: 'POST', body: JSON.stringify({ decision, note: note || undefined }) });
+      if (res.error) return toast(res.error, 'error');
+      toast(decision === 'approved' ? 'Creator approved 🎬' : 'Application rejected.', decision === 'approved' ? 'success' : 'info');
+      renderAdminTab(); loadAdmin();
+    };
+    c.querySelectorAll('[data-capprove]').forEach(b => b.onclick = () => review(b.dataset.capprove, 'approved'));
+    c.querySelectorAll('[data-creject]').forEach(b => b.onclick = () => review(b.dataset.creject, 'rejected'));
+    c.querySelectorAll('[data-crevoke]').forEach(b => b.onclick = async () => {
+      if (!await vaultConfirm('They keep their account but lose the badge, custom code perk, and directory spot.', { title: 'Revoke partner status?', okText: 'Revoke', danger: true, icon: '🎬' })) return;
+      const res = await api(`/api/admin/creators/${encodeURIComponent(b.dataset.crevoke)}/revoke`, { method: 'POST' });
+      if (res.error) return toast(res.error, 'error');
+      toast('Partner status revoked.', 'info');
+      renderAdminTab();
+    });
+    return;
+  }
+
+  if (adminTab === 'features') {
+    const r = await api('/api/admin/flags');
+    const flags = r.flags || [];
+    c.innerHTML = `
+      <div class="inline-note" style="margin-bottom:14px">Switch sections of the site on or off instantly — no deploy needed. A disabled feature disappears from the nav and its API returns 404, so you can build the next thing behind a flag and flip it live when it's ready.</div>
+      <div class="flag-list">${flags.map(f => `
+        <label class="flag-row">
+          <button type="button" class="toggle ${f.enabled ? 'on' : ''}" role="switch" aria-checked="${f.enabled}" data-flag="${escapeHtml(f.key)}"><span class="knob"></span></button>
+          <span class="flag-main"><b>${escapeHtml(f.label)}</b><span class="mono sub">${escapeHtml(f.key)}</span></span>
+          <span class="flag-state ${f.enabled ? 'on' : 'off'}">${f.enabled ? 'Live' : 'Hidden'}</span>
+        </label>`).join('')}</div>`;
+    c.querySelectorAll('[data-flag]').forEach(b => b.onclick = async () => {
+      const enabled = !b.classList.contains('on');
+      const res = await api(`/api/admin/flags/${encodeURIComponent(b.dataset.flag)}`, { method: 'POST', body: JSON.stringify({ enabled }) });
+      if (res.error) return toast(res.error, 'error');
+      toast(`${b.dataset.flag} is now ${enabled ? 'live' : 'hidden'}.`, 'info');
+      renderAdminTab();
+    });
     return;
   }
 
@@ -4821,9 +5012,133 @@ async function loadActivityMap() {
   }));
 }
 
+// ============================================================
+// Growth — creator partners, referrals, sharing
+// ============================================================
+const PLATFORM_META = {
+  youtube: ['▶️', 'YouTube'], tiktok: ['🎵', 'TikTok'], twitch: ['🎮', 'Twitch'],
+  x: ['𝕏', 'X'], discord: ['💬', 'Discord'], other: ['🌐', 'Online'],
+};
+
+async function loadCreatorsPage() {
+  // ---- My application / partner status ----
+  const box = $('#creator-status');
+  if (!ME) {
+    box.innerHTML = `<div class="inline-note">Sign in to apply — partners get a badge, a custom invite code, and referral earnings.</div>`;
+  } else {
+    const r = await api('/api/creator/me');
+    const app = r.application;
+    if (r.is_creator) {
+      const ref = await api('/api/my/referrals');
+      box.innerHTML = `<div class="creator-you">
+        <div><b>🎬 You're a Vault creator partner.</b>
+          <div class="sub" style="margin:2px 0 0">Your invite link is below — every signup that trades earns you credit.</div></div>
+        <div class="share-row">
+          <input class="share-link" id="creator-link" readonly value="${escapeHtml(ref.link || '')}">
+          <button class="btn btn-gold btn-small" id="creator-copy">Copy</button>
+          <button class="btn btn-small" id="creator-vanity">✏️ Custom code</button>
+        </div>
+      </div>`;
+      $('#creator-copy').onclick = () => copyText($('#creator-link').value);
+      $('#creator-vanity').onclick = async () => {
+        const code = await vaultPrompt('3–20 characters: letters, numbers, - or _. This is what your audience types.', { title: 'Claim a custom invite code', okText: 'Claim code', placeholder: 'YOURNAME', icon: '🔗' });
+        if (!code) return;
+        const res = await api('/api/my/referral-code', { method: 'POST', body: JSON.stringify({ code: code.trim() }) });
+        if (res.error) return toast(res.error, 'error');
+        toast('Code claimed! 🎉', 'success');
+        loadCreatorsPage();
+      };
+    } else if (app && app.status === 'pending') {
+      box.innerHTML = `<div class="inline-note">⏳ Your application for <b>${escapeHtml(app.handle)}</b> is under review — we'll notify you when it's decided.</div>`;
+      $('#creator-apply-btn').style.display = 'none';
+    } else if (app && app.status === 'rejected') {
+      box.innerHTML = `<div class="inline-note">Your last application wasn't approved.${app.admin_note ? ` <b>Note:</b> ${escapeHtml(app.admin_note)}` : ''} You're welcome to apply again as your channel grows.</div>`;
+    } else {
+      box.innerHTML = '';
+    }
+  }
+  if ($('#creator-apply-btn')) {
+    $('#creator-apply-btn').style.display = (ME && (await api('/api/creator/me')).is_creator) ? 'none' : '';
+  }
+
+  // ---- Partner directory ----
+  const dir = $('#creators-list');
+  const cr = await api('/api/creators');
+  const creators = cr.creators || [];
+  dir.innerHTML = creators.length
+    ? `<div class="creator-grid">${creators.map(c => {
+        const [ico, label] = PLATFORM_META[c.platform] || PLATFORM_META.other;
+        return `<a class="creator-card" href="${escapeHtml(c.url)}" target="_blank" rel="noopener nofollow">
+          <div class="cc-av">${c.avatar_url ? `<img src="${escapeHtml(c.avatar_url)}" alt="">` : escapeHtml((c.username || '?')[0].toUpperCase())}</div>
+          <div class="cc-main"><b>${escapeHtml(c.username)} ${probadge(c.pro)}</b>
+            <span class="sub">${ico} ${escapeHtml(c.handle)} · ${label}</span></div>
+          <span class="cc-go">Watch →</span>
+        </a>`;
+      }).join('')}</div>`
+    : '<div class="empty-block">No partners yet — apply above and be the first. 🎬</div>';
+
+  // ---- Referral leaderboard ----
+  const lb = $('#referral-leaderboard');
+  const lr = await api('/api/referrals/leaderboard');
+  const leaders = lr.leaders || [];
+  lb.innerHTML = leaders.length
+    ? `<div class="lb-list">${leaders.map((l, i) => `
+        <div class="lb-item ${i < 3 ? 'top' : ''}">
+          <span class="lb-rank">${i + 1}</span>
+          <a class="lb-user" href="#u/${encodeURIComponent(l.username)}">${escapeHtml(l.username)}</a>
+          ${cbadge(l.is_creator)}${probadge(l.pro)}
+          <span class="lb-count">${l.invites} trader${l.invites === 1 ? '' : 's'} invited</span>
+        </div>`).join('')}</div>`
+    : '<div class="empty-block">Nobody on the board yet — invite a trader and be first. 🏆</div>';
+}
+
+$('#creator-apply-btn').addEventListener('click', () => {
+  if (!ME) return openModal('auth-overlay');
+  $('#creator-handle').value = ''; $('#creator-followers').value = '';
+  $('#creator-url').value = ''; $('#creator-pitch').value = ''; $('#creator-error').textContent = '';
+  openModal('creator-overlay');
+});
+$('#creator-submit').addEventListener('click', async () => {
+  const err = $('#creator-error');
+  err.textContent = '';
+  const r = await api('/api/creator/apply', { method: 'POST', body: JSON.stringify({
+    platform: $('#creator-platform').value,
+    handle: $('#creator-handle').value.trim(),
+    url: $('#creator-url').value.trim(),
+    followers: parseInt($('#creator-followers').value, 10),
+    pitch: $('#creator-pitch').value.trim() || undefined,
+  }) });
+  if (r.error) { err.textContent = r.error; return; }
+  closeModal('creator-overlay');
+  toast('Application submitted — we’ll review it shortly. 🎬', 'success');
+  loadCreatorsPage();
+});
+
+// Share any page/item with my invite code baked in, so every share is a
+// referral link. Falls back to clipboard when the Web Share API is absent.
+async function shareWithRef(hash, title) {
+  let link = MY_REF_LINK;
+  if (!link && ME) {
+    const r = await api('/api/my/referrals');
+    if (r.link) { MY_REF_LINK = r.link; link = r.link; }
+  }
+  const base = link || (location.origin + '/');
+  const url = base + (hash || '');
+  const text = title ? `${title} — on Vault` : 'Trade Roblox items safely with escrow on Vault';
+  if (navigator.share) {
+    try { await navigator.share({ title: 'Vault', text, url }); return; } catch (_) { /* cancelled → copy */ }
+  }
+  copyText(url, ME ? 'Invite link copied — you earn credit when they trade!' : 'Link copied!');
+}
+
 (async function init() {
   const params = new URLSearchParams(location.search);
-  api('/api/config').then(c => { if (c.fee_bps) FEE = c; if (c.transfer_fee_bps != null) TRANSFER_FEE_BPS = c.transfer_fee_bps; });
+  captureRefCode(); // must run before the URL is cleaned up below
+  await api('/api/config').then(c => {
+    if (c.fee_bps) FEE = c;
+    if (c.transfer_fee_bps != null) TRANSFER_FEE_BPS = c.transfer_fee_bps;
+    if (c.flags) { FLAGS = c.flags; applyFlags(); }
+  }).catch(() => {});
   await loadMe();
   loadSiteStats();
   loadCategories();
