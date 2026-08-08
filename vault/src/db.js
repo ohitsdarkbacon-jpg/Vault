@@ -770,6 +770,10 @@ CREATE TABLE IF NOT EXISTS referrals (
 );
 CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_id, status);
 `);
+// Pro days granted at signup — both the invitee and the inviter get a day.
+// Recorded per referral so the dashboard can show what each invite paid out.
+ensureColumn('referrals', 'referred_pro_days', 'referred_pro_days INTEGER NOT NULL DEFAULT 0');
+ensureColumn('referrals', 'referrer_pro_days', 'referrer_pro_days INTEGER NOT NULL DEFAULT 0');
 
 // Content-creator partner programme: apply with your channel, admins review,
 // approved creators get a badge, a vanity referral code, and a directory spot.

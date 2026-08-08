@@ -43,11 +43,18 @@ module.exports = {
   transferFeeBps: parseInt(process.env.TRANSFER_FEE_BPS || '500', 10),
   minTransferCents: parseInt(process.env.MIN_TRANSFER_CENTS || '100', 10),
 
-  // Referral programme. Both sides are paid in site credit only once the
-  // invited trader completes their first real order, so invites can't be
-  // farmed with throwaway accounts. Set either to 0 to disable that side.
-  referralReferrerRewardCents: parseInt(process.env.REFERRAL_REFERRER_REWARD_CENTS || '200', 10), // $2.00 to the inviter
-  referralSignupBonusCents: parseInt(process.env.REFERRAL_SIGNUP_BONUS_CENTS || '100', 10),       // $1.00 to the invitee
+  // Referral programme.
+  //  - Signing up through an invite gives BOTH sides a day of Vault Pro,
+  //    immediately. Pro time can't be withdrawn, so it's a strong hook with no
+  //    cash-farming risk — but the inviter's side is still capped (below) so
+  //    nobody can mint unlimited Pro from throwaway accounts.
+  //  - The inviter's cash reward is real money, so it stays gated behind the
+  //    newcomer actually completing their first order.
+  // Set any of these to 0 to switch that reward off.
+  referralSignupProDays: parseInt(process.env.REFERRAL_SIGNUP_PRO_DAYS || '1', 10),               // 1 day of Pro each, at signup
+  referralMaxSignupProDays: parseInt(process.env.REFERRAL_MAX_SIGNUP_PRO_DAYS || '30', 10),       // lifetime cap on Pro days earned from signups
+  referralReferrerRewardCents: parseInt(process.env.REFERRAL_REFERRER_REWARD_CENTS || '200', 10), // $2.00 to the inviter once they trade
+  referralSignupBonusCents: parseInt(process.env.REFERRAL_SIGNUP_BONUS_CENTS || '0', 10),         // optional extra credit for the invitee
 
   // Content moderation on user-authored text (listings, auctions, chat, bios).
   // On by default; set MODERATION=0 to disable. Extend the word lists with

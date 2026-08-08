@@ -4,6 +4,7 @@ const config = require('../config');
 const { requireAuth } = require('../middleware/auth');
 const { createPayment, getPaymentStatus, FINISHED_STATUSES } = require('../lib/nowpayments');
 const { isPro } = require('../lib/fees');
+const { grantProDays } = require('../lib/pro');
 const { notify } = require('../lib/notify');
 
 const router = express.Router();
@@ -13,11 +14,7 @@ const VALID_CRYPTOS = new Set(['btc', 'eth', 'usdttrc20', 'usdterc20', 'ltc', 's
 // Extend the member's paid-through date by one period, from whichever is
 // later: now, or their current expiry (so renewing early never loses days).
 function extendPro(userId) {
-  const u = db.prepare('SELECT pro_until FROM users WHERE id = ?').get(userId);
-  const base = u && u.pro_until && Date.parse(u.pro_until) > Date.now() ? Date.parse(u.pro_until) : Date.now();
-  const until = new Date(base + config.proDays * 24 * 3600 * 1000).toISOString();
-  db.prepare('UPDATE users SET pro_until = ? WHERE id = ?').run(until, userId);
-  return until;
+  return grantProDays(userId, config.proDays);
 }
 
 /**

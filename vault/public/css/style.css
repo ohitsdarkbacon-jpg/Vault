@@ -2111,6 +2111,7 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
 .ref-stat b { font-family: 'JetBrains Mono', monospace; font-size: 1.15rem; }
 .ref-stat span { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 .ref-stat.earn b { color: var(--live); }
+.ref-stat.pro b { color: var(--gold-2); }
 .ref-pill { font-size: 0.72rem; font-weight: 650; padding: 3px 9px; border-radius: 12px; white-space: nowrap; }
 .ref-pill.ok { background: rgba(52,199,123,0.14); color: var(--live); }
 .ref-pill.wait { background: rgba(245,178,66,0.14); color: #f5b242; }
