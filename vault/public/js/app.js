@@ -1912,8 +1912,8 @@ async function renderDashTab() {
         <div class="ref-copy">
           <h3>Invite traders, get Vault Pro free</h3>
           <p class="sub">${rw.signup_pro_days
-            ? `The moment someone signs up through your link, <b>you both get ${dayWord(rw.signup_pro_days)} of Vault Pro</b> — instantly. `
-            : ''}You also earn <b>${money(rw.referrer_cents || 0)}</b> in site credit once they complete their first trade.</p>
+            ? `The moment someone signs up through your link, <b>you both get ${dayWord(rw.signup_pro_days)} of Vault Pro</b> — instantly, no waiting. Pro cuts your buyer fee and unlocks higher posting limits.`
+            : 'Share your link to invite traders to Vault.'}</p>
           <div class="share-row">
             <input class="share-link" id="ref-link" readonly value="${escapeHtml(r.link)}">
             <button class="btn btn-gold btn-small" id="ref-copy">Copy link</button>
@@ -1923,13 +1923,12 @@ async function renderDashTab() {
         </div>
         <div class="ref-stats">
           <div class="ref-stat"><b>${s.total}</b><span>invited</span></div>
-          <div class="ref-stat pro"><b>${s.pro_days}</b><span>pro days</span></div>
+          <div class="ref-stat pro"><b>${s.pro_days}</b><span>pro days won</span></div>
           <div class="ref-stat"><b>${s.qualified}</b><span>traded</span></div>
-          <div class="ref-stat earn"><b>${money(s.earned_cents)}</b><span>earned</span></div>
         </div>
       </div>
       ${r.invited.length ? `<div class="table-wrap"><table class="data">
-        <tr><th>Trader</th><th>Joined</th><th>Status</th><th>Pro earned</th><th>Credit earned</th></tr>
+        <tr><th>Trader</th><th>Joined</th><th>Status</th><th>Pro earned</th></tr>
         ${r.invited.map(i => `<tr>
           <td>${escapeHtml(i.username)}</td>
           <td class="sub">${timeAgo(i.created_at)}</td>
@@ -1937,7 +1936,6 @@ async function renderDashTab() {
             ? '<span class="ref-pill ok">✔ Completed a trade</span>'
             : '<span class="ref-pill wait">⏳ Yet to trade</span>'}</td>
           <td class="mono">${i.referrer_pro_days ? `⭐ ${dayWord(i.referrer_pro_days)}` : '—'}</td>
-          <td class="mono">${i.referrer_reward_cents ? money(i.referrer_reward_cents) : '—'}</td>
         </tr>`).join('')}
       </table></div>`
       : '<div class="empty-block">Nobody yet — share your link in your Discord, a video description, or a trading server. 🚀</div>'}`;

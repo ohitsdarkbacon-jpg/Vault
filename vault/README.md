@@ -141,7 +141,8 @@ withdrawals, notifications, public profiles, and an admin panel.
 **🔗 Referral programme (Dashboard → Invite & earn)**
 - Every trader gets a shareable invite link (`/?ref=CODE`). A visitor who lands on it has the code stashed locally, and it rides through Discord OAuth so a brand-new account is attributed to the inviter
 - **⭐ Both sides get a free day of Vault Pro the moment someone signs up through an invite** — the newcomer *and* the person whose link they used (`REFERRAL_SIGNUP_PRO_DAYS`, default 1). Days stack on any Pro you already have, and the newcomer's reduced 1% buyer fee is live immediately
-- **Cash is earned, not farmed**: on top of the Pro day, the inviter gets `REFERRAL_REFERRER_REWARD_CENTS` (default $2.00) in site credit — but only once the invited trader **completes their first real order**. A code is attributed once per account ever, self-referral is blocked, and the reward can never pay twice
+- **The reward is Pro, not money** — no site credit is paid at any point. A code is attributed once per account ever, and self-referral is blocked
+- A referral is still marked *qualified* once the invited trader completes their first order. That pays out nothing; it's the honest signal the public leaderboard ranks on, so a pile of signups that never trade can't top it
 - Pro time can't be withdrawn, and each inviter can earn at most `REFERRAL_MAX_SIGNUP_PRO_DAYS` (default 30) Pro days from signups for life, so throwaway accounts can't mint unlimited membership. Past the cap the referral still attributes and the newcomer still gets their day
 - Dashboard tab shows your link, live stats (invited / traded / pending / earned) and each invited trader's payout status. **↗ Share** buttons on marketplace cards copy a link with your code already in it, so every share is an invite
 - Public **top-inviters leaderboard** counts only qualified referrals. `GET /api/my/referrals`, `GET /api/referrals/leaderboard`
@@ -219,7 +220,7 @@ Visit `http://localhost:3000`. The DB schema (including all v2 tables) is create
    - `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI=<BASE_URL>/auth/discord/callback`
    - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
    - `NOWPAYMENTS_API_KEY`, `NOWPAYMENTS_IPN_SECRET`, `NOWPAYMENTS_API_BASE=https://api.nowpayments.io/v1`
-   - Optional growth tuning: `REFERRAL_SIGNUP_PRO_DAYS` (default `1` — free Pro days each side gets at signup), `REFERRAL_MAX_SIGNUP_PRO_DAYS` (default `30` — lifetime cap per inviter), `REFERRAL_REFERRER_REWARD_CENTS` (default `200`) and `REFERRAL_SIGNUP_BONUS_CENTS` (default `0`). Set any to `0` to switch that reward off.
+   - Optional growth tuning: `REFERRAL_SIGNUP_PRO_DAYS` (default `1` — free Pro days each side gets at signup, `0` disables the programme's reward) and `REFERRAL_MAX_SIGNUP_PRO_DAYS` (default `30` — lifetime cap per inviter).
    - Do **not** set `PORT` (Railway injects it) and do **not** set `DEV_LOGIN`.
 5. Point the external services at your Railway URL:
    - Discord OAuth app ([discord.com/developers/applications](https://discord.com/developers/applications) → OAuth2) → add redirect → `<BASE_URL>/auth/discord/callback`

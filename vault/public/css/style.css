@@ -2106,7 +2106,7 @@ header.scrolled { box-shadow: 0 10px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(139,92,
 .ref-code-line { margin-top: 9px; font-size: 0.8rem; color: var(--muted); }
 .ref-code-line b { color: var(--gold); }
 .linkish { color: var(--gold-2); font-size: 0.78rem; text-decoration: underline; background: none; border: none; }
-.ref-stats { display: grid; grid-template-columns: repeat(4, minmax(64px, 1fr)); gap: 10px; align-content: start; }
+.ref-stats { display: grid; grid-template-columns: repeat(3, minmax(72px, 1fr)); gap: 10px; align-content: start; }
 .ref-stat { border: 1px solid var(--border); border-radius: 11px; background: var(--surface-2); padding: 10px 12px; display: flex; flex-direction: column; text-align: center; }
 .ref-stat b { font-family: 'JetBrains Mono', monospace; font-size: 1.15rem; }
 .ref-stat span { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
