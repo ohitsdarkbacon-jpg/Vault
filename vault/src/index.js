@@ -84,8 +84,7 @@ app.get('/api/config', (req, res) => {
   res.json({
     fee_bps: config.platformFeeBps, fee_mode: config.feeMode, transfer_fee_bps: config.transferFeeBps,
     pro_fee_bps: config.proFeeBps, pro_price_cents: config.proPriceCents,
-    referral_referrer_cents: config.referralReferrerRewardCents,
-    referral_signup_cents: config.referralSignupBonusCents,
+    referral_signup_pro_days: config.referralSignupProDays,
     flags: publicFlags(), // drives which sections the frontend shows
   });
 });

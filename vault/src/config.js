@@ -43,11 +43,12 @@ module.exports = {
   transferFeeBps: parseInt(process.env.TRANSFER_FEE_BPS || '500', 10),
   minTransferCents: parseInt(process.env.MIN_TRANSFER_CENTS || '100', 10),
 
-  // Referral programme. Both sides are paid in site credit only once the
-  // invited trader completes their first real order, so invites can't be
-  // farmed with throwaway accounts. Set either to 0 to disable that side.
-  referralReferrerRewardCents: parseInt(process.env.REFERRAL_REFERRER_REWARD_CENTS || '200', 10), // $2.00 to the inviter
-  referralSignupBonusCents: parseInt(process.env.REFERRAL_SIGNUP_BONUS_CENTS || '100', 10),       // $1.00 to the invitee
+  // Referral programme. Signing up through an invite gives BOTH sides a day of
+  // Vault Pro, immediately — that's the whole reward, no money involved. Pro
+  // time can't be withdrawn, and the inviter's side is capped for life so
+  // nobody can mint unlimited membership from throwaway accounts.
+  referralSignupProDays: parseInt(process.env.REFERRAL_SIGNUP_PRO_DAYS || '1', 10),         // 1 day of Pro each, at signup (0 disables)
+  referralMaxSignupProDays: parseInt(process.env.REFERRAL_MAX_SIGNUP_PRO_DAYS || '30', 10), // lifetime cap on Pro days earned from signups
 
   // Content moderation on user-authored text (listings, auctions, chat, bios).
   // On by default; set MODERATION=0 to disable. Extend the word lists with

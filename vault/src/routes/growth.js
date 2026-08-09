@@ -32,7 +32,8 @@ router.get('/my/referrals', requireAuth, requireFlag('referrals'), (req, res) =>
   const code = codeFor(req.user.id);
   const invited = db
     .prepare(
-      `SELECT u.username, u.avatar_url, r.status, r.referrer_reward_cents, r.created_at, r.qualified_at
+      `SELECT u.username, u.avatar_url, r.status, r.referrer_pro_days,
+              r.created_at, r.qualified_at
        FROM referrals r JOIN users u ON u.id = r.referred_id
        WHERE r.referrer_id = ? ORDER BY r.id DESC LIMIT 100`
     )
@@ -43,8 +44,8 @@ router.get('/my/referrals', requireAuth, requireFlag('referrals'), (req, res) =>
     stats: statsFor(req.user.id),
     invited,
     rewards: {
-      referrer_cents: config.referralReferrerRewardCents,
-      referred_cents: config.referralSignupBonusCents,
+      signup_pro_days: config.referralSignupProDays, // both sides, instantly
+      pro_days_cap: config.referralMaxSignupProDays,
     },
     can_customize: !!req.user.is_creator, // vanity codes are a creator perk
   });
