@@ -413,10 +413,16 @@ function renderAuth() {
       ? `<img src="${escapeHtml(ME.avatar_url)}" alt="">`
       : `<span class="avatar-fallback">${escapeHtml(ME.username[0].toUpperCase())}</span>`;
     area.innerHTML = `
-      <a class="btn btn-small dash-btn" href="#dashboard">📊 Dashboard</a>
+      <a class="btn btn-small dash-btn" href="#dashboard">Dashboard</a>
       <a class="balance-chip" href="#dashboard" title="Your balance">◈ ${money(ME.site_credit_cents)}</a>
-      <button class="icon-btn" id="dm-btn" title="Messages">💬<span class="badge-dot" id="dm-badge" style="display:none"></span></button>
-      <button class="icon-btn" id="bell-btn" title="Notifications">🔔<span class="badge-dot" id="bell-badge" style="display:none"></span></button>
+      <button class="icon-btn" id="dm-btn" title="Messages" aria-label="Messages">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-4-.9L3 21l1.9-4.6A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4Z"/></svg>
+        <span class="badge-dot" id="dm-badge" style="display:none"></span>
+      </button>
+      <button class="icon-btn" id="bell-btn" title="Notifications" aria-label="Notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        <span class="badge-dot" id="bell-badge" style="display:none"></span>
+      </button>
       <button class="avatar-btn" id="avatar-btn" title="${escapeHtml(ME.username)}">${avatar}</button>
     `;
     $('#dm-btn').onclick = () => { location.hash = 'messages'; };
@@ -1447,7 +1453,7 @@ function orderCardHtml(o, role) {
   const other = role === 'buyer' ? o.seller_name : o.buyer_name;
   const otherLabel = role === 'buyer' ? 'Seller' : 'Buyer';
   const actions = [];
-  actions.push(`<button class="btn btn-small" data-chat="${o.id}">💬 Chat${o.message_count ? ` (${o.message_count})` : ''}</button>`);
+  actions.push(`<button class="btn btn-small" data-chat="${o.id}">Chat${o.message_count ? ` (${o.message_count})` : ''}</button>`);
   if (role === 'seller' && o.status === 'paid') {
     actions.push(`<button class="btn btn-small btn-gold" data-delivered="${o.id}">Mark delivered</button>`);
   }
@@ -1485,7 +1491,7 @@ function wireOrderCardActions(container) {
     loadDashboard();
   });
   container.querySelectorAll('[data-confirm]').forEach(b => b.onclick = async () => {
-    if (!await vaultConfirm('This releases the escrowed payment to the seller — it can\'t be undone.', { title: 'Received your item?', okText: '🔓 Release payment', icon: '📦' })) return;
+    if (!await vaultConfirm('This releases the escrowed payment to the seller — it can\'t be undone.', { title: 'Received your item?', okText: 'Release payment', icon: '📦' })) return;
     b.disabled = true;
     const r = await api(`/api/orders/${b.dataset.confirm}/confirm`, { method: 'POST' });
     if (r.error) { toast(r.error, 'error'); b.disabled = false; return; }
@@ -1639,7 +1645,7 @@ async function renderDashTab() {
     html += `<h3 class="section-sub">Offers I've made</h3>`;
     html += sent.length
       ? `<div class="order-list">${sent.map(o => rowHtml(o, `to <a href="#u/${encodeURIComponent(o.seller_name)}">${escapeHtml(o.seller_name)}</a>`)).join('')}</div>`
-      : `<div class="empty-block">You haven't made any offers — find something on the marketplace and hit 💰 Make an offer.</div>`;
+      : `<div class="empty-block">You haven't made any offers — find something on the marketplace and hit "Make an offer".</div>`;
     c.innerHTML = html;
 
     const offerAct = async (id, action, body) => {
@@ -1820,7 +1826,7 @@ async function renderDashTab() {
             ? `<button class="btn btn-small btn-gold" id="wallet-payout">⚡ Withdraw to wallet</button>
                <button class="btn btn-small" id="wallet-change">Change</button>
                <button class="btn btn-small" id="wallet-disconnect" style="color:var(--danger)">Disconnect</button>`
-            : `<button class="btn btn-gold" id="wallet-connect">🔗 Connect wallet</button>`}
+            : `<button class="btn btn-gold" id="wallet-connect">Connect wallet</button>`}
         </div>
       </div>
       <h3 class="section-sub">Withdrawal history</h3>
@@ -1938,7 +1944,7 @@ async function renderDashTab() {
           <td class="mono">${i.referrer_pro_days ? `⭐ ${dayWord(i.referrer_pro_days)}` : '—'}</td>
         </tr>`).join('')}
       </table></div>`
-      : '<div class="empty-block">Nobody yet — share your link in your Discord, a video description, or a trading server. 🚀</div>'}`;
+      : '<div class="empty-block">Nobody yet — share your link in your Discord, a video description, or a trading server.</div>'}`;
     $('#ref-copy').onclick = () => copyText($('#ref-link').value, 'Invite link copied!');
     $('#ref-share').onclick = () => shareWithRef('', 'Trade Roblox items safely with escrow');
     if ($('#ref-vanity')) $('#ref-vanity').onclick = async () => {
@@ -1946,7 +1952,7 @@ async function renderDashTab() {
       if (!code) return;
       const res = await api('/api/my/referral-code', { method: 'POST', body: JSON.stringify({ code: code.trim() }) });
       if (res.error) return toast(res.error, 'error');
-      toast('Code claimed! 🎉', 'success');
+      toast('Code claimed.', 'success');
       renderDashTab();
     };
     return;
@@ -1965,7 +1971,7 @@ async function renderDeveloperTab(c) {
   const keys = r.keys || [];
   c.innerHTML = `
     <div class="dev-intro">
-      <div class="order-title">🔑 API keys</div>
+      <div class="order-title">API keys</div>
       <div class="order-sub">Drive your account over HTTP — list items, edit prices, check orders. Send your key as a Bearer token. 60 requests/min per key.</div>
     </div>
     <div class="dev-newkey">
@@ -2068,7 +2074,7 @@ $('#withdraw-submit').onclick = async () => {
   if (r.error) { $('#withdraw-error').textContent = r.error; return; }
   closeModal('withdraw-overlay');
   toast(r.auto
-    ? 'Withdrawal sent — crypto is on its way to your wallet. 🚀'
+    ? 'Withdrawal sent — crypto is on its way to your wallet.'
     : 'Withdrawal requested — you\'ll get a notification when it\'s processed.', 'success');
   await loadMe(); renderDashTab();
 };
@@ -2112,7 +2118,7 @@ $('#wallet-save').onclick = async () => {
   btn.classList.remove('loading');
   if (r.error) { err.textContent = r.error; return; }
   closeModal('wallet-overlay');
-  toast('🔗 Wallet connected — withdrawals now go straight to it.', 'success');
+  toast('Wallet connected — withdrawals now go straight to it.', 'success');
   await loadMe();
   renderDashTab();
 };
@@ -2259,7 +2265,7 @@ async function loadTradePosts() {
         <div class="trade-actions">
           ${ME && ME.id === t.user_id
             ? `<button class="btn btn-small" data-close-trade="${t.id}" style="color:var(--danger)">Close</button>`
-            : `<button class="btn btn-small btn-gold" data-dm-trade="${escapeHtml(t.username)}">💬 Message</button>`}
+            : `<button class="btn btn-small btn-gold" data-dm-trade="${escapeHtml(t.username)}">Message</button>`}
           ${ME ? `<button class="btn btn-small" data-ticket="${t.id}" title="Optional — a trusted middleman holds the trade together">⚖️ Request middleman</button>` : ''}
         </div>
       </div>
@@ -2376,7 +2382,7 @@ async function loadTraders() {
       <div class="trader-bio">${escapeHtml(t.bio || '')}</div>
       <div class="trader-actions">
         <button class="btn btn-small" data-view="${escapeHtml(t.username)}">Profile</button>
-        ${!ME || t.id !== ME.id ? `<button class="btn btn-small btn-gold" data-msg="${escapeHtml(t.username)}">💬 Message</button>` : ''}
+        ${!ME || t.id !== ME.id ? `<button class="btn btn-small btn-gold" data-msg="${escapeHtml(t.username)}">Message</button>` : ''}
       </div>
     </div>
   `).join('');
@@ -2593,7 +2599,7 @@ function prizeBadge(t) {
     return `<span class="prize-badge held" title="${t.middleman_name ? 'Prize held by middleman ' + escapeHtml(t.middleman_name) : 'A middleman will be assigned to hold the prize'}">🛡 Guaranteed payout</span>`;
   }
   if (t.prize_mode === 'unheld') return '<span class="prize-badge unheld" title="The host holds the prize — payout is not guaranteed by Vault">⚠ Not held — no guarantee</span>';
-  return '<span class="prize-badge fun">🎉 Just for fun</span>';
+  return '<span class="prize-badge fun">Just for fun</span>';
 }
 
 async function loadTournaments() {
@@ -2621,7 +2627,7 @@ async function loadTournaments() {
       </div>
       <div class="tc-host">Hosted by <a href="#u/${encodeURIComponent(t.host_name)}">${escapeHtml(t.host_name)}</a>${vbadge(t.host_verified)}${probadge(t.host_pro)}${t.middleman_name ? ` · Prize with <b>${escapeHtml(t.middleman_name)}</b> ⚖️` : ''}</div>
       ${t.description ? `<div class="tc-desc">${escapeHtml(t.description)}</div>` : ''}
-      <div class="tc-prize">${t.prize ? `<span class="tc-prize-text">🏆 ${escapeHtml(t.prize)}</span>` : ''}${prizeBadge(t)}</div>
+      <div class="tc-prize">${t.prize ? `<span class="tc-prize-text">${escapeHtml(t.prize)}</span>` : ''}${prizeBadge(t)}</div>
       <div class="tc-meta">
         <span>👥 ${t.player_count}/${t.player_limit} players</span>
         ${t.status === 'open' ? `<span>⏳ Signups close in <b data-ends="${t.signups_close_at}"></b></span>` : ''}
@@ -2631,7 +2637,7 @@ async function loadTournaments() {
         ${full && !t.joined ? '<span class="sub" style="margin:0">Full</span>' : ''}
         ${ME && t.joined && !mine && t.status === 'open' ? `<button class="btn btn-small" data-tleave="${t.id}">Leave</button>` : ''}
         ${t.joined && t.status === 'open' ? '<span class="tc-in">✓ You\'re in — chat opens at the deadline</span>' : ''}
-        ${(t.joined || (ME && (ME.is_admin || t.middleman_id === ME.id))) && ['ongoing','completed'].includes(t.status) ? `<button class="btn btn-small btn-gold" data-tchat="${t.id}">💬 Group chat</button>` : ''}
+        ${(t.joined || (ME && (ME.is_admin || t.middleman_id === ME.id))) && ['ongoing','completed'].includes(t.status) ? `<button class="btn btn-small btn-gold" data-tchat="${t.id}">Group chat</button>` : ''}
         ${mine && ['open','ongoing'].includes(t.status) ? `<button class="btn btn-small" data-tcancel="${t.id}" style="color:var(--danger)">Cancel</button>` : ''}
         ${mine && t.status === 'ongoing' ? `<button class="btn btn-small" data-tcomplete="${t.id}">Mark finished</button>` : ''}
       </div>
@@ -2663,7 +2669,7 @@ async function loadTournaments() {
     if (!await vaultConfirm('Players get a wrap-up notification and the chat goes read-only.', { title: 'Finish this tournament?', okText: 'Mark finished', icon: '🏆' })) return;
     const r2 = await api(`/api/tournaments/${b.dataset.tcomplete}/complete`, { method: 'POST' });
     if (r2.error) return toast(r2.error, 'error');
-    toast('Tournament finished — nice one! 🏆', 'success');
+    toast('Tournament finished.', 'success');
     loadTournaments();
   });
   grid.querySelectorAll('[data-tchat]').forEach(b => b.onclick = () => openTourneyChat(parseInt(b.dataset.tchat, 10)));
@@ -2804,7 +2810,7 @@ async function openProModal() {
   const status = $('#pro-status');
   if (r.active) {
     status.hidden = false;
-    status.innerHTML = `⭐ <b>You're Pro!</b> Active until <b>${new Date(r.until).toLocaleDateString()}</b> — subscribing again adds ${r.days} more days.`;
+    status.innerHTML = `<b>You're Pro!</b> Active until <b>${new Date(r.until).toLocaleDateString()}</b> — subscribing again adds ${r.days} more days.`;
     $('#pro-renew-row').hidden = false;
     const tgl = $('#pro-renew-toggle');
     tgl.classList.toggle('on', r.auto_renew);
@@ -2885,9 +2891,9 @@ async function loadProfile(username) {
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
           ${isMe ? `
             <button class="btn btn-small" id="edit-bio">Edit bio</button>
-            <button class="btn btn-small" id="toggle-privacy">${ME.profile_hidden ? '👁 Unhide my profile' : '🕶 Hide my profile'}</button>
+            <button class="btn btn-small" id="toggle-privacy">${ME.profile_hidden ? 'Unhide my profile' : 'Hide my profile'}</button>
           ` : (ME ? `
-            <button class="btn btn-small btn-gold" id="pf-message">💬 Message</button>
+            <button class="btn btn-small btn-gold" id="pf-message">Message</button>
             <button class="btn btn-small" id="pf-block" style="color:var(--danger)">${u.blocked_by_me ? 'Unblock' : 'Block'}</button>
             <button class="btn btn-small" id="pf-report">⚑ Report</button>
           ` : '')}
@@ -3011,7 +3017,7 @@ async function renderAdminTab() {
   if (adminTab === 'disputes') {
     const r = await api('/api/admin/disputes');
     const ds = r.disputes || [];
-    if (!ds.length) { c.innerHTML = '<div class="empty-block">No open disputes. 🎉</div>'; return; }
+    if (!ds.length) { c.innerHTML = '<div class="empty-block">No open disputes.</div>'; return; }
     c.innerHTML = `<div class="order-list">` + ds.map(d => `
       <div class="order-card" style="align-items:flex-start">
         <div class="order-main">
@@ -3020,7 +3026,7 @@ async function renderAdminTab() {
           <div class="inline-note danger" style="margin-bottom:0">“${escapeHtml(d.dispute_reason || '')}”</div>
         </div>
         <div class="order-actions" style="flex-direction:column;align-items:stretch">
-          <button class="btn btn-small" data-adm-chat="${d.id}">💬 Read chat</button>
+          <button class="btn btn-small" data-adm-chat="${d.id}">Read chat</button>
           <button class="btn btn-small" data-resolve="${d.id}" data-action="refund_buyer" style="color:var(--danger)">Refund buyer</button>
           <button class="btn btn-small btn-gold" data-resolve="${d.id}" data-action="release_seller">Release to seller</button>
         </div>
@@ -3200,7 +3206,7 @@ async function renderAdminTab() {
   if (adminTab === 'reports') {
     const r = await api('/api/admin/reports');
     const reports = r.reports || [];
-    if (!reports.length) { c.innerHTML = '<div class="empty-block">No open reports. 🎉</div>'; return; }
+    if (!reports.length) { c.innerHTML = '<div class="empty-block">No open reports.</div>'; return; }
     c.innerHTML = `<div class="order-list">` + reports.map(rp => `
       <div class="order-card" style="align-items:flex-start">
         <div class="order-main">
@@ -3335,7 +3341,7 @@ async function renderAdminTab() {
       }
       const res = await api(`/api/admin/creator-applications/${id}/review`, { method: 'POST', body: JSON.stringify({ decision, note: note || undefined }) });
       if (res.error) return toast(res.error, 'error');
-      toast(decision === 'approved' ? 'Creator approved 🎬' : 'Application rejected.', decision === 'approved' ? 'success' : 'info');
+      toast(decision === 'approved' ? 'Creator approved.' : 'Application rejected.', decision === 'approved' ? 'success' : 'info');
       renderAdminTab(); loadAdmin();
     };
     c.querySelectorAll('[data-capprove]').forEach(b => b.onclick = () => review(b.dataset.capprove, 'approved'));
@@ -3379,12 +3385,12 @@ async function renderAdminTab() {
       ${anns.length ? `<div class="order-list" style="margin-bottom:22px">${anns.map(a => `
         <div class="order-card">
           <div class="order-main">
-            <div class="order-title">📣 ${escapeHtml(a.message)}</div>
+            <div class="order-title">${escapeHtml(a.message)}</div>
             <div class="order-sub">${escapeHtml(a.admin_name)} · ${timeAgo(a.created_at)}</div>
           </div>
           <div class="order-actions"><button class="btn btn-small" data-del-ann="${a.id}" style="color:var(--danger)">Delete</button></div>
         </div>`).join('')}</div>`
-        : '<div class="inline-note" style="margin-bottom:22px">No announcements yet — the 📣 button up top sends one to every member.</div>'}
+        : '<div class="inline-note" style="margin-bottom:22px">No announcements yet — the Announce button up top sends one to every member.</div>'}
       <h3 class="section-sub">Audit log</h3>`;
     const rows = r.log || [];
     if (!rows.length) {
@@ -3413,7 +3419,7 @@ async function renderAdminTab() {
         </table></div>`;
     }
     c.querySelectorAll('[data-del-ann]').forEach(b => b.onclick = async () => {
-      if (!await vaultConfirm('The banner disappears for everyone and unread 📣 notifications are withdrawn.', { title: 'Delete this announcement?', okText: 'Delete announcement', danger: true, icon: '📣' })) return;
+      if (!await vaultConfirm('The banner disappears for everyone and unread announcement notifications are withdrawn.', { title: 'Delete this announcement?', okText: 'Delete announcement', danger: true, icon: '📣' })) return;
       const r2 = await api(`/api/admin/announcements/${b.dataset.delAnn}`, { method: 'DELETE' });
       if (r2.error) return toast(r2.error, 'error');
       toast('Announcement deleted.', 'success');
@@ -3431,7 +3437,7 @@ $('#admin-announce').addEventListener('click', async () => {
   if (msg === null) return;
   const text = msg.trim();
   if (!text) return toast('Announcement can\'t be empty.', 'error');
-  if (!await vaultConfirm(`“${text}” — this notifies every user (you can delete it later from the Log tab).`, { title: 'Send to everyone?', okText: '📣 Send announcement', icon: '📣' })) return;
+  if (!await vaultConfirm(`“${text}” — this notifies every user (you can delete it later from the Log tab).`, { title: 'Send to everyone?', okText: 'Send announcement', icon: '📣' })) return;
   const r = await api('/api/admin/announce', { method: 'POST', body: JSON.stringify({ message: text }) });
   if (r.error) return toast(r.error, 'error');
   toast(`Announcement sent to ${r.recipients} users.`, 'success');
@@ -3455,7 +3461,7 @@ async function loadWanted() {
   }
   grid.innerHTML = rows.map(w => `
     <div class="wanted-card">
-      <div class="wc-item">🔎 ${escapeHtml(w.item)} ${catTag(w.category)}</div>
+      <div class="wc-item">${escapeHtml(w.item)} ${catTag(w.category)}</div>
       ${w.budget_cents ? `<div class="wc-budget">Paying up to ${money(w.budget_cents)}</div>` : ''}
       ${w.notes ? `<div class="wc-notes">${escapeHtml(w.notes)}</div>` : ''}
       <div class="wc-foot">
@@ -3567,7 +3573,7 @@ $('#transfer-submit').onclick = async () => {
   $('#transfer-submit').disabled = false;
   if (r.error) { err.textContent = r.error; return; }
   closeModal('transfer-overlay');
-  toast(`Sent ${money(r.received_cents)} to ${escapeHtml(r.recipient)}. 💸`, 'success');
+  toast(`Sent ${money(r.received_cents)} to ${escapeHtml(r.recipient)}.`, 'success');
   await loadMe();
   renderDashTab();
 };
@@ -3747,7 +3753,7 @@ function renderTrustResult(username, p) {
     ${reports.map(rep => `<div class="trust-report ${rep.kind === 'safe' ? 'is-safe' : 'is-scam'}">
       <div class="tr-head"><span class="tr-kind">${rep.kind === 'safe' ? '✅ Vouch' : '🚩 Scam'}</span><span class="tr-by">by ${escapeHtml(rep.reporter)}</span></div>
       <div class="tr-detail">${escapeHtml(rep.detail)}</div>
-      ${rep.evidence_url ? `<a class="tr-evidence" href="${escapeHtml(rep.evidence_url)}" target="_blank" rel="noopener">🔗 Evidence</a>` : ''}
+      ${rep.evidence_url ? `<a class="tr-evidence" href="${escapeHtml(rep.evidence_url)}" target="_blank" rel="noopener">Evidence</a>` : ''}
       ${admin ? `<button class="btn btn-small tr-dismiss" data-tdismiss="${rep.id}">Dismiss</button>` : ''}
     </div>`).join('')}
   </div>` : `<div class="sub" style="margin-top:12px">No detailed reports on file.</div>`;
@@ -3767,7 +3773,7 @@ function renderTrustResult(username, p) {
     <div class="trust-blurb">${m.blurb}</div>
     ${p && p.admin_note ? `<div class="trust-adminnote"><b>Admin note:</b> ${escapeHtml(p.admin_note)}</div>` : ''}
     <div class="trust-actions">
-      <button class="btn btn-gold btn-small" data-treport="scam">🚩 Report a scam</button>
+      <button class="btn btn-gold btn-small" data-treport="scam">Report a scam</button>
       <button class="btn btn-small" data-treport="safe">✅ Vouch as safe</button>
     </div>
     ${admin ? `<div class="trust-admin">
@@ -3850,7 +3856,7 @@ async function loadLobbies() {
   const r = await api('/api/lobbies');
   const ls = r.lobbies || [];
   if (!ls.length) {
-    grid.innerHTML = '<div class="empty-block">No open lobbies — create one and get a squad together. 🎮</div>';
+    grid.innerHTML = '<div class="empty-block">No open lobbies — create one and get a squad together.</div>';
     return;
   }
   grid.innerHTML = ls.map(l => {
@@ -3858,7 +3864,7 @@ async function loadLobbies() {
     return `
     <div class="lobby-card">
       <div class="lobby-top">
-        <div class="lobby-game">🎮 ${escapeHtml(l.game)}</div>
+        <div class="lobby-game">${escapeHtml(l.game)}</div>
         ${l.private ? '<span class="lobby-tag private">🔒 Private</span>' : ''}
         <span class="lobby-tag">${escapeHtml(REGION_LABELS[l.region] || l.region)}</span>
       </div>
@@ -3951,7 +3957,7 @@ async function refreshLobbyRoom() {
     return closeModal('lobbyroom-overlay');
   }
   $('#lr-title').textContent = l.title;
-  $('#lr-sub').innerHTML = `🎮 <b>${escapeHtml(l.game)}</b> · ${escapeHtml(REGION_LABELS[l.region] || l.region)} · ${l.player_count}/${l.max_players} players · host ${escapeHtml(l.host_name)}`;
+  $('#lr-sub').innerHTML = `<b>${escapeHtml(l.game)}</b> · ${escapeHtml(REGION_LABELS[l.region] || l.region)} · ${l.player_count}/${l.max_players} players · host ${escapeHtml(l.host_name)}`;
   $('#lr-roster').innerHTML = `<div class="lr-roster-head">In the lobby (${(l.members || []).length})</div>` + (l.members || []).map(m => `
     <a class="lr-member" href="#u/${encodeURIComponent(m.username)}">
       ${m.avatar_url ? `<img src="${escapeHtml(m.avatar_url)}" alt="">` : `<span class="lr-av-fallback">${escapeHtml(m.username[0].toUpperCase())}</span>`}
@@ -3967,7 +3973,7 @@ async function pollLobbyChat(initial) {
     if (r.error) { if (initial) $('#lr-box').innerHTML = `<div class="chat-empty">${escapeHtml(r.error)}</div>`; return; }
     const box = $('#lr-box');
     const msgs = (r.messages || []).filter(m => m.id > lastLobbyMsgId);
-    if (initial && !msgs.length) { box.innerHTML = '<div class="chat-empty">Say hi, then jump in voice 🎙</div>'; return; }
+    if (initial && !msgs.length) { box.innerHTML = '<div class="chat-empty">Say hi, then jump in voice.</div>'; return; }
     if (initial || box.querySelector('.chat-empty')) box.innerHTML = '';
     msgs.forEach(m => {
       lastLobbyMsgId = Math.max(lastLobbyMsgId, m.id);
@@ -4512,34 +4518,11 @@ async function sendDockMsg() {
 $('#dock-send').onclick = sendDockMsg;
 $('#dock-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendDockMsg(); });
 
-// ============================================================
-// Ambience: header depth, card spotlight, scroll reveals
-// ============================================================
-
-// Header casts a shadow once the page scrolls under it.
+// The header border firms up once the page scrolls under it, so the bar stays
+// readable over content. That's the only scroll-driven effect on the page.
 window.addEventListener('scroll', () => {
   document.querySelector('header').classList.toggle('scrolled', window.scrollY > 8);
 }, { passive: true });
-
-// Cursor spotlight: cards glow where the mouse is (drives the --mx/--my
-// custom props the ::before radial gradient reads).
-document.addEventListener('mousemove', (e) => {
-  const card = e.target.closest?.('.card, .tourney-card');
-  if (!card) return;
-  const r = card.getBoundingClientRect();
-  card.style.setProperty('--mx', `${e.clientX - r.left}px`);
-  card.style.setProperty('--my', `${e.clientY - r.top}px`);
-}, { passive: true });
-
-// Scroll reveals for the static home sections.
-(function initReveals() {
-  const targets = $$('.section-head, .discord-banner, #how-it-works .card, .footer-grid');
-  if (!('IntersectionObserver' in window)) return;
-  const io = new IntersectionObserver((entries) => {
-    entries.forEach((en) => { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
-  }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
-  targets.forEach((el) => { el.classList.add('reveal'); io.observe(el); });
-})();
 
 // ============================================================
 // Init
@@ -4611,7 +4594,7 @@ $('#finder-go').addEventListener('click', async () => {
     }).join('')}</div>` : '<div class="empty-block">No listings in a comparable price band right now — check back soon.</div>'}
     ${T.length ? `<h4 style="margin:14px 0 8px">Traders already looking for items like yours</h4><div class="finder-matches">${T.map(t => `
       <div class="finder-match">
-        <div class="fm-thumb">🔁</div>
+        <div class="fm-thumb">⇄</div>
         <div class="fm-main"><b>${escapeHtml(t.username)}</b> wants <b>${escapeHtml(t.wants)}</b><span class="sub">offering: ${escapeHtml(t.offering)}</span></div>
         <span class="fm-actions"><button class="btn btn-small btn-gold" data-fdm="${escapeHtml(t.username)}">Message</button></span>
       </div>`).join('')}</div>` : ''}`;
@@ -4626,7 +4609,7 @@ $('#finder-go').addEventListener('click', async () => {
 const CHAIN_STATUS = {
   proposed: ['Waiting for participants', 'cs-wait'],
   confirmed: ['Everyone confirmed ✔', 'cs-ok'],
-  completed: ['Completed 🎉', 'cs-done'],
+  completed: ['Completed', 'cs-done'],
   cancelled: ['Cancelled', 'cs-no'],
 };
 
@@ -4646,7 +4629,7 @@ $('#chains-find').addEventListener('click', async () => {
   box.innerHTML = '<div class="empty" style="padding:14px">Searching for compatible chains…</div>';
   const r = await api('/api/chains/discover');
   if (r.reason === 'no_posts') {
-    box.innerHTML = '<div class="empty-block">You need an open trade post with 🔗 chain matching turned on first.</div>';
+    box.innerHTML = '<div class="empty-block">You need an open trade post with chain matching turned on first.</div>';
     return;
   }
   const chains = r.chains || [];
@@ -4692,7 +4675,7 @@ async function loadMyChains() {
       ${chainDiagram(c.members)}
       ${c.is_member ? mmRow : ''}
       <div class="chain-actions">
-        ${c.room_open ? `<button class="btn btn-small btn-gold" data-croom="${c.id}">💬 Group chat</button>` : ''}
+        ${c.room_open ? `<button class="btn btn-small btn-gold" data-croom="${c.id}">Group chat</button>` : ''}
         ${c.is_member && c.status === 'proposed' && !c.my_confirmed ? `<button class="btn btn-gold btn-small" data-cconfirm="${c.id}">✔ Confirm my part</button>` : ''}
         ${canDone ? `<button class="btn btn-gold btn-small" data-cdone="${c.id}">✅ Mark my hand-off done</button>` : ''}
         ${c.is_member && ['proposed', 'confirmed'].includes(c.status) ? `<button class="btn btn-small" style="color:var(--danger)" data-ccancel="${c.id}">Cancel chain</button>` : ''}
@@ -4724,7 +4707,7 @@ async function loadMyChains() {
   box.querySelectorAll('[data-cdone]').forEach(b => b.onclick = async () => {
     const r2 = await api(`/api/chains/${b.dataset.cdone}/done`, { method: 'POST' });
     if (r2.error) return toast(r2.error, 'error');
-    toast(r2.completed ? 'Chain completed 🎉' : 'Marked done — waiting on the others.', 'success');
+    toast(r2.completed ? 'Chain completed.' : 'Marked done — waiting on the others.', 'success');
     loadMyChains();
   });
   box.querySelectorAll('[data-ccancel]').forEach(b => b.onclick = async () => {
@@ -4858,13 +4841,13 @@ async function openEvent(id) {
         <div class="j-step"><b>${escapeHtml(journey.start_item)}</b><span>${money(journey.start_value_cents)} · start</span></div>
         ${journey.steps.map(s => `<div class="j-step ${s.confirmed ? '' : 'pending'}"><b>${escapeHtml(s.got)}</b><span>${money(s.value_cents)} · ${s.confirmed ? 'via ' + escapeHtml(s.partner) : '⏳ waiting for ' + escapeHtml(s.partner)}</span></div>`).join('')}
       </div></div>`
-    : ev.phase !== 'ended' ? `<button class="btn btn-gold" id="ev-join" style="margin:12px 0">🎲 Join this event</button>` : ''}
+    : ev.phase !== 'ended' ? `<button class="btn btn-gold" id="ev-join" style="margin:12px 0">Join this event</button>` : ''}
     <div class="ev-boards">
       <h4>Leaderboards <span class="sub" style="font-weight:400">(${boards.player_count} players — verified trades only)</span></h4>
       <div class="lb-cols">
-        <div class="lb-col"><h5>💰 Highest value</h5>${boards.by_value.map((p, i) => boardRow(p, i, money(p.final_cents))).join('') || '<div class="sub">Nobody yet.</div>'}</div>
-        <div class="lb-col"><h5>📈 Biggest climb</h5>${boards.by_gain.map((p, i) => boardRow(p, i, (p.gain_pct >= 0 ? '+' : '') + p.gain_pct + '%')).join('') || '<div class="sub">Nobody yet.</div>'}</div>
-        <div class="lb-col"><h5>🔁 Most trades</h5>${boards.by_steps.map((p, i) => boardRow(p, i, p.steps + ' trades')).join('') || '<div class="sub">Nobody yet.</div>'}</div>
+        <div class="lb-col"><h5>Highest value</h5>${boards.by_value.map((p, i) => boardRow(p, i, money(p.final_cents))).join('') || '<div class="sub">Nobody yet.</div>'}</div>
+        <div class="lb-col"><h5>Biggest climb</h5>${boards.by_gain.map((p, i) => boardRow(p, i, (p.gain_pct >= 0 ? '+' : '') + p.gain_pct + '%')).join('') || '<div class="sub">Nobody yet.</div>'}</div>
+        <div class="lb-col"><h5>Most trades</h5>${boards.by_steps.map((p, i) => boardRow(p, i, p.steps + ' trades')).join('') || '<div class="sub">Nobody yet.</div>'}</div>
       </div>
     </div>`;
   const joinBtn = $('#ev-join');
@@ -4887,7 +4870,7 @@ async function openEvent(id) {
   if (shareBtn) shareBtn.onclick = async () => {
     const steps = journey.steps.filter(s => s.confirmed);
     const last = steps.slice(-1)[0];
-    const text = `🎲 ${ev.title} — my trade-up journey on Vault:\n${journey.start_item} (${money(journey.start_value_cents)})${steps.map(s => ` → ${s.got} (${money(s.value_cents)})`).join('')}\n${steps.length} verified trades${last ? `, now holding ${money(last.value_cents)}` : ''}!`;
+    const text = `${ev.title} — my trade-up journey on Vault:\n${journey.start_item} (${money(journey.start_value_cents)})${steps.map(s => ` → ${s.got} (${money(s.value_cents)})`).join('')}\n${steps.length} verified trades${last ? `, now holding ${money(last.value_cents)}` : ''}!`;
     try { await navigator.clipboard.writeText(text); toast('Journey copied — paste it anywhere!', 'success'); } catch (_) { toast('Could not copy.', 'error'); }
   };
   box.querySelectorAll('[data-sok]').forEach(b => b.onclick = async () => {
@@ -4911,7 +4894,7 @@ $('#event-join-submit').addEventListener('click', async () => {
   }) });
   if (r.error) { err.textContent = r.error; return; }
   closeModal('event-join-overlay');
-  toast("You're in — trade up! 🎲", 'success');
+  toast("You're in — trade up.", 'success');
   openEvent(activeEventId); loadEvents();
 });
 
@@ -5033,7 +5016,7 @@ async function loadCreatorsPage() {
     if (r.is_creator) {
       const ref = await api('/api/my/referrals');
       box.innerHTML = `<div class="creator-you">
-        <div><b>🎬 You're a Vault creator partner.</b>
+        <div><b>You're a Vault creator partner.</b>
           <div class="sub" style="margin:2px 0 0">Your invite link is below — every signup that trades earns you credit.</div></div>
         <div class="share-row">
           <input class="share-link" id="creator-link" readonly value="${escapeHtml(ref.link || '')}">
@@ -5047,7 +5030,7 @@ async function loadCreatorsPage() {
         if (!code) return;
         const res = await api('/api/my/referral-code', { method: 'POST', body: JSON.stringify({ code: code.trim() }) });
         if (res.error) return toast(res.error, 'error');
-        toast('Code claimed! 🎉', 'success');
+        toast('Code claimed.', 'success');
         loadCreatorsPage();
       };
     } else if (app && app.status === 'pending') {
@@ -5077,7 +5060,7 @@ async function loadCreatorsPage() {
           <span class="cc-go">Watch →</span>
         </a>`;
       }).join('')}</div>`
-    : '<div class="empty-block">No partners yet — apply above and be the first. 🎬</div>';
+    : '<div class="empty-block">No partners yet — apply above and be the first.</div>';
 
   // ---- Referral leaderboard ----
   const lb = $('#referral-leaderboard');
@@ -5091,7 +5074,7 @@ async function loadCreatorsPage() {
           ${cbadge(l.is_creator)}${probadge(l.pro)}
           <span class="lb-count">${l.invites} trader${l.invites === 1 ? '' : 's'} invited</span>
         </div>`).join('')}</div>`
-    : '<div class="empty-block">Nobody on the board yet — invite a trader and be first. 🏆</div>';
+    : '<div class="empty-block">Nobody on the board yet — invite a trader and be first.</div>';
 }
 
 $('#creator-apply-btn').addEventListener('click', () => {
@@ -5112,7 +5095,7 @@ $('#creator-submit').addEventListener('click', async () => {
   }) });
   if (r.error) { err.textContent = r.error; return; }
   closeModal('creator-overlay');
-  toast('Application submitted — we’ll review it shortly. 🎬', 'success');
+  toast('Application submitted — we’ll review it shortly.', 'success');
   loadCreatorsPage();
 });
 
