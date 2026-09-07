@@ -44,7 +44,6 @@
     <a href="#trust">Trust check</a>
     <a href="#tournaments">Tournaments</a>
     <a href="#lobbies">Play with others</a>
-    <a href="#server">Server</a>
     <a href="#creators">Creators</a>
     <a href="#dashboard">Dashboard</a>
     <a href="#" id="nav-sell">Sell an item</a>
@@ -72,7 +71,6 @@
   <a href="#trust">Trust check</a>
   <a href="#tournaments">Tournaments</a>
   <a href="#lobbies">Play with others</a>
-  <a href="#server">Server</a>
   <a href="#creators">Creators</a>
   <a href="#traders-center">Traders center</a>
   <a href="#traders">Traders</a>
@@ -103,17 +101,17 @@
   <div class="hero-stats" id="hero-stats"></div>
 </section>
 
-<section class="section" id="trending-section" style="display:none;padding-top:0;padding-bottom:10px">
+<section class="section section-tight" id="trending-section" style="display:none">
   <div class="section-head"><div><span class="eyebrow">Hot right now</span><h2>Most watched</h2></div></div>
   <div class="recent-strip" id="trending-strip"></div>
 </section>
 
-<section class="section" id="game-pulse-section" style="display:none;padding-top:0;padding-bottom:10px">
+<section class="section section-tight" id="game-pulse-section" style="display:none">
   <div class="section-head"><div><span class="eyebrow">Game pulse</span><h2>Where the money moves</h2></div><span class="sub" style="margin:0">30-day traded volume</span></div>
   <div class="pulse-chart" id="game-pulse"></div>
 </section>
 
-<section class="section" id="activity-map-section" style="display:none;padding-top:0;padding-bottom:10px">
+<section class="section section-tight" id="activity-map-section" style="display:none">
   <div class="section-head">
     <div><span class="eyebrow">Global activity</span><h2>Traders around the world</h2></div>
     <span class="sub" style="margin:0">Aggregated by country — never precise locations</span>
@@ -128,7 +126,7 @@
   </div>
 </section>
 
-<section class="section" id="recent-trades-section" style="display:none;padding-top:0;padding-bottom:34px">
+<section class="section section-tight section-tight-last" id="recent-trades-section" style="display:none">
   <div class="section-head"><div><span class="eyebrow">Live activity</span><h2>Recently traded</h2></div></div>
   <div class="recent-strip" id="recent-strip"></div>
 </section>
@@ -163,7 +161,7 @@
   </div>
   <div class="cat-chips" id="auctions-cats"></div>
   <div class="search-meta" id="auctions-meta"></div>
-  <div class="grid" id="auctions-grid"><div class="empty">Loading auctions…</div></div>
+  <div class="grid" id="auctions-grid"><div class="sk-card"><div class="sk-thumb"></div><div class="sk-lines"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i></div></div><div class="sk-card"><div class="sk-thumb"></div><div class="sk-lines"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i></div></div><div class="sk-card"><div class="sk-thumb"></div><div class="sk-lines"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i></div></div><div class="sk-card"><div class="sk-thumb"></div><div class="sk-lines"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i></div></div></div>
   <div class="load-more-wrap" id="auctions-load-more-wrap" style="display:none;">
     <button class="btn" id="auctions-load-more">Load more</button>
   </div>
@@ -200,13 +198,13 @@
   </div>
   <div class="cat-chips" id="listings-cats"></div>
   <div class="search-meta" id="listings-meta"></div>
-  <div class="grid" id="listings-grid"><div class="empty">Loading listings…</div></div>
+  <div class="grid" id="listings-grid"><div class="sk-card"><div class="sk-thumb"></div><div class="sk-lines"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i></div></div><div class="sk-card"><div class="sk-thumb"></div><div class="sk-lines"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i></div></div><div class="sk-card"><div class="sk-thumb"></div><div class="sk-lines"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i></div></div><div class="sk-card"><div class="sk-thumb"></div><div class="sk-lines"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i></div></div></div>
   <div class="load-more-wrap" id="listings-load-more-wrap" style="display:none;">
     <button class="btn" id="listings-load-more">Load more</button>
   </div>
 </section>
 
-<section class="section" id="looking-for" style="padding-top:0">
+<section class="section section-flush-top" id="looking-for">
   <div class="section-head">
     <div><span class="eyebrow">Want to buy</span><h2>Looking for</h2></div>
     <button class="btn btn-gold" id="post-wanted-btn">+ Post a request</button>
@@ -215,7 +213,7 @@
   <div class="wanted-grid" id="wanted-grid"><div class="empty-block">Nobody's hunting anything yet — post the first request.</div></div>
 </section>
 
-<section class="section" id="discord-section" style="padding-bottom:26px">
+<section class="section section-flush-bottom" id="discord-section">
   <a class="discord-banner" href="https://discord.gg/xGV7NkDzZp" target="_blank" rel="noopener">
     <svg class="dc-mark" viewBox="0 0 127.14 96.36" width="42" height="32" aria-hidden="true"><path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53s-5.05 12.69-11.44 12.69Zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53s-5.04 12.69-11.43 12.69Z"/></svg>
     <div class="dc-copy">
@@ -285,13 +283,13 @@
     <div class="page-head">
       <div><h2>Traders</h2><div class="sub">Everyone trading on Vault. Message anyone directly — or hide your own profile from this list in your profile settings.</div></div>
     </div>
-    <div class="search-bar" style="margin-bottom:18px">
+    <div class="search-bar" style="margin-bottom:16px">
       <div class="search-input-wrap" style="flex:1">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input type="search" id="traders-q" placeholder="Search traders…" autocomplete="off">
       </div>
     </div>
-    <div class="trader-grid" id="traders-grid"><div class="empty">Loading traders…</div></div>
+    <div class="trader-grid" id="traders-grid"><div class="sk-card"><div class="sk-thumb"></div><div class="sk-lines"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i></div></div><div class="sk-card"><div class="sk-thumb"></div><div class="sk-lines"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i></div></div><div class="sk-card"><div class="sk-thumb"></div><div class="sk-lines"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i></div></div><div class="sk-card"><div class="sk-thumb"></div><div class="sk-lines"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i></div></div><div class="sk-card"><div class="sk-thumb"></div><div class="sk-lines"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i></div></div><div class="sk-card"><div class="sk-thumb"></div><div class="sk-lines"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i></div></div></div>
   </div>
 </div>
 
@@ -305,7 +303,7 @@
 
     <div class="tool-cards">
       <div class="tool-card" id="finder-card">
-        <div class="tool-head" data-tool="finder"><b>What can I get?</b><span class="sub" style="margin:0">Pick items like yours, see realistic trades</span><span class="tool-chev">▾</span></div>
+        <div class="tool-head" data-tool="finder" role="button" tabindex="0" aria-expanded="false"><b>What can I get?</b><span class="sub" style="margin:0">Pick items like yours, see realistic trades</span><span class="tool-chev">▾</span></div>
         <div class="tool-body" id="finder-body" hidden>
           <div class="sub" style="margin-bottom:8px">Search the marketplace for items matching what you own, add them, and we'll estimate what your bundle could realistically get. Estimates come from live marketplace data — never a guarantee.</div>
           <div class="finder-pick-row">
@@ -323,7 +321,7 @@
       </div>
 
       <div class="tool-card" id="chains-card">
-        <div class="tool-head" data-tool="chains"><b>Trade chains</b><span class="sub" style="margin:0">3–4 person trades where everyone wins</span><span class="tool-chev">▾</span></div>
+        <div class="tool-head" data-tool="chains" role="button" tabindex="0" aria-expanded="false"><b>Trade chains</b><span class="sub" style="margin:0">3–4 person trades where everyone wins</span><span class="tool-chev">▾</span></div>
         <div class="tool-body" id="chains-body" hidden>
           <div class="sub" style="margin-bottom:10px">When no one wants a straight swap, a chain routes items around a circle so every person gets something they asked for. Opt a trade post into chain matching, then search. Every member must confirm before anything is agreed.</div>
           <button class="btn" id="chains-find">Find chains for my posts</button>
@@ -334,14 +332,14 @@
       </div>
     </div>
 
-    <div class="search-bar" style="margin-bottom:14px">
+    <div class="search-bar" style="margin-bottom:12px">
       <div class="search-input-wrap" style="flex:1">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input type="search" id="trades-q" placeholder="Search items, e.g. Shadow Dragon…" autocomplete="off">
       </div>
     </div>
     <div class="cat-chips" id="trades-cats"></div>
-    <div class="trade-grid" id="trades-grid"><div class="empty">Loading trades…</div></div>
+    <div class="trade-grid" id="trades-grid"><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div></div>
   </div>
 </div>
 
@@ -352,13 +350,13 @@
       <div><h2>Tournaments</h2><div class="sub">Community events hosted by traders — sign up before the deadline, then hang out in the group chat when it kicks off. Prizes can be held by a middleman for a guaranteed payout.</div></div>
       <button class="btn btn-gold" id="host-tourney-btn">+ Host a tournament</button>
     </div>
-    <div class="tourney-grid" id="tourney-grid"><div class="empty">Loading tournaments…</div></div>
+    <div class="tourney-grid" id="tourney-grid"><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div></div>
 
-    <div class="page-head" style="margin-top:34px">
+    <div class="page-head" style="margin-top:32px">
       <div><h2>Trade-Up Events</h2><div class="sub">Start with a common item and trade up as far as you can before the clock runs out. Every trade must be confirmed by your trade partner — only verified trades count on the leaderboard.</div></div>
       <button class="btn btn-gold" id="event-create-btn" style="display:none">+ Create event</button>
     </div>
-    <div class="event-grid" id="events-grid"><div class="empty">Loading events…</div></div>
+    <div class="event-grid" id="events-grid"><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div></div>
   </div>
 </div>
 
@@ -379,7 +377,7 @@
     <div class="trust-watchlist">
       <h3>⚠ Known scammer watchlist</h3>
       <div class="sub" style="margin-bottom:12px">Usernames admins have confirmed as scammers, plus the most-reported accounts. Always use a middleman.</div>
-      <div id="trust-list"><div class="empty">Loading…</div></div>
+      <div id="trust-list"><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div></div>
     </div>
   </div>
 </div>
@@ -401,59 +399,15 @@
 
     <div id="creator-status"></div>
 
-    <div class="page-head" style="margin-top:30px">
+    <div class="page-head" style="margin-top:28px">
       <div><h3 style="margin:0">Our partnered creators</h3><div class="sub">Go support the people covering Vault.</div></div>
     </div>
-    <div id="creators-list"><div class="empty">Loading…</div></div>
+    <div id="creators-list"><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div></div>
 
-    <div class="page-head" style="margin-top:30px">
+    <div class="page-head" style="margin-top:28px">
       <div><h3 style="margin:0">Top inviters</h3><div class="sub">Ranked by invited traders who actually completed a trade.</div></div>
     </div>
-    <div id="referral-leaderboard"><div class="empty">Loading…</div></div>
-  </div>
-</div>
-
-<!-- ================= VAULT SERVER VIEW ================= -->
-<div class="view" id="view-server">
-  <div class="page" style="max-width:1180px">
-    <div class="server-layout">
-      <aside class="server-sidebar">
-        <div class="server-brand">
-          <div class="server-crest">V</div>
-          <div><b>Vault Server</b><span class="server-online" id="server-online">· online</span></div>
-        </div>
-        <div class="chan-group">Text channels</div>
-        <div class="chan-list" id="text-channels">
-          <button class="chan active" data-chan="general"># general</button>
-          <button class="chan" data-chan="giveaways"># giveaways</button>
-          <button class="chan" data-chan="clips"># clips</button>
-          <button class="chan" data-chan="help"># help</button>
-          <button class="chan" data-chan="off-topic"># off-topic</button>
-        </div>
-        <div class="chan-group">Voice channels</div>
-        <div class="chan-list" id="voice-channels">
-          <button class="chan voice" data-vc="general">🔊 General VC <span class="vc-count" data-vc-count="general"></span></button>
-          <button class="chan voice" data-vc="games">🔊 Games VC <span class="vc-count" data-vc-count="games"></span></button>
-          <button class="chan voice" data-vc="trading">🔊 Trading VC <span class="vc-count" data-vc-count="trading"></span></button>
-          <button class="chan voice" data-vc="chill">🔊 Chill VC <span class="vc-count" data-vc-count="chill"></span></button>
-        </div>
-      </aside>
-      <main class="server-main">
-        <div class="server-chan-head">
-          <b id="server-chan-name"># general</b>
-          <span class="sub" id="server-chan-desc">Chat with the whole Vault community · 5s slowmode</span>
-        </div>
-        <div class="server-box" id="server-box"><div class="chat-empty">Loading…</div></div>
-        <div class="chat-input-row server-input">
-          <input id="server-input" placeholder="Message #general…" maxlength="300" autocomplete="off">
-          <button class="btn btn-gold" id="server-send">Send</button>
-        </div>
-      </main>
-      <aside class="server-members">
-        <div class="chan-group">Online — <span id="server-online-n">0</span></div>
-        <div class="member-list" id="server-members"></div>
-      </aside>
-    </div>
+    <div id="referral-leaderboard"><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div></div>
   </div>
 </div>
 
@@ -464,7 +418,7 @@
       <div><h2>Play with others</h2><div class="sub">Playing something and want people to join? Spin up a lobby — anyone can hop in, jump in <b>voice chat</b>, and play together.</div></div>
       <button class="btn btn-gold" id="host-lobby-btn">+ Create a lobby</button>
     </div>
-    <div class="lobby-grid" id="lobby-grid"><div class="empty-block">Loading…</div></div>
+    <div class="lobby-grid" id="lobby-grid"><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div></div>
   </div>
 </div>
 
@@ -475,7 +429,7 @@
       <div><h2>Traders center</h2><div class="sub">Post your trade and let the community call it — <b style="color:var(--live)">W</b> for win, <b style="color:#FFB74D">F</b> for fair, <b style="color:var(--danger)">L</b> for loss.</div></div>
       <button class="btn btn-gold" id="post-wfl-btn">+ Post a trade</button>
     </div>
-    <div class="wfl-grid" id="wfl-grid"><div class="empty-block">Loading…</div></div>
+    <div class="wfl-grid" id="wfl-grid"><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div><div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div></div>
   </div>
 </div>
 
@@ -486,7 +440,7 @@
       <div><h2>Messages</h2><div class="sub">Direct messages with other traders. Trade coordination for orders stays in order chat.</div></div>
     </div>
     <div class="dm-layout">
-      <div class="dm-sidebar" id="dm-sidebar"><div class="empty-block" style="padding:26px 12px">No conversations yet.</div></div>
+      <div class="dm-sidebar" id="dm-sidebar"><div class="empty-block" style="padding:24px 12px">No conversations yet.</div></div>
       <div class="dm-thread" id="dm-thread">
         <div class="dm-thread-empty">Select a conversation — or find someone in the <a href="#traders" style="color:var(--gold)">trader directory</a>.</div>
       </div>
@@ -935,7 +889,7 @@
     <button class="modal-close" data-close="wallet-overlay">✕</button>
     <h3>Connect your wallet</h3>
     <div class="sub">Withdrawals get sent straight to this address — within the instant-payout caps, no waiting on an admin.</div>
-    <button class="btn wallet-mm-btn" id="wallet-metamask" style="width:100%;margin-bottom:14px" hidden>
+    <button class="btn wallet-mm-btn" id="wallet-metamask" style="width:100%;margin-bottom:12px" hidden>
       <span class="mm-fox">🦊</span> Connect MetaMask <span class="sub" style="margin:0">— fills your ETH address</span>
     </button>
     <div class="field">
@@ -1161,7 +1115,7 @@
         </div>
       </div>
     </div>
-    <div class="modal-actions" style="margin-top:14px">
+    <div class="modal-actions" style="margin-top:12px">
       <button class="btn" id="lr-leave" style="flex:1;color:var(--danger)">Leave lobby</button>
     </div>
   </div>

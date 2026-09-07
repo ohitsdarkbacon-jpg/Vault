@@ -176,13 +176,38 @@ function toast(message, type = 'info') {
   el.className = `toast ${type}`;
   el.textContent = message;
   stack.appendChild(el);
-  setTimeout(() => el.remove(), 4200);
+  // Fade out rather than vanishing mid-read; the stack collapses smoothly
+  // behind it because .toast-leaving also collapses its own height.
+  setTimeout(() => {
+    el.classList.add('toast-leaving');
+    setTimeout(() => el.remove(), 200);
+  }, 4200);
 }
 
 // ---------- Modals ----------
-function openModal(id) { $('#' + id).classList.add('open'); }
+// Dialogs stay on display:none when closed — keeping forty of them laid out
+// would cost more than the animation is worth — so the exit is played by
+// holding .closing for its duration before the element goes away.
+const MODAL_EXIT_MS = 110;
+const modalExitTimers = new Map();
+
+function openModal(id) {
+  const el = $('#' + id);
+  clearTimeout(modalExitTimers.get(id));
+  modalExitTimers.delete(id);
+  el.classList.remove('closing');
+  el.classList.add('open');
+}
 function closeModal(id) {
-  $('#' + id).classList.remove('open');
+  const el = $('#' + id);
+  // Polling and active-record cleanup happens now, not when the exit finishes.
+  if (el.classList.contains('open') && !el.classList.contains('closing')) {
+    el.classList.add('closing');
+    modalExitTimers.set(id, setTimeout(() => {
+      el.classList.remove('open', 'closing');
+      modalExitTimers.delete(id);
+    }, MODAL_EXIT_MS));
+  }
   if (id === 'chat-overlay') { clearInterval(chatPollTimer); activeChatOrderId = null; }
   if (id === 'bid-overlay') clearInterval(bidPollTimer);
   if (id === 'ticket-overlay') { clearInterval(ticketPollTimer); activeTicketId = null; }
@@ -325,10 +350,11 @@ function showView(name) {
   const el = $('#view-' + name);
   (el || $('#view-home')).classList.add('active');
   if (name !== 'messages') { clearInterval(dmPollTimer); activeDmPartner = null; }
-  if (name !== 'server') { clearInterval(serverPollTimer); clearInterval(serverSummaryTimer); }
   syncNavActive(name);
   if (typeof updateDock === 'function') updateDock(name);
-  window.scrollTo({ top: 0 });
+  // Jump, don't glide. `scroll-behavior: smooth` is for in-page anchors; on a
+  // route change it crawls the whole page back to the top, which reads as lag.
+  window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 function syncNavActive(view) {
@@ -356,7 +382,6 @@ async function route() {
   if (h === 'tournaments') { showView('tournaments'); loadTournaments(); loadEvents(); return; }
   if (h === 'traders-center') { showView('wfl'); loadWfl(); return; }
   if (h === 'lobbies') { showView('lobbies'); loadLobbies(); return; }
-  if (h === 'server') { showView('server'); loadServer(); return; }
   if (h === 'trust') { showView('trust'); loadTrustList(); return; }
   if (h === 'creators') { showView('creators'); loadCreatorsPage(); return; }
   if (h === 'messages' || h.startsWith('messages/')) {
@@ -651,13 +676,26 @@ function buildSearchParams(state) {
   return params;
 }
 
-// Shimmer placeholders while a grid loads for the first time.
-function showSkeletons(sel, n = 4) {
+// ---------- Loading placeholders ----------
+// Shaped like the thing they stand in for, so the swap to real content is a
+// crossfade rather than the grid resizing under the cursor.
+const SK_CARD = '<div class="sk-card"><div class="sk-thumb"></div><div class="sk-lines"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="b5"></i></div></div>';
+const SK_ROW = '<div class="sk-row"><i></i><i class="short"></i><i class="btn-bar"></i></div>';
+const skeletonCards = (n = 4) => Array(n).fill(SK_CARD).join('');
+const skeletonRows = (n = 3) => Array(n).fill(SK_ROW).join('');
+
+// Only paints placeholders when there is nothing real to look at yet. A
+// refresh keeps the current results on screen instead of flashing back to
+// skeletons, which would read as the page reloading itself.
+function showSkeletons(sel, n = 4, shape = skeletonCards) {
   const grid = $(sel);
-  if (grid && !grid.querySelector('.card')) {
-    grid.innerHTML = Array(n).fill('<div class="skeleton"></div>').join('');
-  }
+  if (!grid) return;
+  const hasContent = [...grid.children].some(
+    (el) => !el.matches('.sk-card, .sk-row, .skeleton, .empty, .empty-block')
+  );
+  if (!hasContent) grid.innerHTML = shape(n);
 }
+const showSkeletonRows = (sel, n = 3) => showSkeletons(sel, n, skeletonRows);
 
 async function loadAuctions({ append = false } = {}) {
   if (!append) showSkeletons('#auctions-grid');
@@ -798,12 +836,12 @@ $('#bid-submit').onclick = async () => {
   if (!ME) return openModal('auth-overlay');
   const val = parseFloat($('#bid-amount').value);
   if (!val || val <= 0) { $('#bid-error').textContent = 'Enter a valid bid amount.'; return; }
-  $('#bid-submit').disabled = true;
+  $('#bid-submit').disabled = true; $('#bid-submit').classList.add('loading');
   const r = await api(`/api/auctions/${activeAuctionId}/bid`, {
     method: 'POST',
     body: JSON.stringify({ amount_cents: Math.round(val * 100) })
   });
-  $('#bid-submit').disabled = false;
+  $('#bid-submit').disabled = false; $('#bid-submit').classList.remove('loading');
   if (r.error) { $('#bid-error').textContent = r.error; return; }
   $('#bid-error').textContent = '';
   $('#bid-amount').value = '';
@@ -813,9 +851,9 @@ $('#bid-submit').onclick = async () => {
 };
 
 $('#pay-stripe').onclick = async () => {
-  $('#pay-stripe').disabled = true;
+  $('#pay-stripe').disabled = true; $('#pay-stripe').classList.add('loading');
   const r = await api(`/api/auctions/${activeAuctionId}/checkout/stripe`, { method: 'POST' });
-  $('#pay-stripe').disabled = false;
+  $('#pay-stripe').disabled = false; $('#pay-stripe').classList.remove('loading');
   if (r.error) return toast(r.error, 'error');
   window.location.href = r.url;
 };
@@ -983,9 +1021,9 @@ async function openBuyModal(id, itemOverride) {
 }
 
 $('#buy-credit').onclick = async () => {
-  $('#buy-credit').disabled = true;
+  $('#buy-credit').disabled = true; $('#buy-credit').classList.add('loading');
   const r = await api(`/api/listings/${activeListingId}/buy-with-credit`, { method: 'POST' });
-  $('#buy-credit').disabled = false;
+  $('#buy-credit').disabled = false; $('#buy-credit').classList.remove('loading');
   if (r.error) { $('#buy-error').textContent = r.error; return; }
   closeModal('buy-overlay');
   toast('Purchase complete — payment held in escrow. Coordinate the trade in order chat!', 'success');
@@ -993,9 +1031,9 @@ $('#buy-credit').onclick = async () => {
   if (r.order_id) { location.hash = `order-${r.order_id}`; }
 };
 $('#buy-stripe').onclick = async () => {
-  $('#buy-stripe').disabled = true;
+  $('#buy-stripe').disabled = true; $('#buy-stripe').classList.add('loading');
   const r = await api(`/api/listings/${activeListingId}/checkout/stripe`, { method: 'POST' });
-  $('#buy-stripe').disabled = false;
+  $('#buy-stripe').disabled = false; $('#buy-stripe').classList.remove('loading');
   if (r.error) { $('#buy-error').textContent = r.error; return; }
   window.location.href = r.url;
 };
@@ -1988,7 +2026,7 @@ async function renderDeveloperTab(c) {
         <td>${k.revoked ? '<span class="status-badge status-disputed">Revoked</span>' : '<span class="status-badge status-active">Active</span>'}</td>
         <td>${k.revoked ? '' : `<button class="btn btn-small" data-revoke-key="${k.id}" style="color:var(--danger)">Revoke</button>`}</td>
       </tr>`).join('')}
-    </table></div>` : '<div class="empty-block" style="margin-top:14px">No keys yet — generate one to get started.</div>'}
+    </table></div>` : '<div class="empty-block" style="margin-top:12px">No keys yet — generate one to get started.</div>'}
 
     <h3 class="section-sub">Quick start</h3>
     <div class="dev-docs">
@@ -2063,14 +2101,14 @@ $('#withdraw-submit').onclick = async () => {
   const destination = $('#withdraw-dest').value.trim();
   if (!amount || amount <= 0) { $('#withdraw-error').textContent = 'Enter a valid amount.'; return; }
   if (!withdrawUseWallet && !destination) { $('#withdraw-error').textContent = 'Enter where to send the money.'; return; }
-  $('#withdraw-submit').disabled = true;
+  $('#withdraw-submit').disabled = true; $('#withdraw-submit').classList.add('loading');
   const r = await api('/api/my/withdrawals', { method: 'POST', body: JSON.stringify(withdrawUseWallet
     ? { amount_cents: Math.round(amount * 100), use_wallet: true }
     : {
       amount_cents: Math.round(amount * 100), method: withdrawMethod, destination,
       currency: withdrawMethod === 'crypto' ? $('#withdraw-currency').value : undefined,
     }) });
-  $('#withdraw-submit').disabled = false;
+  $('#withdraw-submit').disabled = false; $('#withdraw-submit').classList.remove('loading');
   if (r.error) { $('#withdraw-error').textContent = r.error; return; }
   closeModal('withdraw-overlay');
   toast(r.auto
@@ -2127,9 +2165,9 @@ $('#wallet-save').onclick = async () => {
 $('#dispute-submit').onclick = async () => {
   const reason = $('#dispute-reason').value.trim();
   if (!reason) { $('#dispute-error').textContent = 'Please describe what went wrong.'; return; }
-  $('#dispute-submit').disabled = true;
+  $('#dispute-submit').disabled = true; $('#dispute-submit').classList.add('loading');
   const r = await api(`/api/orders/${activeDisputeOrderId}/dispute`, { method: 'POST', body: JSON.stringify({ reason }) });
-  $('#dispute-submit').disabled = false;
+  $('#dispute-submit').disabled = false; $('#dispute-submit').classList.remove('loading');
   if (r.error) { $('#dispute-error').textContent = r.error; return; }
   closeModal('dispute-overlay');
   toast('Dispute opened — payment is frozen and a moderator will review it.', 'success');
@@ -2146,11 +2184,11 @@ $('#review-stars').addEventListener('click', (e) => {
 });
 $('#review-submit').onclick = async () => {
   if (!reviewRating) { $('#review-error').textContent = 'Pick a star rating.'; return; }
-  $('#review-submit').disabled = true;
+  $('#review-submit').disabled = true; $('#review-submit').classList.add('loading');
   const r = await api(`/api/orders/${activeReviewOrderId}/review`, { method: 'POST', body: JSON.stringify({
     rating: reviewRating, comment: $('#review-comment').value.trim(),
   }) });
-  $('#review-submit').disabled = false;
+  $('#review-submit').disabled = false; $('#review-submit').classList.remove('loading');
   if (r.error) { $('#review-error').textContent = r.error; return; }
   closeModal('review-overlay');
   toast('Review posted — thanks!', 'success');
@@ -2239,6 +2277,7 @@ async function loadTradePosts() {
   const params = new URLSearchParams();
   if (q) params.set('q', q);
   if (tradeState.category) params.set('category', tradeState.category);
+  showSkeletonRows('#trades-grid', 3);
   const r = await api(`/api/trades?${params}`);
   const grid = $('#trades-grid');
   const posts = r.trades || [];
@@ -2366,6 +2405,7 @@ function traderAvatar(name, url, cls = '') {
 
 async function loadTraders() {
   const q = $('#traders-q').value.trim();
+  showSkeletons('#traders-grid', 6);
   const r = await api(`/api/traders?q=${encodeURIComponent(q)}`);
   const grid = $('#traders-grid');
   const ts = r.traders || [];
@@ -2404,7 +2444,7 @@ async function loadConversations() {
   const side = $('#dm-sidebar');
   const convs = r.conversations || [];
   if (!convs.length) {
-    side.innerHTML = `<div class="empty-block" style="padding:26px 12px;border:none">No conversations yet — find someone in the <a href="#traders" style="color:var(--gold)">trader directory</a>.</div>`;
+    side.innerHTML = `<div class="empty-block" style="padding:24px 12px;border:none">No conversations yet — find someone in the <a href="#traders" style="color:var(--gold)">trader directory</a>.</div>`;
     return;
   }
   side.innerHTML = convs.map(c => `
@@ -2604,6 +2644,7 @@ function prizeBadge(t) {
 
 async function loadTournaments() {
   const grid = $('#tourney-grid');
+  showSkeletonRows('#tourney-grid', 3);
   const r = await api('/api/tournaments');
   const ts = r.tournaments || [];
   if (!ts.length) {
@@ -2903,7 +2944,7 @@ async function loadProfile(username) {
     ${(r.achievements || []).length ? `<div class="ach-chips">${r.achievements.map(a => `<span class="ach-chip" title="${escapeHtml(a.desc)}">${a.icon} ${escapeHtml(a.label)}</span>`).join('')}</div>` : ''}
     ${r.auctions.length ? `<h3 class="section-sub">Live auctions</h3><div class="grid" id="pf-auctions">${r.auctions.map(auctionCardHtml).join('')}</div>` : ''}
     ${r.listings.length ? `<h3 class="section-sub">Listings</h3><div class="grid" id="pf-listings">${r.listings.map(listingCardHtml).join('')}</div>` : ''}
-    ${!r.auctions.length && !r.listings.length ? `<div class="empty-block" style="margin-top:22px">Nothing on the market right now.</div>` : ''}
+    ${!r.auctions.length && !r.listings.length ? `<div class="empty-block" style="margin-top:20px">Nothing on the market right now.</div>` : ''}
     <h3 class="section-sub">Reviews</h3>
     ${(() => {
       const hist = r.histogram || {};
@@ -3065,7 +3106,7 @@ async function renderAdminTab() {
         </td>
       </tr>`).join('')}
     </table></div>
-    <div class="inline-note" style="margin-top:14px">${canAuto
+    <div class="inline-note" style="margin-top:12px">${canAuto
       ? '⚡ Crypto payouts within your caps are sent <b>automatically</b> the moment a seller requests them — anything here hit a cap, failed, or is PayPal. “Send via NOWPayments” retries a crypto one manually; “Mark sent” records an external manual payment; “Reject” refunds their balance. Keep your NOWPayments balance topped up.'
       : 'Automated crypto payouts are off — set NOWPAYMENTS_EMAIL / NOWPAYMENTS_PASSWORD / NOWPAYMENTS_2FA_SECRET to enable them. “Mark sent” records an external manual payment; “Reject” refunds their balance.'}</div>`;
     c.querySelectorAll('[data-send-crypto]').forEach(b => b.onclick = async () => {
@@ -3093,12 +3134,12 @@ async function renderAdminTab() {
       <h3 class="section-sub" style="margin-top:0">Game categories</h3>
       <div class="inline-note" style="margin-top:0">The Roblox market moves fast — add or remove games here and every picker, filter, and tag updates instantly. Items in a removed game move to <b>Other</b>.</div>
       <div class="cat-chips" id="admin-cat-list" style="margin-bottom:10px"></div>
-      <div class="search-bar" style="margin-bottom:22px">
+      <div class="search-bar" style="margin-bottom:20px">
         <input id="admin-cat-name" placeholder="Game name, e.g. Fisch" maxlength="40" style="flex:1;background:rgba(10,13,20,0.6);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:9px;font-size:0.88rem">
         <button class="btn btn-gold" id="admin-cat-add">+ Add game</button>
       </div>
       <h3 class="section-sub">Live content</h3>
-      <div class="search-bar" style="margin-bottom:14px"><div class="search-input-wrap" style="flex:1">
+      <div class="search-bar" style="margin-bottom:12px"><div class="search-input-wrap" style="flex:1">
         <input type="search" id="admin-content-q" placeholder="Search live listings & auctions…" autocomplete="off" style="width:100%">
       </div></div>
       <div id="admin-content-list"></div>`;
@@ -3106,7 +3147,7 @@ async function renderAdminTab() {
     const renderCats = async () => {
       const rc = await api('/api/categories');
       $('#admin-cat-list').innerHTML = (rc.categories || []).map(cat => `
-        <span class="cat-chip active" style="display:inline-flex;align-items:center;gap:7px">${escapeHtml(cat.label)}
+        <span class="cat-chip active" style="display:inline-flex;align-items:center;gap:6px">${escapeHtml(cat.label)}
           ${cat.slug !== 'other' ? `<button data-del-cat="${escapeHtml(cat.slug)}" title="Remove" style="background:none;border:none;color:rgba(255,255,255,0.7);font-size:0.72rem;padding:0;cursor:pointer">✕</button>` : ''}
         </span>`).join('');
       $('#admin-cat-list').querySelectorAll('[data-del-cat]').forEach(b => b.onclick = async () => {
@@ -3232,7 +3273,7 @@ async function renderAdminTab() {
 
   if (adminTab === 'users') {
     c.innerHTML = `
-      <div class="search-bar" style="margin-bottom:14px"><div class="search-input-wrap" style="flex:1">
+      <div class="search-bar" style="margin-bottom:12px"><div class="search-input-wrap" style="flex:1">
         <input type="search" id="admin-user-q" placeholder="Search users…" autocomplete="off" style="width:100%">
       </div></div>
       <div id="admin-users-table"></div>`;
@@ -3324,7 +3365,7 @@ async function renderAdminTab() {
           </div>
         </div>`;
       }).join('')}</div>` : '<div class="empty-block">No pending creator applications.</div>'}
-      <h4 style="margin:22px 0 8px">Current partners (${partners.length})</h4>
+      <h4 style="margin:20px 0 8px">Current partners (${partners.length})</h4>
       ${partners.length ? `<div class="table-wrap"><table class="data">
         <tr><th>Creator</th><th>Channel</th><th></th></tr>
         ${partners.map(p => `<tr>
@@ -3360,7 +3401,7 @@ async function renderAdminTab() {
     const r = await api('/api/admin/flags');
     const flags = r.flags || [];
     c.innerHTML = `
-      <div class="inline-note" style="margin-bottom:14px">Switch sections of the site on or off instantly — no deploy needed. A disabled feature disappears from the nav and its API returns 404, so you can build the next thing behind a flag and flip it live when it's ready.</div>
+      <div class="inline-note" style="margin-bottom:12px">Switch sections of the site on or off instantly — no deploy needed. A disabled feature disappears from the nav and its API returns 404, so you can build the next thing behind a flag and flip it live when it's ready.</div>
       <div class="flag-list">${flags.map(f => `
         <label class="flag-row">
           <button type="button" class="toggle ${f.enabled ? 'on' : ''}" role="switch" aria-checked="${f.enabled}" data-flag="${escapeHtml(f.key)}"><span class="knob"></span></button>
@@ -3382,7 +3423,7 @@ async function renderAdminTab() {
     const anns = ra.announcements || [];
     const annBlock = `
       <h3 class="section-sub" style="margin-top:0">Announcements</h3>
-      ${anns.length ? `<div class="order-list" style="margin-bottom:22px">${anns.map(a => `
+      ${anns.length ? `<div class="order-list" style="margin-bottom:20px">${anns.map(a => `
         <div class="order-card">
           <div class="order-main">
             <div class="order-title">${escapeHtml(a.message)}</div>
@@ -3390,7 +3431,7 @@ async function renderAdminTab() {
           </div>
           <div class="order-actions"><button class="btn btn-small" data-del-ann="${a.id}" style="color:var(--danger)">Delete</button></div>
         </div>`).join('')}</div>`
-        : '<div class="inline-note" style="margin-bottom:22px">No announcements yet — the Announce button up top sends one to every member.</div>'}
+        : '<div class="inline-note" style="margin-bottom:20px">No announcements yet — the Announce button up top sends one to every member.</div>'}
       <h3 class="section-sub">Audit log</h3>`;
     const rows = r.log || [];
     if (!rows.length) {
@@ -3568,131 +3609,15 @@ $('#transfer-submit').onclick = async () => {
   const cents = Math.round(amount * 100);
   const fee = Math.round(cents * TRANSFER_FEE_BPS / 10000);
   if (!await vaultConfirm(`${to} receives ${money(cents - fee)} (you're charged ${money(cents)} incl. a ${money(fee)} fee).`, { title: 'Send balance?', okText: 'Send ' + money(cents), icon: '💸' })) return;
-  $('#transfer-submit').disabled = true;
+  $('#transfer-submit').disabled = true; $('#transfer-submit').classList.add('loading');
   const r = await api('/api/my/transfer', { method: 'POST', body: JSON.stringify({ to, amount_cents: cents, note: $('#transfer-note').value.trim() || undefined }) });
-  $('#transfer-submit').disabled = false;
+  $('#transfer-submit').disabled = false; $('#transfer-submit').classList.remove('loading');
   if (r.error) { err.textContent = r.error; return; }
   closeModal('transfer-overlay');
   toast(`Sent ${money(r.received_cents)} to ${escapeHtml(r.recipient)}.`, 'success');
   await loadMe();
   renderDashTab();
 };
-
-// ============================================================
-// Vault Server — Discord-style hub (text channels + voice channels)
-// ============================================================
-const SERVER_CHAN_DESC = {
-  general: 'Chat with the whole Vault community',
-  giveaways: 'Giveaways, drops, and events',
-  clips: 'Share your best trades and plays',
-  help: 'Stuck? Ask the community',
-  'off-topic': 'Anything goes (keep it civil)',
-};
-let serverRoom = 'general';
-let serverPollTimer = null;
-let serverPollBusy = false;
-let lastServerMsgId = 0;
-let serverSlowTimer = null;
-
-async function loadServer() {
-  loadServerSummary();
-  clearInterval(serverSummaryTimer); serverSummaryTimer = setInterval(loadServerSummary, 20000);
-  switchServerChannel(serverRoom);
-}
-let serverSummaryTimer = null;
-
-async function loadServerSummary() {
-  const r = await api('/api/server/summary');
-  if (r.error) return;
-  $('#server-online').textContent = `· ${r.online} online`;
-  $('#server-online-n').textContent = r.online;
-  Object.entries(r.voice || {}).forEach(([ch, n]) => {
-    const el = document.querySelector(`[data-vc-count="${ch}"]`);
-    if (el) el.textContent = n ? `· ${n}` : '';
-  });
-  document.querySelectorAll('[data-vc-count]').forEach(el => { if (!(r.voice && r.voice[el.dataset.vcCount])) el.textContent = ''; });
-  $('#server-members').innerHTML = (r.members || []).map(m => `
-    <a class="member-row" href="#u/${encodeURIComponent(m.username)}">
-      ${m.avatar_url ? `<img src="${escapeHtml(m.avatar_url)}" alt="">` : `<span class="member-av">${escapeHtml(m.username[0].toUpperCase())}</span>`}
-      <span class="member-dot"></span><span>${escapeHtml(m.username)}${probadge(m.pro)}</span>
-    </a>`).join('') || '<div class="sub" style="padding:8px">Nobody around right now.</div>';
-}
-
-function switchServerChannel(room) {
-  serverRoom = room;
-  lastServerMsgId = 0;
-  $$('#text-channels .chan').forEach(c => c.classList.toggle('active', c.dataset.chan === room));
-  $('#server-chan-name').textContent = '# ' + room;
-  $('#server-chan-desc').textContent = `${SERVER_CHAN_DESC[room] || ''} · 5s slowmode`;
-  $('#server-input').placeholder = `Message #${room}…`;
-  $('#server-box').innerHTML = '<div class="chat-empty">Loading…</div>';
-  clearInterval(serverPollTimer);
-  pollServer(true);
-  serverPollTimer = setInterval(() => pollServer(false), 4000);
-}
-
-async function pollServer(initial) {
-  if (serverPollBusy) return;
-  serverPollBusy = true;
-  try {
-    const r = await api(`/api/rooms/${serverRoom}/messages?after=${lastServerMsgId}`);
-    if (r.error) { if (initial) $('#server-box').innerHTML = `<div class="chat-empty">${escapeHtml(r.error)}</div>`; return; }
-    const box = $('#server-box');
-    if (initial) box.innerHTML = '';
-    const msgs = (r.messages || []).filter(m => m.id > lastServerMsgId);
-    if (initial && !msgs.length) { box.innerHTML = `<div class="chat-empty">No messages in #${serverRoom} yet — say hi!</div>`; return; }
-    if (msgs.length && box.querySelector('.chat-empty')) box.innerHTML = '';
-    msgs.forEach(m => {
-      lastServerMsgId = Math.max(lastServerMsgId, m.id);
-      const el = document.createElement('div');
-      el.className = 'srv-msg';
-      el.innerHTML = `<span class="srv-who">${escapeHtml(m.sender_name)}</span>${vbadge(m.is_verified)}${probadge(m.pro)}<span class="srv-time">${timeAgo(m.created_at)}</span><div class="srv-body">${escapeHtml(m.body)}</div>`;
-      box.appendChild(el);
-    });
-    if (msgs.length) box.scrollTop = box.scrollHeight;
-  } finally { serverPollBusy = false; }
-}
-
-function serverSlowmode(seconds) {
-  const btn = $('#server-send');
-  clearInterval(serverSlowTimer);
-  let left = seconds; btn.disabled = true; btn.textContent = `${left}s`;
-  serverSlowTimer = setInterval(() => {
-    left -= 1;
-    if (left <= 0) { clearInterval(serverSlowTimer); btn.disabled = false; btn.textContent = 'Send'; return; }
-    btn.textContent = `${left}s`;
-  }, 1000);
-}
-let serverSending = false;
-async function sendServerMsg() {
-  if (!ME) return openModal('auth-overlay');
-  const input = $('#server-input');
-  const body = input.value.trim();
-  if (!body || serverSending || $('#server-send').disabled) return;
-  serverSending = true;
-  input.value = '';
-  try {
-    const r = await api(`/api/rooms/${serverRoom}/messages`, { method: 'POST', body: JSON.stringify({ body }) });
-    if (r.error) { toast(r.error, 'error'); input.value = body; if (r.retry_in) serverSlowmode(r.retry_in); return; }
-    await pollServer(false);
-    serverSlowmode(r.slowmode_seconds || 5);
-  } finally { serverSending = false; input.focus(); }
-}
-$('#server-send').onclick = sendServerMsg;
-$('#server-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendServerMsg(); });
-$('#text-channels').addEventListener('click', (e) => {
-  const c = e.target.closest('.chan');
-  if (c) switchServerChannel(c.dataset.chan);
-});
-$('#voice-channels').addEventListener('click', async (e) => {
-  const c = e.target.closest('.chan');
-  if (!c) return;
-  if (!ME) return openModal('auth-overlay');
-  const r = await api(`/api/server/voice/${c.dataset.vc}/join`, { method: 'POST' });
-  if (r.error) return toast(r.error, 'error');
-  openLobbyRoom(r.id);
-  loadServerSummary();
-});
 
 // ============================================================
 // Trust check / scammer watchlist
@@ -3707,6 +3632,7 @@ let trustLastLookup = null; // last looked-up username, for post-report refresh
 
 async function loadTrustList() {
   const box = $('#trust-list');
+  showSkeletonRows('#trust-list', 3);
   const r = await api('/api/trust/watchlist');
   const items = r.items || [];
   if (!items.length) {
@@ -3853,6 +3779,7 @@ let lastLobbyMsgId = 0;
 
 async function loadLobbies() {
   const grid = $('#lobby-grid');
+  showSkeletonRows('#lobby-grid', 3);
   const r = await api('/api/lobbies');
   const ls = r.lobbies || [];
   if (!ls.length) {
@@ -4317,6 +4244,7 @@ $('#vw-open').onclick = () => { const id = Voice.openLobby(); if (id) openLobbyR
 // ============================================================
 async function loadWfl() {
   const grid = $('#wfl-grid');
+  showSkeletonRows('#wfl-grid', 3);
   const r = await api('/api/wfl');
   const posts = r.posts || [];
   if (!posts.length) {
@@ -4530,10 +4458,19 @@ window.addEventListener('scroll', () => {
 // ============================================================
 // Trading tools — "What can I get?" + multi-person trade chains
 // ============================================================
+$$('.tool-head').forEach((h) => {
+  // Focusable, so it answers Enter/Space like the button it presents itself as.
+  h.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); h.click(); }
+  });
+});
 $$('.tool-head').forEach(h => h.addEventListener('click', () => {
   const body = $('#' + h.dataset.tool + '-body');
   body.hidden = !body.hidden;
-  h.querySelector('.tool-chev').textContent = body.hidden ? '▾' : '▴';
+  // The chevron rotates rather than swapping glyph, so the state change reads
+  // as one movement instead of a character flicker.
+  h.classList.toggle('open', !body.hidden);
+  h.setAttribute('aria-expanded', String(!body.hidden));
 }));
 
 // ---------- What can I get? ----------
@@ -4577,7 +4514,7 @@ $('#finder-q').addEventListener('input', finderSearch);
 $('#finder-go').addEventListener('click', async () => {
   if (!ME) return openModal('auth-overlay');
   const box = $('#finder-results');
-  box.innerHTML = '<div class="empty" style="padding:18px">Crunching marketplace data…</div>';
+  box.innerHTML = '<div class="empty" style="padding:16px">Crunching marketplace data…</div>';
   const r = await api('/api/trade-finder', { method: 'POST', body: JSON.stringify({ listing_ids: [...finderPicked.keys()] }) });
   if (r.error) { box.innerHTML = ''; return toast(r.error, 'error'); }
   const L = r.listings || [], T = r.trade_posts || [];
@@ -4592,7 +4529,7 @@ $('#finder-go').addEventListener('click', async () => {
         <span class="fm-actions"><button class="btn btn-small" data-fview="${l.id}">View</button><button class="btn btn-small" data-fdm="${escapeHtml(l.seller_name)}">DM</button></span>
       </div>`;
     }).join('')}</div>` : '<div class="empty-block">No listings in a comparable price band right now — check back soon.</div>'}
-    ${T.length ? `<h4 style="margin:14px 0 8px">Traders already looking for items like yours</h4><div class="finder-matches">${T.map(t => `
+    ${T.length ? `<h4 style="margin:12px 0 8px">Traders already looking for items like yours</h4><div class="finder-matches">${T.map(t => `
       <div class="finder-match">
         <div class="fm-thumb">⇄</div>
         <div class="fm-main"><b>${escapeHtml(t.username)}</b> wants <b>${escapeHtml(t.wants)}</b><span class="sub">offering: ${escapeHtml(t.offering)}</span></div>
@@ -4626,7 +4563,7 @@ function chainDiagram(members) {
 $('#chains-find').addEventListener('click', async () => {
   if (!ME) return openModal('auth-overlay');
   const box = $('#chains-found');
-  box.innerHTML = '<div class="empty" style="padding:14px">Searching for compatible chains…</div>';
+  box.innerHTML = '<div class="empty" style="padding:12px">Searching for compatible chains…</div>';
   const r = await api('/api/chains/discover');
   if (r.reason === 'no_posts') {
     box.innerHTML = '<div class="empty-block">You need an open trade post with chain matching turned on first.</div>';
@@ -4795,6 +4732,7 @@ function eventPhaseChip(ev) {
 async function loadEvents() {
   const grid = $('#events-grid');
   if (!grid) return;
+  showSkeletonRows('#events-grid', 2);
   $('#event-create-btn').style.display = ME && ME.is_admin ? '' : 'none';
   const r = await api('/api/events');
   const events = r.events || [];
