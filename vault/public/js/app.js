@@ -26,6 +26,20 @@ let lastDmId = 0;
 let lastChatMessageId = 0;
 let pendingCryptoContext = null; // { kind: 'auction'|'listing', id }
 let dashTab = 'purchases';
+// Each dashboard section names itself, so the panel has a heading instead of
+// relying on you remembering which sidebar row you clicked.
+const DASH_SECTIONS = {
+  purchases: ['Purchases', 'Items you\u2019ve bought and the escrow status of each.'],
+  offers:    ['Offers', 'Offers you\u2019ve made, and offers waiting on your answer.'],
+  bids:      ['My bids', 'Auctions you\u2019re bidding on right now.'],
+  favorites: ['Favourites', 'Items you\u2019ve saved to come back to.'],
+  sales:     ['Sales', 'What you\u2019ve sold, and what still needs delivering.'],
+  selling:   ['My listings', 'Everything you have on the market.'],
+  trades:    ['Trades', 'In-game trade posts and middleman tickets.'],
+  wallet:    ['Wallet', 'Balance, payouts, and your connected crypto wallet.'],
+  referrals: ['Invite & earn', 'Your invite link and the traders who joined through it.'],
+  developer: ['Developer', 'API keys and endpoint reference.'],
+};
 let adminTab = 'disputes';
 
 const $ = sel => document.querySelector(sel);
@@ -346,32 +360,49 @@ async function api(url, opts = {}) {
 // Views / routing
 // ============================================================
 function showView(name) {
-  $$('.view').forEach(v => v.classList.remove('active'));
-  const el = $('#view-' + name);
-  (el || $('#view-home')).classList.add('active');
+  const el = $('#view-' + name) || $('#view-home');
+  // Re-entering the view you're already on (switching dashboard sections, say)
+  // must not replay the entry animation or throw you back to the top.
+  const already = el.classList.contains('active');
+  if (!already) {
+    $$('.view').forEach(v => v.classList.remove('active'));
+    el.classList.add('active');
+  }
   if (name !== 'messages') { clearInterval(dmPollTimer); activeDmPartner = null; }
   syncNavActive(name);
   if (typeof updateDock === 'function') updateDock(name);
   // Jump, don't glide. `scroll-behavior: smooth` is for in-page anchors; on a
   // route change it crawls the whole page back to the top, which reads as lag.
-  window.scrollTo({ top: 0, behavior: 'instant' });
+  if (!already) window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 function syncNavActive(view) {
   const h = location.hash.replace(/^#/, '');
-  $$('#main-nav a, #mobile-nav a').forEach(a => {
+  const isOn = (a) => {
     const target = (a.getAttribute('href') || '').replace(/^#/, '');
-    const on = target && (view === 'home' ? (target === h) : (target === view || (view === 'messages' && target === 'messages')));
-    a.classList.toggle('active', !!on);
-  });
+    return !!target && (view === 'home' ? target === h : (target === view || (view === 'messages' && target === 'messages')));
+  };
+  $$('#main-nav a, #mobile-nav a').forEach(a => a.classList.toggle('active', isOn(a)));
+  // "More" reads as active while you're on one of the pages it hides.
+  const inMore = [...$$('#nav-more-menu a')].some(isOn);
+  $('#nav-more-btn').classList.toggle('active', inMore);
 }
 
 async function route() {
   const h = location.hash.replace(/^#/, '');
   if (h.startsWith('u/')) { showView('profile'); loadProfile(decodeURIComponent(h.slice(2))); return; }
-  if (h === 'dashboard') {
+  if (h === 'dashboard' || h.startsWith('dashboard/')) {
     if (!ME) { showView('home'); return openModal('auth-overlay'); }
-    showView('dashboard'); loadDashboard(); return;
+    // A bare #dashboard is the default section, so going back to it from
+    // #dashboard/wallet lands where that history entry actually was.
+    const section = h.slice('dashboard/'.length);
+    dashTab = DASH_SECTIONS[section] ? section : 'purchases';
+    const wasOpen = $('#view-dashboard').classList.contains('active');
+    showView('dashboard');
+    // Already here — swap the panel and leave the stats alone rather than
+    // refetching the overview and repainting the whole page.
+    if (wasOpen) renderDashTab(); else loadDashboard();
+    return;
   }
   if (h === 'admin') {
     if (!ME || !ME.is_admin) { showView('home'); return; }
@@ -438,8 +469,7 @@ function renderAuth() {
       ? `<img src="${escapeHtml(ME.avatar_url)}" alt="">`
       : `<span class="avatar-fallback">${escapeHtml(ME.username[0].toUpperCase())}</span>`;
     area.innerHTML = `
-      <a class="btn btn-small dash-btn" href="#dashboard">Dashboard</a>
-      <a class="balance-chip" href="#dashboard" title="Your balance">◈ ${money(ME.site_credit_cents)}</a>
+      <a class="balance-chip" href="#dashboard" title="Your balance — opens the dashboard">◈ ${money(ME.site_credit_cents)}</a>
       <button class="icon-btn" id="dm-btn" title="Messages" aria-label="Messages">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-4-.9L3 21l1.9-4.6A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4Z"/></svg>
         <span class="badge-dot" id="dm-badge" style="display:none"></span>
@@ -473,8 +503,26 @@ function toggleDropdown(id) {
     if (id === 'notif-dropdown') markNotifsRead();
   }
 }
-function closeDropdowns() { $$('.dropdown').forEach(d => d.classList.remove('open')); }
-document.addEventListener('click', (e) => { if (!e.target.closest('.dropdown') && !e.target.closest('.icon-btn') && !e.target.closest('.avatar-btn')) closeDropdowns(); });
+function closeDropdowns() {
+  $$('.dropdown').forEach(d => d.classList.remove('open'));
+  $('#nav-more-btn').setAttribute('aria-expanded', 'false');
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.dropdown') && !e.target.closest('.icon-btn')
+      && !e.target.closest('.avatar-btn') && !e.target.closest('#nav-more-btn')) closeDropdowns();
+});
+
+// ---------- Secondary nav ("More") ----------
+$('#nav-more-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const open = !$('#nav-more-menu').classList.contains('open');
+  closeDropdowns();
+  if (open) {
+    $('#nav-more-menu').classList.add('open');
+    $('#nav-more-btn').setAttribute('aria-expanded', 'true');
+  }
+});
+$$('#nav-more-menu a').forEach(a => a.addEventListener('click', closeDropdowns));
 
 // ============================================================
 // Notifications
@@ -1558,13 +1606,15 @@ async function loadDashboard() {
   const ov = await api('/api/my/overview');
   if (ov.error) return;
   $('#dash-hello').textContent = `Signed in as ${ME.username}`;
+  // Each figure links to the section that explains it, so the strip is a way
+  // into the dashboard rather than a row of numbers to read and ignore.
   $('#dash-stats').innerHTML = `
-    <div class="stat-card"><div class="val gold">${money(ov.balance_cents)}</div><div class="lbl">Balance</div></div>
-    <div class="stat-card"><div class="val">${ov.purchases_open}</div><div class="lbl">Open purchases</div></div>
-    <div class="stat-card"><div class="val">${ov.sales_open}</div><div class="lbl">Open sales</div></div>
-    <div class="stat-card"><div class="val">${ov.active_listings + ov.live_auctions}</div><div class="lbl">Items on the market</div></div>
-    <div class="stat-card"><div class="val gold">${money(ov.total_earned_cents || 0)}</div><div class="lbl">Lifetime earned</div></div>
-    <div class="stat-card"><div class="val">${ov.avg_rating ? ov.avg_rating + '★' : '—'}</div><div class="lbl">Rating (${ov.review_count})</div></div>
+    <a class="stat-card" href="#dashboard/wallet"><div class="val gold">${money(ov.balance_cents)}</div><div class="lbl">Balance</div></a>
+    <a class="stat-card" href="#dashboard/purchases"><div class="val">${ov.purchases_open}</div><div class="lbl">Open purchases</div></a>
+    <a class="stat-card" href="#dashboard/sales"><div class="val">${ov.sales_open}</div><div class="lbl">Open sales</div></a>
+    <a class="stat-card" href="#dashboard/selling"><div class="val">${ov.active_listings + ov.live_auctions}</div><div class="lbl">Items on the market</div></a>
+    <a class="stat-card" href="#dashboard/wallet"><div class="val gold">${money(ov.total_earned_cents || 0)}</div><div class="lbl">Lifetime earned</div></a>
+    <a class="stat-card" href="#u/${encodeURIComponent(ME.username)}"><div class="val">${ov.avg_rating ? ov.avg_rating + '★' : '—'}</div><div class="lbl">Rating (${ov.review_count})</div></a>
   `;
   $('#tc-purchases').textContent = ov.purchases_open || '';
   $('#tc-sales').textContent = ov.sales_open || '';
@@ -1582,16 +1632,24 @@ async function loadDashboard() {
 }
 
 $('#dash-tabs').addEventListener('click', (e) => {
-  const t = e.target.closest('.tab');
-  if (!t) return;
-  dashTab = t.dataset.tab;
-  $$('#dash-tabs .tab').forEach(x => x.classList.toggle('active', x === t));
-  renderDashTab();
+  const t = e.target.closest('.dash-link');
+  if (!t || t.dataset.tab === dashTab) return;
+  // Routing through the hash means back/forward move between sections and a
+  // section can be linked to directly.
+  location.hash = 'dashboard/' + t.dataset.tab;
 });
+
+function syncDashNav() {
+  $$('#dash-tabs .dash-link').forEach(x => x.classList.toggle('active', x.dataset.tab === dashTab));
+  const [title, sub] = DASH_SECTIONS[dashTab] || [dashTab, ''];
+  $('#dash-section-title').textContent = title;
+  $('#dash-section-sub').textContent = sub;
+}
 
 async function renderDashTab() {
   const c = $('#dash-content');
-  c.innerHTML = '<div class="empty-block">Loading…</div>';
+  syncDashNav();
+  c.innerHTML = skeletonRows(3);
 
   if (dashTab === 'purchases' || dashTab === 'sales') {
     const role = dashTab === 'purchases' ? 'buyer' : 'seller';

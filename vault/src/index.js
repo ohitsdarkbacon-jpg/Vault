@@ -220,12 +220,30 @@ app.use('/uploads', express.static(config.uploadDir));
 app.use('/uploads', (req, res) => res.status(404).json({ error: 'Image not found.' }));
 
 // ---- Static frontend ----
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// The document must never go stale. It references /css/style.css and
+// /js/app.js at fixed paths, so a browser (or a proxy) holding yesterday's
+// index.html alongside today's stylesheet renders markup the CSS no longer
+// knows about — which is how the retired background decoration came back.
+// no-store on the document keeps the HTML and the assets it names together.
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+const sendIndex = (req, res) => {
+  res.set('Cache-Control', 'no-store, must-revalidate');
+  res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
+};
+
+app.get(['/', '/index.html'], sendIndex);
+app.use(express.static(PUBLIC_DIR, {
+  // Assets are revalidated rather than trusted blindly, for the same reason.
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) res.set('Cache-Control', 'no-store, must-revalidate');
+    else res.set('Cache-Control', 'public, max-age=0, must-revalidate');
+  },
+}));
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/auth') || req.path.startsWith('/webhooks')) {
     return next();
   }
-  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+  sendIndex(req, res);
 });
 
 // ---- Error handler ----

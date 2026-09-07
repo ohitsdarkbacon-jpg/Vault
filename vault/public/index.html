@@ -37,18 +37,29 @@
       </g>
     </svg>
     Vault</a>
+  <!-- Five destinations people use daily stay on the bar; the rest live one
+       click away so the row never has to wrap or shrink to fit. -->
   <nav id="main-nav">
-    <a href="#auctions" data-scroll>Live auctions</a>
+    <a href="#auctions" data-scroll>Auctions</a>
     <a href="#listings" data-scroll>Marketplace</a>
     <a href="#trading">Trading</a>
-    <a href="#trust">Trust check</a>
     <a href="#tournaments">Tournaments</a>
-    <a href="#lobbies">Play with others</a>
-    <a href="#creators">Creators</a>
-    <a href="#dashboard">Dashboard</a>
-    <a href="#" id="nav-sell">Sell an item</a>
+    <a href="#lobbies">Play</a>
+    <div class="nav-more" id="nav-more">
+      <button class="nav-more-btn" id="nav-more-btn" aria-haspopup="true" aria-expanded="false">
+        More
+        <svg class="nav-more-chev" width="9" height="6" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="dropdown nav-more-menu" id="nav-more-menu">
+        <a class="menu-item" href="#trust">Trust check</a>
+        <a class="menu-item" href="#traders">Trader directory</a>
+        <a class="menu-item" href="#traders-center">Traders center</a>
+        <a class="menu-item" href="#creators">Creator partners</a>
+      </div>
+    </div>
   </nav>
   <div class="header-right">
+    <button class="btn btn-gold btn-sell" id="nav-sell">Sell an item</button>
     <div id="auth-area" class="auth-area"></div>
     <button class="nav-toggle" id="nav-toggle" aria-label="Menu">☰</button>
     <div class="dropdown" id="notif-dropdown">
@@ -256,19 +267,34 @@
       <button class="btn btn-gold" id="dash-sell">+ List an item</button>
     </div>
     <div class="stat-cards" id="dash-stats"></div>
-    <div class="tabs" id="dash-tabs">
-      <button class="tab active" data-tab="purchases">Purchases <span class="count" id="tc-purchases"></span></button>
-      <button class="tab" data-tab="sales">Sales <span class="count" id="tc-sales"></span></button>
-      <button class="tab" data-tab="selling">My listings <span class="count" id="tc-selling"></span></button>
-      <button class="tab" data-tab="offers">Offers <span class="count" id="tc-offers"></span></button>
-      <button class="tab" data-tab="trades">Trades <span class="count" id="tc-trades"></span></button>
-      <button class="tab" data-tab="bids">My bids</button>
-      <button class="tab" data-tab="wallet">Wallet</button>
-      <button class="tab" data-tab="referrals">Invite &amp; earn</button>
-      <button class="tab" data-tab="favorites">Favorites</button>
-      <button class="tab" data-tab="developer">Developer</button>
+    <!-- Ten flat tabs asked you to scan a whole row to find anything. Grouped
+         down one side, each section sits under the job it belongs to, the
+         list never scrolls, and every section has its own URL. -->
+    <div class="dash-layout">
+      <aside class="dash-nav" id="dash-tabs">
+        <div class="dash-nav-group">Buying</div>
+        <button class="dash-link active" data-tab="purchases">Purchases <span class="count" id="tc-purchases"></span></button>
+        <button class="dash-link" data-tab="offers">Offers <span class="count" id="tc-offers"></span></button>
+        <button class="dash-link" data-tab="bids">My bids</button>
+        <button class="dash-link" data-tab="favorites">Favourites</button>
+
+        <div class="dash-nav-group">Selling</div>
+        <button class="dash-link" data-tab="sales">Sales <span class="count" id="tc-sales"></span></button>
+        <button class="dash-link" data-tab="selling">My listings <span class="count" id="tc-selling"></span></button>
+
+        <div class="dash-nav-group">Trading</div>
+        <button class="dash-link" data-tab="trades">Trades <span class="count" id="tc-trades"></span></button>
+
+        <div class="dash-nav-group">Account</div>
+        <button class="dash-link" data-tab="wallet">Wallet</button>
+        <button class="dash-link" data-tab="referrals">Invite &amp; earn</button>
+        <button class="dash-link" data-tab="developer">Developer</button>
+      </aside>
+      <div class="dash-main">
+        <div class="dash-section-head"><h3 id="dash-section-title">Purchases</h3><span class="sub" id="dash-section-sub"></span></div>
+        <div id="dash-content"></div>
+      </div>
     </div>
-    <div id="dash-content"></div>
   </div>
 </div>
 
