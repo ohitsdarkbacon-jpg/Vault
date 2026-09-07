@@ -469,7 +469,9 @@ ensureColumn('users', 'pro_auto_renew', 'pro_auto_renew INTEGER NOT NULL DEFAULT
 ensureColumn('users', 'wallet_address', 'wallet_address TEXT');
 ensureColumn('users', 'wallet_currency', 'wallet_currency TEXT');
 
-// Vault Server voice channels are lobbies tagged with a channel slug.
+// Legacy: the removed Vault Server tagged its voice channels with a slug here.
+// Nothing writes it any more, but the column stays so leftover rows keep their
+// tag and go on being filtered out of the lobby browser.
 ensureColumn('lobbies', 'channel', 'channel TEXT');
 
 // Built-in voice: per-member "in voice" heartbeat + a WebRTC signalling
